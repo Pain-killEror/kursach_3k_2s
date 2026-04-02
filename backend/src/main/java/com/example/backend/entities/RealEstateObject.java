@@ -31,9 +31,7 @@ public class RealEstateObject {
     @Column(length = 1000)
     private String address;
 
-    private BigDecimal latitude;
-
-    private BigDecimal longitude;
+    // УДАЛЕНЫ latitude и longitude
 
     @Column(name = "area_total")
     private BigDecimal areaTotal;
@@ -72,10 +70,14 @@ public class RealEstateObject {
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
 
+    // ДОБАВЛЕНО новое поле attributes (JSON)
+    @Column(columnDefinition = "json")
+    private String attributes;
+
     public RealEstateObject() {
     }
 
-    public RealEstateObject(UUID id, String externalId, String type, String category, String title, String description, String city, String address, BigDecimal latitude, BigDecimal longitude, BigDecimal areaTotal, BigDecimal areaLiving, Integer floor, Integer floorsTotal, String wallMaterial, Integer yearBuilt, BigDecimal priceTotal, BigDecimal pricePerM2, String currency, String imagesUrls, String sourceUrl, LocalDateTime createdAt, LocalDateTime updatedAt) {
+    public RealEstateObject(UUID id, String externalId, String type, String category, String title, String description, String city, String address, BigDecimal areaTotal, BigDecimal areaLiving, Integer floor, Integer floorsTotal, String wallMaterial, Integer yearBuilt, BigDecimal priceTotal, BigDecimal pricePerM2, String currency, String imagesUrls, String sourceUrl, LocalDateTime createdAt, LocalDateTime updatedAt, String attributes) {
         this.id = id;
         this.externalId = externalId;
         this.type = type;
@@ -84,8 +86,6 @@ public class RealEstateObject {
         this.description = description;
         this.city = city;
         this.address = address;
-        this.latitude = latitude;
-        this.longitude = longitude;
         this.areaTotal = areaTotal;
         this.areaLiving = areaLiving;
         this.floor = floor;
@@ -99,189 +99,74 @@ public class RealEstateObject {
         this.sourceUrl = sourceUrl;
         this.createdAt = createdAt;
         this.updatedAt = updatedAt;
+        this.attributes = attributes;
     }
 
-    public UUID getId() {
-        return id;
-    }
+    // --- GETTERS & SETTERS ---
 
-    public void setId(UUID id) {
-        this.id = id;
-    }
+    public UUID getId() { return id; }
+    public void setId(UUID id) { this.id = id; }
 
-    public String getExternalId() {
-        return externalId;
-    }
+    public String getExternalId() { return externalId; }
+    public void setExternalId(String externalId) { this.externalId = externalId; }
 
-    public void setExternalId(String externalId) {
-        this.externalId = externalId;
-    }
+    public String getType() { return type; }
+    public void setType(String type) { this.type = type; }
 
-    public String getType() {
-        return type;
-    }
+    public String getCategory() { return category; }
+    public void setCategory(String category) { this.category = category; }
 
-    public void setType(String type) {
-        this.type = type;
-    }
+    public String getTitle() { return title; }
+    public void setTitle(String title) { this.title = title; }
 
-    public String getCategory() {
-        return category;
-    }
+    public String getDescription() { return description; }
+    public void setDescription(String description) { this.description = description; }
 
-    public void setCategory(String category) {
-        this.category = category;
-    }
+    public String getCity() { return city; }
+    public void setCity(String city) { this.city = city; }
 
-    public String getTitle() {
-        return title;
-    }
+    public String getAddress() { return address; }
+    public void setAddress(String address) { this.address = address; }
 
-    public void setTitle(String title) {
-        this.title = title;
-    }
+    public BigDecimal getAreaTotal() { return areaTotal; }
+    public void setAreaTotal(BigDecimal areaTotal) { this.areaTotal = areaTotal; }
 
-    public String getDescription() {
-        return description;
-    }
+    public BigDecimal getAreaLiving() { return areaLiving; }
+    public void setAreaLiving(BigDecimal areaLiving) { this.areaLiving = areaLiving; }
 
-    public void setDescription(String description) {
-        this.description = description;
-    }
+    public Integer getFloor() { return floor; }
+    public void setFloor(Integer floor) { this.floor = floor; }
 
-    public String getCity() {
-        return city;
-    }
+    public Integer getFloorsTotal() { return floorsTotal; }
+    public void setFloorsTotal(Integer floorsTotal) { this.floorsTotal = floorsTotal; }
 
-    public void setCity(String city) {
-        this.city = city;
-    }
+    public String getWallMaterial() { return wallMaterial; }
+    public void setWallMaterial(String wallMaterial) { this.wallMaterial = wallMaterial; }
 
-    public String getAddress() {
-        return address;
-    }
+    public Integer getYearBuilt() { return yearBuilt; }
+    public void setYearBuilt(Integer yearBuilt) { this.yearBuilt = yearBuilt; }
 
-    public void setAddress(String address) {
-        this.address = address;
-    }
+    public BigDecimal getPriceTotal() { return priceTotal; }
+    public void setPriceTotal(BigDecimal priceTotal) { this.priceTotal = priceTotal; }
 
-    public BigDecimal getLatitude() {
-        return latitude;
-    }
+    public BigDecimal getPricePerM2() { return pricePerM2; }
+    public void setPricePerM2(BigDecimal pricePerM2) { this.pricePerM2 = pricePerM2; }
 
-    public void setLatitude(BigDecimal latitude) {
-        this.latitude = latitude;
-    }
+    public String getCurrency() { return currency; }
+    public void setCurrency(String currency) { this.currency = currency; }
 
-    public BigDecimal getLongitude() {
-        return longitude;
-    }
+    public String getImagesUrls() { return imagesUrls; }
+    public void setImagesUrls(String imagesUrls) { this.imagesUrls = imagesUrls; }
 
-    public void setLongitude(BigDecimal longitude) {
-        this.longitude = longitude;
-    }
+    public String getSourceUrl() { return sourceUrl; }
+    public void setSourceUrl(String sourceUrl) { this.sourceUrl = sourceUrl; }
 
-    public BigDecimal getAreaTotal() {
-        return areaTotal;
-    }
+    public LocalDateTime getCreatedAt() { return createdAt; }
+    public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
 
-    public void setAreaTotal(BigDecimal areaTotal) {
-        this.areaTotal = areaTotal;
-    }
+    public LocalDateTime getUpdatedAt() { return updatedAt; }
+    public void setUpdatedAt(LocalDateTime updatedAt) { this.updatedAt = updatedAt; }
 
-    public BigDecimal getAreaLiving() {
-        return areaLiving;
-    }
-
-    public void setAreaLiving(BigDecimal areaLiving) {
-        this.areaLiving = areaLiving;
-    }
-
-    public Integer getFloor() {
-        return floor;
-    }
-
-    public void setFloor(Integer floor) {
-        this.floor = floor;
-    }
-
-    public Integer getFloorsTotal() {
-        return floorsTotal;
-    }
-
-    public void setFloorsTotal(Integer floorsTotal) {
-        this.floorsTotal = floorsTotal;
-    }
-
-    public String getWallMaterial() {
-        return wallMaterial;
-    }
-
-    public void setWallMaterial(String wallMaterial) {
-        this.wallMaterial = wallMaterial;
-    }
-
-    public Integer getYearBuilt() {
-        return yearBuilt;
-    }
-
-    public void setYearBuilt(Integer yearBuilt) {
-        this.yearBuilt = yearBuilt;
-    }
-
-    public BigDecimal getPriceTotal() {
-        return priceTotal;
-    }
-
-    public void setPriceTotal(BigDecimal priceTotal) {
-        this.priceTotal = priceTotal;
-    }
-
-    public BigDecimal getPricePerM2() {
-        return pricePerM2;
-    }
-
-    public void setPricePerM2(BigDecimal pricePerM2) {
-        this.pricePerM2 = pricePerM2;
-    }
-
-    public String getCurrency() {
-        return currency;
-    }
-
-    public void setCurrency(String currency) {
-        this.currency = currency;
-    }
-
-    public String getImagesUrls() {
-        return imagesUrls;
-    }
-
-    public void setImagesUrls(String imagesUrls) {
-        this.imagesUrls = imagesUrls;
-    }
-
-    public String getSourceUrl() {
-        return sourceUrl;
-    }
-
-    public void setSourceUrl(String sourceUrl) {
-        this.sourceUrl = sourceUrl;
-    }
-
-    public LocalDateTime getCreatedAt() {
-        return createdAt;
-    }
-
-    public void setCreatedAt(LocalDateTime createdAt) {
-        this.createdAt = createdAt;
-    }
-
-    public LocalDateTime getUpdatedAt() {
-        return updatedAt;
-    }
-
-    public void setUpdatedAt(LocalDateTime updatedAt) {
-        this.updatedAt = updatedAt;
-    }
+    public String getAttributes() { return attributes; }
+    public void setAttributes(String attributes) { this.attributes = attributes; }
 }

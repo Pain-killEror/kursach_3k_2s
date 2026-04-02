@@ -1,57 +1,153 @@
-import React from 'react';
+import React, { useState } from 'react';
 import './ObjectCard.css';
 
 const ObjectCard = ({ object }) => {
-  // Безопасное извлечение первой картинки из списка
-  let coverImage = 'https://via.placeholder.com/350x200?text=Нет+фото';
-  
+  const [currentImageIndex, setCurrentImageIndex] = useState(0);
+
+  // 1. Безопасный парсинг картинок
+  let images = ['https://via.placeholder.com/350x200?text=Нет+фото'];
   if (object.imagesUrls) {
     try {
-      // Пытаемся разобрать JSON-массив
-      const images = JSON.parse(object.imagesUrls);
-      if (Array.isArray(images) && images.length > 0) {
-        coverImage = images[0];
+      // Ваш генератор сохраняет как стандартный JSON список ["url1", "url2"]
+      const parsedImages = JSON.parse(object.imagesUrls);
+      if (Array.isArray(parsedImages) && parsedImages.length > 0) {
+        images = parsedImages;
       }
     } catch (e) {
-      // Если это просто строка через запятую или одиночный URL
-      const images = object.imagesUrls.split(',');
-      if (images.length > 0 && images[0].trim() !== '') {
-        coverImage = images[0].trim();
+      // Фолбэк, если вдруг пришла просто строка с запятыми
+      const cleanString = object.imagesUrls.replace(/[\[\]'"]/g, '');
+      const splitImages = cleanString.split(',').map(img => img.trim()).filter(img => img !== '');
+      if (splitImages.length > 0) {
+        images = splitImages;
       }
     }
   }
 
-  // Форматирование цены (группировка разрядов)
+  const handlePrevImage = (e) => {
+    e.stopPropagation();
+    setCurrentImageIndex((prev) => (prev === 0 ? images.length - 1 : prev - 1));
+  };
+
+  const handleNextImage = (e) => {
+    e.stopPropagation();
+    setCurrentImageIndex((prev) => (prev === images.length - 1 ? 0 : prev + 1));
+  };
+
+  // 2. Умный парсинг атрибутов
+  let parsedAttributes = null;
+  if (object.attributes) {
+    try {
+      // Меняем одинарные кавычки на двойные (если Python записал так) и булевы значения
+      let validJson = object.attributes.replace(/'/g, '"').replace(/True/g, 'true').replace(/False/g, 'false');
+      parsedAttributes = JSON.parse(validJson);
+    } catch (e) {
+      console.warn("Ошибка парсинга атрибутов для объекта:", object.id);
+    }
+  }
+
+  // 3. ПОЛНЫЙ словарь переводов (на основе вашего generator.py)
+  const translateKey = (key) => {
+    const dictionary = {
+      rooms_count: 'Кол-во комнат',
+      renovation_state: 'Ремонт',
+      has_balcony: 'Балкон',
+      house_type: 'Тип дома',
+      plot_area_acres: 'Участок (сот.)',
+      heating_type: 'Отопление',
+      business_center_class: 'Класс БЦ',
+      access_24_7: 'Доступ 24/7',
+      warehouse_type: 'Тип склада',
+      ceiling_height_m: 'Потолки (м)',
+      has_ramp: 'Рампа',
+      retail_type: 'Тип помещения',
+      power_kw: 'Мощность (кВт)',
+      land_purpose: 'Назначение',
+      garage_type: 'Тип гаража',
+      has_security: 'Охрана'
+    };
+    return dictionary[key] || key;
+  };
+
+  // 4. Форматирование значений (превращаем true/false в Да/Нет)
+  const formatAttributeValue = (value) => {
+    if (value === true || value === 'true' || value === 'True') return 'Да';
+    if (value === false || value === 'false' || value === 'False') return 'Нет';
+    return value;
+  };
+
   const formatPrice = (price) => {
     if (!price) return 'Цена не указана';
     return new Intl.NumberFormat('ru-RU').format(price);
   };
 
+  const renderFloorInfo = () => {
+    if (!object.floor || object.floor === 0) return null;
+    if ((object.floor === 1 && object.floorsTotal === 1) || !object.floorsTotal) return null;
+    return (
+      <span className="object-card-detail">
+        <span className="detail-icon">🏢</span> {object.floor}/{object.floorsTotal}
+      </span>
+    );
+  };
+
   return (
     <div className="object-card">
       <div className="object-card-image-container">
-        <img src={coverImage} alt={object.title || 'Объект'} className="object-card-image" />
+        <img
+          src={images[currentImageIndex]}
+          alt={object.title || 'Объект'}
+          className="object-card-image"
+        />
+
+        {images.length > 1 && (
+          <>
+            <button className="image-nav-btn prev" onClick={handlePrevImage} title="Предыдущее фото">
+              <i className="fas fa-chevron-left"></i>
+            </button>
+            <button className="image-nav-btn next" onClick={handleNextImage} title="Следующее фото">
+              <i className="fas fa-chevron-right"></i>
+            </button>
+            <div className="image-counter">
+              {currentImageIndex + 1} / {images.length}
+            </div>
+          </>
+        )}
       </div>
+
       <div className="object-card-content">
-        <h3 className="object-card-title" title={object.title}>
-          {object.title || 'Без названия'}
-        </h3>
-        <p className="object-card-price">
-          {formatPrice(object.priceTotal)} {object.currency || ''}
-        </p>
-        <p className="object-card-address" title={`${object.city || ''}, ${object.address || ''}`}>
-          {object.city ? `${object.city}, ` : ''}{object.address || 'Адрес не указан'}
-        </p>
-        <div className="object-card-details">
-          {object.areaTotal && (
-            <span className="object-card-detail">
-              <span className="detail-icon">📐</span> {object.areaTotal} м²
-            </span>
-          )}
-          {object.floor && (
-            <span className="object-card-detail">
-              <span className="detail-icon">🏢</span> Этаж: {object.floor}
-            </span>
+        <div className="object-card-header-info">
+          <h3 className="object-card-title" title={object.title}>
+            {object.title || 'Без названия'}
+          </h3>
+          <p className="object-card-price">
+            {formatPrice(object.priceTotal)} {object.currency || ''}
+          </p>
+          <p className="object-card-address" title={`${object.city || ''}, ${object.address || ''}`}>
+            {object.city ? `${object.city}, ` : ''}{object.address || 'Адрес не указан'}
+          </p>
+
+          <div className="object-card-details">
+            {object.areaTotal && (
+              <span className="object-card-detail">
+                <span className="detail-icon">📐</span> {object.areaTotal} м²
+              </span>
+            )}
+            {renderFloorInfo()}
+          </div>
+        </div>
+
+        <div className="object-card-attributes-wrapper">
+          {parsedAttributes && Object.keys(parsedAttributes).length > 0 ? (
+            <div className="object-card-attributes">
+              {Object.entries(parsedAttributes).map(([key, value]) => (
+                <div key={key} className="attribute-item">
+                  <span className="attribute-key">{translateKey(key)}:</span>
+                  <span className="attribute-value">{formatAttributeValue(value)}</span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="no-attributes">Нет доп. характеристик</div>
           )}
         </div>
       </div>
