@@ -16,9 +16,7 @@ const Login = () => {
       });
 
       if (response.data) {
-        // Сохраняем объект пользователя в браузере
         localStorage.setItem('user', JSON.stringify(response.data));
-        // Переходим на главную
         navigate('/');
       }
     } catch (error) {
@@ -28,26 +26,43 @@ const Login = () => {
   };
 
   return (
-    <div style={{ display: 'flex', justifyContent: 'center', marginTop: '100px' }}>
-      <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', width: '300px', gap: '10px' }}>
-        <h2>Вход в систему</h2>
-        <input
-          type="email"
-          placeholder="Email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-          required
-        />
-        <input
-          type="password"
-          placeholder="Пароль"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          required
-        />
-        <button type="submit">Войти</button>
-        <p>Нет аккаунта? <Link to="/register">Регистрация</Link></p>
-      </form>
+    <div className="auth-container">
+      <div className="auth-card">
+        <div className="auth-header">
+          <h2>Вход в систему</h2>
+        </div>
+
+        <form onSubmit={handleSubmit} className="auth-form">
+          <div className="form-group">
+            <label>Email</label>
+            <input
+              type="email"
+              placeholder="Email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+            />
+          </div>
+          <div className="form-group">
+            <label>Пароль</label>
+            <input
+              type="password"
+              placeholder="Пароль"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+            />
+          </div>
+
+          <button type="submit" className="submit-btn">
+            Войти
+          </button>
+        </form>
+
+        <div className="nav-links">
+          Нет аккаунта? <Link to="/register">Регистрация</Link>
+        </div>
+      </div>
     </div>
   );
 };
