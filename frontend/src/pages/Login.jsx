@@ -1,83 +1,55 @@
 import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
 import axios from 'axios';
+import { useNavigate, Link } from 'react-router-dom';
 
-export default function Login() {
-  const [formData, setFormData] = useState({ email: '', password: '' });
-  const [error, setError] = useState('');
-  const [successMsg, setSuccessMsg] = useState('');
-  const [loading, setLoading] = useState(false);
-
-  const handleChange = (e) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
-  };
+const Login = () => {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const navigate = useNavigate();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setLoading(true);
-    setError('');
-    setSuccessMsg('');
-    
     try {
-      const response = await axios.post('http://localhost:8080/api/auth/login', formData);
-      setSuccessMsg(`Успешный вход! Добро пожаловать, ${response.data.name || 'Пользователь'}!`);
-    } catch (err) {
-      if (err.response && err.response.data) {
-        setError(typeof err.response.data === 'string' ? err.response.data : JSON.stringify(err.response.data));
-      } else {
-        setError('Сбой сервера бэкенда! Убедитесь что он запущен.');
+      const response = await axios.post('http://localhost:8080/api/auth/login', {
+        email: email,
+        password: password
+      });
+
+      if (response.data) {
+        // Сохраняем объект пользователя в браузере
+        localStorage.setItem('user', JSON.stringify(response.data));
+        // Переходим на главную
+        navigate('/');
       }
-    } finally {
-      setLoading(false);
+    } catch (error) {
+      console.error('Login error:', error);
+      alert('Неверный email или пароль');
     }
   };
 
   return (
-    <div className="auth-container">
-      <div className="auth-card">
-        <div className="auth-header">
-          <h2>С возвращением</h2>
-          <p>Введите ваши учетные данные</p>
-        </div>
-
-        {error && <div className="error-message">{error}</div>}
-        {successMsg && <div className="success-message">{successMsg}</div>}
-
-        <form onSubmit={handleSubmit} className="auth-form">
-          <div className="form-group">
-            <label htmlFor="email">Email</label>
-            <input 
-              type="email" 
-              id="email" 
-              name="email" 
-              value={formData.email} 
-              onChange={handleChange} 
-              required 
-              placeholder="ivan@example.com"
-            />
-          </div>
-          <div className="form-group">
-            <label htmlFor="password">Пароль</label>
-            <input 
-              type="password" 
-              id="password" 
-              name="password" 
-              value={formData.password} 
-              onChange={handleChange} 
-              required 
-              placeholder="••••••••"
-            />
-          </div>
-          
-          <button type="submit" className="submit-btn" disabled={loading}>
-            {loading ? 'Вход...' : 'Войти'}
-          </button>
-        </form>
-
-        <div className="nav-links">
-          Нет аккаунта? <Link to="/register">Создайте его</Link>
-        </div>
-      </div>
+    <div style={{ display: 'flex', justifyContent: 'center', marginTop: '100px' }}>
+      <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', width: '300px', gap: '10px' }}>
+        <h2>Вход в систему</h2>
+        <input
+          type="email"
+          placeholder="Email"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          required
+        />
+        <input
+          type="password"
+          placeholder="Пароль"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          required
+        />
+        <button type="submit">Войти</button>
+        <p>Нет аккаунта? <Link to="/register">Регистрация</Link></p>
+      </form>
     </div>
   );
-}
+};
+
+export default Login;
