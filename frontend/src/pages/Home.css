@@ -1,0 +1,46 @@
+.home-container {
+  padding: 40px;
+  min-height: 100vh;
+  color: #fff;
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+.home-title {
+  font-size: 2.5rem;
+  margin-bottom: 40px;
+  text-align: center;
+  font-weight: 700;
+  text-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+}
+
+.objects-grid {
+  display: grid;
+  /* Grid автоматически подстроит карточки: 
+     minmax(320px) гарантирует, что ширина колонки не будет меньше 320px.
+     Это автоматически даст 3-4 карточки в ряд на средних/больших экранах */
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 30px;
+  justify-items: center;
+}
+
+.loading-spinner {
+  text-align: center;
+  font-size: 1.5rem;
+  margin-top: 100px;
+  color: #a1a1aa;
+}
+
+.error-message {
+  text-align: center;
+  font-size: 1.25rem;
+  color: #ff6b6b;
+  margin-top: 50px;
+}
+
+.no-data-message {
+  text-align: center;
+  font-size: 1.25rem;
+  color: #a1a1aa;
+  margin-top: 50px;
+}
