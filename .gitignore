@@ -1,0 +1,36 @@
+# --- Java / Maven (Backend) ---
+**/target/
+**/pom.xml.tag
+**/pom.xml.releaseBackup
+**/pom.xml.utils_backup
+**/pom.xml.v8
+**/release.properties
+**/dependency-reduced-pom.xml
+**/buildNumber.properties
+**/.mvn/timing.properties
+**/.mvn/wrapper/maven-wrapper.jar
+
+# --- Node / React (Frontend) ---
+**/node_modules/
+**/dist/
+**/build/
+**/.eslintcache
+**/.stylelintcache
+**/*.local
+**/package-lock.json
+**/yarn.lock
+
+# --- IDE (IntelliJ IDEA, VS Code) ---
+**/.idea/
+**/*.iml
+**/*.iws
+**/.vscode/
+**/.settings/
+**/.project
+**/.classpath
+**/.factorypath
+
+# --- Системные файлы ---
+*.log
+.DS_Store
+Thumbs.db
