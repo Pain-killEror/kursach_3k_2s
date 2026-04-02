@@ -1,27 +1,39 @@
 import React, { useEffect, useState } from 'react';
-import axios from 'axios';
+import api from '../api/axios'; // <--- Импортируем наш настроенный Axios!
 import ObjectCard from '../components/ObjectCard';
 import './Home.css';
 
 const Home = () => {
   const [objects, setObjects] = useState([]);
+
   const user = JSON.parse(localStorage.getItem('user'));
+  const token = localStorage.getItem('token');
 
   useEffect(() => {
     const fetchObjects = async () => {
       try {
-        const response = await axios.get('http://localhost:8080/api/objects');
+        // <--- Запрос стал супер-коротким! Нет полного URL и нет возни с headers.
+        // Interceptor сам добавит токен.
+        const response = await api.get('/objects');
         setObjects(response.data);
       } catch (error) {
         console.error('Error fetching objects:', error);
+        // Если сервер ответил 401 или 403 (токен недействителен), выкидываем из аккаунта
+        if (error.response && (error.response.status === 401 || error.response.status === 403)) {
+          handleLogout();
+        }
       }
     };
-    fetchObjects();
-  }, []);
+
+    if (token) {
+      fetchObjects();
+    }
+  }, [token]);
 
   const handleLogout = () => {
     localStorage.removeItem('user');
-    window.location.reload(); // Это активирует ProtectedRoute и перекинет на логин
+    localStorage.removeItem('token');
+    window.location.reload();
   };
 
   return (
@@ -29,7 +41,7 @@ const Home = () => {
       <header style={{ display: 'flex', justifyContent: 'space-between', padding: '20px' }}>
         <h1>Инвестиционные объекты</h1>
         <div>
-          <span style={{ marginRight: '15px' }}>Привет, {user?.name}!</span>
+          <span style={{ marginRight: '15px' }}>Привет, {user ? user.name : 'Гость'}!</span>
           <button onClick={handleLogout}>Выйти</button>
         </div>
       </header>

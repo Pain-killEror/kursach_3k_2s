@@ -3,12 +3,20 @@ import Home from './pages/Home';
 import Login from './pages/Login';
 import Register from './pages/Register';
 
-// Компонент для защиты приватных страниц
+// Защищает приватные страницы (если НЕТ токена -> на логин)
 const ProtectedRoute = ({ children }) => {
-  const user = localStorage.getItem('user');
-  // Если данных о пользователе нет, отправляем на страницу входа
-  if (!user) {
+  const token = localStorage.getItem('token');
+  if (!token) {
     return <Navigate to="/login" replace />;
+  }
+  return children;
+};
+
+// Защищает страницы логина/регистрации (если ЕСТЬ токен -> на главную)
+const PublicRoute = ({ children }) => {
+  const token = localStorage.getItem('token');
+  if (token) {
+    return <Navigate to="/" replace />;
   }
   return children;
 };
@@ -17,18 +25,20 @@ function App() {
   return (
     <BrowserRouter>
       <Routes>
-        {/* Публичные страницы */}
-        <Route path="/login" element={<Login />} />
-        <Route path="/register" element={<Register />} />
+        {/* Публичные страницы оборачиваем в PublicRoute */}
+        <Route
+          path="/login"
+          element={<PublicRoute><Login /></PublicRoute>}
+        />
+        <Route
+          path="/register"
+          element={<PublicRoute><Register /></PublicRoute>}
+        />
 
         {/* Защищенная главная страница */}
         <Route
           path="/"
-          element={
-            <ProtectedRoute>
-              <Home />
-            </ProtectedRoute>
-          }
+          element={<ProtectedRoute><Home /></ProtectedRoute>}
         />
 
         {/* Если ввели несуществующий адрес — кидаем на главную */}

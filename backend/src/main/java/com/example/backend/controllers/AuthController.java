@@ -5,6 +5,7 @@ import com.example.backend.entities.User;
 import com.example.backend.services.AuthService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import com.example.backend.dto.JwtResponse;
 
 @RestController
 @RequestMapping("/api/auth")
@@ -17,17 +18,18 @@ public class AuthController {
         this.authService = authService;
     }
 
-    @PostMapping("/register")
-    public ResponseEntity<User> register(@RequestBody User user) {
-        return ResponseEntity.ok(authService.register(user));
+    @PostMapping("/login")
+    public ResponseEntity<?> login(@RequestBody LoginRequest loginRequest) {
+        try {
+            JwtResponse response = authService.login(loginRequest.getEmail(), loginRequest.getPassword());
+            return ResponseEntity.ok(response);
+        } catch (RuntimeException e) {
+            return ResponseEntity.status(401).body(e.getMessage());
+        }
     }
 
-    @PostMapping("/login")
-    public ResponseEntity<User> login(@RequestBody LoginRequest loginRequest) {
-        User user = authService.login(loginRequest.getEmail(), loginRequest.getPassword());
-        if (user != null) {
-            return ResponseEntity.ok(user);
-        }
-        return ResponseEntity.status(401).build();
+    @PostMapping("/register")
+    public ResponseEntity<?> register(@RequestBody com.example.backend.entities.User user) {
+        return ResponseEntity.ok(authService.register(user));
     }
 }
