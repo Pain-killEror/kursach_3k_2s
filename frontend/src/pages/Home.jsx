@@ -3,212 +3,251 @@ import api from '../api/axios';
 import ObjectCard from '../components/ObjectCard';
 import './Home.css';
 
-const Home = () => {
-  const [allObjects, setAllObjects] = useState([]); // Все объекты с сервера
-  const [displayedObjects, setDisplayedObjects] = useState([]); // Отфильтрованные объекты
-  const [isMenuOpen, setIsMenuOpen] = useState(false); // Состояние выпадающего меню пользователя
+// ПОЛНАЯ СИНХРОНИЗАЦИЯ С generator.py
+const CATEGORY_CONFIG = {
+  'КВАРТИРА': [
+    { name: 'rooms_count', label: 'Комнат', type: 'number' },
+    { name: 'renovation_state', label: 'Ремонт', type: 'select', options: ['Черновая отделка', 'Предчистовая', 'Плохой ремонт', 'Средний ремонт', 'Хороший ремонт', 'Элитный ремонт'] },
+    { name: 'has_balcony', label: 'Балкон', type: 'boolean' }
+  ],
+  'ДОМ': [
+    { name: 'house_type', label: 'Тип дома', type: 'select', options: ['Коттедж', 'Таунхаус', 'Старый дом'] },
+    { name: 'heating_type', label: 'Отопление', type: 'select', options: ['Газ', 'Твердотопливный', 'Электрическое'] },
+    { name: 'land_area', label: 'Участок (сот)', type: 'number' }
+  ],
+  'СКЛАД': [
+    { name: 'warehouse_type', label: 'Тип склада', type: 'select', options: ['Отапливаемый', 'Холодный'] },
+    { name: 'has_ramp', label: 'Пандус', type: 'boolean' },
+    { name: 'ceiling_height', label: 'Потолки (м)', type: 'number' }
+  ],
+  'ОФИС': [
+    { name: 'business_center_class', label: 'Класс БЦ', type: 'select', options: ['A', 'B', 'C'] },
+    { name: 'has_parking', label: 'Парковка', type: 'boolean' }
+  ],
+  'УЧАСТОК': [
+    { name: 'land_category', label: 'Категория', type: 'select', options: ['ИЖС', 'СНТ', 'Пром'] },
+    { name: 'has_electricity', label: 'Свет', type: 'boolean' },
+    { name: 'has_gas', label: 'Газ', type: 'boolean' }
+  ],
+  'ГАРАЖ': [
+    { name: 'garage_type', label: 'Тип', type: 'select', options: ['Металлический', 'Кирпичный'] },
+    { name: 'is_heated', label: 'Обогрев', type: 'boolean' }
+  ],
+  'ТОРГОВОЕ_ПОМЕЩЕНИЕ': [
+    { name: 'line_number', label: 'Линия', type: 'select', options: ['1-я линия', '2-я линия'] },
+    { name: 'has_showcase', label: 'Витрина', type: 'boolean' }
+  ],
+  'ПРОИЗВОДСТВО': [
+    { name: 'power_capacity', label: 'Мощность (кВт)', type: 'number' },
+    { name: 'has_crane_beam', label: 'Кран-балка', type: 'boolean' }
+  ]
+};
 
-  // Состояния фильтров
+const Home = () => {
+  const [allObjects, setAllObjects] = useState([]);
+  const [displayedObjects, setDisplayedObjects] = useState([]);
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [showAdvanced, setShowAdvanced] = useState(false);
+
   const [filters, setFilters] = useState({
-    city: '',
-    minPrice: '',
-    maxPrice: '',
-    minArea: '',
-    maxArea: ''
+    city: '', minPrice: '', maxPrice: '', minArea: '', maxArea: '',
+    categories: [], attributes: {}
   });
 
-  // Состояние сортировки
   const [sortOption, setSortOption] = useState('default');
-
   const user = JSON.parse(localStorage.getItem('user'));
   const token = localStorage.getItem('token');
   const dropdownRef = useRef(null);
 
-  // 1. Загрузка данных один раз при монтировании
   useEffect(() => {
     const fetchObjects = async () => {
       try {
         const response = await api.get('/objects');
         setAllObjects(response.data);
-        setDisplayedObjects(response.data);
-      } catch (error) {
-        console.error('Error fetching objects:', error);
-        if (error.response && (error.response.status === 401 || error.response.status === 403)) {
-          handleLogout();
-        }
-      }
+      } catch (error) { console.error('Ошибка:', error); }
     };
-
-    if (token) {
-      fetchObjects();
-    }
+    if (token) fetchObjects();
   }, [token]);
 
-  // Закрытие меню при клике вне его области
   useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
-        setIsMenuOpen(false);
-      }
+    const handleClickOutside = (e) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target)) setIsMenuOpen(false);
     };
-
     document.addEventListener('mousedown', handleClickOutside);
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
+    return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // 2. Логика фильтрации и сортировки
+  // Логика фильтрации
   useEffect(() => {
     let result = [...allObjects];
 
-    // --- ФИЛЬТРАЦИЯ ---
-    if (filters.city) {
-      result = result.filter(obj =>
-        obj.city && obj.city.toLowerCase().includes(filters.city.toLowerCase())
-      );
-    }
-    if (filters.minPrice) {
-      result = result.filter(obj => obj.priceTotal >= Number(filters.minPrice));
-    }
-    if (filters.maxPrice) {
-      result = result.filter(obj => obj.priceTotal <= Number(filters.maxPrice));
-    }
-    if (filters.minArea) {
-      result = result.filter(obj => obj.areaTotal >= Number(filters.minArea));
-    }
-    if (filters.maxArea) {
-      result = result.filter(obj => obj.areaTotal <= Number(filters.maxArea));
+    if (filters.city) result = result.filter(obj => obj.city === filters.city);
+    if (filters.minPrice) result = result.filter(obj => Number(obj.priceTotal) >= Number(filters.minPrice));
+    if (filters.maxPrice) result = result.filter(obj => Number(obj.priceTotal) <= Number(filters.maxPrice));
+    if (filters.minArea) result = result.filter(obj => Number(obj.areaTotal) >= Number(filters.minArea));
+    if (filters.maxArea) result = result.filter(obj => Number(obj.areaTotal) <= Number(filters.maxArea));
+
+    if (filters.categories.length > 0) {
+      result = result.filter(obj => filters.categories.includes(obj.category));
     }
 
-    // --- СОРТИРОВКА ---
-    switch (sortOption) {
-      case 'price_asc':
-        result.sort((a, b) => a.priceTotal - b.priceTotal);
-        break;
-      case 'price_desc':
-        result.sort((a, b) => b.priceTotal - a.priceTotal);
-        break;
-      case 'area_asc':
-        result.sort((a, b) => a.areaTotal - b.areaTotal);
-        break;
-      case 'area_desc':
-        result.sort((a, b) => b.areaTotal - a.areaTotal);
-        break;
-      default:
-        break;
+    const activeAttrKeys = Object.keys(filters.attributes).filter(k =>
+      filters.attributes[k] !== '' && filters.attributes[k] !== null
+    );
+
+    if (activeAttrKeys.length > 0) {
+      result = result.filter(obj => {
+        // Парсим attributes, так как в БД они часто лежат как строка
+        const objAttrs = typeof obj.attributes === 'string' ? JSON.parse(obj.attributes) : obj.attributes;
+
+        return activeAttrKeys.every(attrKey => {
+          const isApplicable = CATEGORY_CONFIG[obj.category]?.some(f => f.name === attrKey);
+          if (!isApplicable) return true; // Оставляем объект, если фильтр к нему не относится
+
+          const filterVal = filters.attributes[attrKey];
+          const objVal = objAttrs ? objAttrs[attrKey] : null;
+
+          if (typeof filterVal === 'boolean') return !!objVal === filterVal;
+          if (objVal === null || objVal === undefined) return false;
+
+          return String(objVal).toLowerCase() === String(filterVal).toLowerCase();
+        });
+      });
     }
+
+    // Сортировка
+    if (sortOption === 'price_asc') result.sort((a, b) => Number(a.priceTotal) - Number(b.priceTotal));
+    else if (sortOption === 'price_desc') result.sort((a, b) => Number(b.priceTotal) - Number(a.priceTotal));
+    else if (sortOption === 'area_desc') result.sort((a, b) => Number(b.areaTotal) - Number(a.areaTotal));
 
     setDisplayedObjects(result);
   }, [allObjects, filters, sortOption]);
 
-  const handleFilterChange = (e) => {
-    const { name, value } = e.target;
-    setFilters(prev => ({ ...prev, [name]: value }));
+  const toggleCategory = (cat) => {
+    setFilters(prev => ({
+      ...prev,
+      categories: prev.categories.includes(cat) ? prev.categories.filter(c => c !== cat) : [...prev.categories, cat]
+    }));
   };
 
-  const handleLogout = () => {
-    localStorage.removeItem('user');
-    localStorage.removeItem('token');
-    window.location.reload();
+  const handleAttrChange = (name, value) => {
+    setFilters(prev => ({
+      ...prev,
+      attributes: { ...prev.attributes, [name]: value }
+    }));
   };
 
-  const uniqueCities = useMemo(() => {
-    const cities = allObjects.map(obj => obj.city).filter(Boolean);
-    return [...new Set(cities)].sort();
-  }, [allObjects]);
+  const uniqueCities = useMemo(() =>
+    [...new Set(allObjects.map(obj => obj.city).filter(Boolean))].sort()
+    , [allObjects]);
 
   return (
     <div className="home-container">
       <header className="home-header">
-        <h1>Инвестиционные объекты</h1>
+        <div className="brand">💎 InvestHub</div>
 
-        {/* Меню профиля */}
         <div className="user-profile-container" ref={dropdownRef}>
-          <div
-            className="avatar-circle"
-            onClick={() => setIsMenuOpen(!isMenuOpen)}
-            title="Профиль"
-          >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="avatar-icon">
-              <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
-              <circle cx="12" cy="7" r="4"></circle>
-            </svg>
+          <div className="avatar-wrapper" onClick={() => setIsMenuOpen(!isMenuOpen)}>
+            <span className="user-nickname">{user?.name || 'Гость'}</span>
+            <div className="avatar-circle">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                <circle cx="12" cy="7" r="4"></circle>
+              </svg>
+            </div>
           </div>
 
           {isMenuOpen && (
-            <div className="user-dropdown">
-              <div className="user-info">
-                <span className="user-name">{user ? user.name : 'Гость'}</span>
-                {user && user.email && <span className="user-email">{user.email}</span>}
+            <div className="user-dropdown-menu">
+              <div className="dropdown-header">
+                <p className="d-name">{user?.name}</p>
+                <p className="d-email">{user?.email}</p>
               </div>
-              <hr className="dropdown-divider" />
-              <button onClick={handleLogout} className="logout-btn full-width">Выйти</button>
+              <button className="dropdown-item">Мой портфель</button>
+              <button onClick={() => { localStorage.clear(); window.location.reload(); }} className="dropdown-item logout">Выйти</button>
             </div>
           )}
         </div>
       </header>
 
-      {/* Панель фильтров и сортировки */}
-      <div className="filters-container">
-        <div className="filter-group">
-          <label>Город:</label>
-          <select name="city" value={filters.city} onChange={handleFilterChange}>
-            <option value="">Все города</option>
-            {uniqueCities.map(city => (
-              <option key={city} value={city}>{city}</option>
-            ))}
-          </select>
-        </div>
-
-        <div className="filter-group">
-          <label>Цена:</label>
-          <div className="inputs-row">
-            <input type="number" name="minPrice" placeholder="От" value={filters.minPrice} onChange={handleFilterChange} />
-            <input type="number" name="maxPrice" placeholder="До" value={filters.maxPrice} onChange={handleFilterChange} />
+      <div className="filter-wrapper">
+        <div className="main-filter-row">
+          <div className="f-box">
+            <label>Город</label>
+            <select value={filters.city} onChange={(e) => setFilters({ ...filters, city: e.target.value })}>
+              <option value="">Все города</option>
+              {uniqueCities.map(c => <option key={c} value={c}>{c}</option>)}
+            </select>
           </div>
-        </div>
 
-        <div className="filter-group">
-          <label>Площадь (м²):</label>
-          <div className="inputs-row">
-            <input type="number" name="minArea" placeholder="От" value={filters.minArea} onChange={handleFilterChange} />
-            <input type="number" name="maxArea" placeholder="До" value={filters.maxArea} onChange={handleFilterChange} />
+          <div className="f-box">
+            <label>Бюджет</label>
+            <div className="dual-inputs">
+              <input type="number" placeholder="От" value={filters.minPrice} onChange={(e) => setFilters({ ...filters, minPrice: e.target.value })} />
+              <input type="number" placeholder="До" value={filters.maxPrice} onChange={(e) => setFilters({ ...filters, maxPrice: e.target.value })} />
+            </div>
           </div>
+
+          <button className={`adv-toggle ${showAdvanced ? 'on' : ''}`} onClick={() => setShowAdvanced(!showAdvanced)}>
+            Параметры {showAdvanced ? '✕' : '⚙️'}
+          </button>
+
+          <div className="f-box">
+            <label>Сортировка</label>
+            <select value={sortOption} onChange={(e) => setSortOption(e.target.value)}>
+              <option value="default">По дате</option>
+              <option value="price_asc">Дешевле</option>
+              <option value="price_desc">Дороже</option>
+              <option value="area_desc">Больше м²</option>
+            </select>
+          </div>
+
+          <button className="reset-min" onClick={() => setFilters({ city: '', minPrice: '', maxPrice: '', minArea: '', maxArea: '', categories: [], attributes: {} })}>✕</button>
         </div>
 
-        <div className="filter-group">
-          <label>Сортировка:</label>
-          <select value={sortOption} onChange={(e) => setSortOption(e.target.value)}>
-            <option value="default">По умолчанию</option>
-            <option value="price_asc">Сначала дешевле</option>
-            <option value="price_desc">Сначала дороже</option>
-            <option value="area_desc">Сначала большие</option>
-            <option value="area_asc">Сначала маленькие</option>
-          </select>
-        </div>
+        {showAdvanced && (
+          <div className="advanced-dropdown">
+            <p className="section-title">Категория недвижимости</p>
+            <div className="cat-chips">
+              {Object.keys(CATEGORY_CONFIG).map(cat => (
+                <button key={cat} className={`chip ${filters.categories.includes(cat) ? 'active' : ''}`} onClick={() => toggleCategory(cat)}>
+                  {cat.replace('_', ' ')}
+                </button>
+              ))}
+            </div>
 
-        <button
-          className="reset-btn"
-          onClick={() => setFilters({ city: '', minPrice: '', maxPrice: '', minArea: '', maxArea: '' })}
-        >
-          Сбросить
-        </button>
+            {filters.categories.length > 0 && (
+              <div className="dynamic-grid">
+                {filters.categories.map(cat => (
+                  CATEGORY_CONFIG[cat].map(f => (
+                    <div key={f.name} className="attr-item">
+                      <label>{f.label}</label>
+                      {f.type === 'select' ? (
+                        <select onChange={(e) => handleAttrChange(f.name, e.target.value)}>
+                          <option value="">Любой</option>
+                          {f.options.map(o => <option key={o} value={o}>{o}</option>)}
+                        </select>
+                      ) : f.type === 'boolean' ? (
+                        <div className="toggle-box" onClick={() => handleAttrChange(f.name, !filters.attributes[f.name])}>
+                          <div className={`toggle-track ${filters.attributes[f.name] ? 'active' : ''}`}></div>
+                          <span>Да</span>
+                        </div>
+                      ) : (
+                        <input type="number" placeholder="Значение" onChange={(e) => handleAttrChange(f.name, e.target.value)} />
+                      )}
+                    </div>
+                  ))
+                ))}
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
-      {/* Индикатор количества объектов */}
-      <div className="results-info">
-        Найдено объектов: {displayedObjects.length}
-      </div>
+      <div className="results-bar">Найдено: {displayedObjects.length} объектов</div>
 
       <div className="objects-grid">
-        {displayedObjects.length > 0 ? (
-          displayedObjects.map(obj => (
-            <ObjectCard key={obj.id} object={obj} />
-          ))
-        ) : (
-          <div className="no-data-message">Объекты не найдены</div>
-        )}
+        {displayedObjects.map(obj => <ObjectCard key={obj.id} object={obj} />)}
       </div>
     </div>
   );
