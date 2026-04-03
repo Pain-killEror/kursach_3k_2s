@@ -32,7 +32,8 @@ public class SecurityConfig {
             .csrf(csrf -> csrf.disable())
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
-                .requestMatchers("/api/auth/**").permitAll()
+                // Найди в методе filterChain строку .requestMatchers и обнови её:
+.requestMatchers("/api/auth/login", "/api/auth/register", "/api/auth/google").permitAll()
                 .anyRequest().authenticated()
             )
             // ДОБАВЛЯЕМ НАШ ФИЛЬТР В ЦЕПОЧКУ

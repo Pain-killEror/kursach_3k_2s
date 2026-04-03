@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import api from '../api/axios';
+import { GoogleLogin } from '@react-oauth/google'; // Добавили импорт
 
 const Login = () => {
   const [formData, setFormData] = useState({
@@ -19,6 +20,7 @@ const Login = () => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
+  // 1. Обычный вход (почта + пароль)
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
@@ -29,9 +31,32 @@ const Login = () => {
       localStorage.setItem('token', response.data.token);
       localStorage.setItem('user', JSON.stringify(response.data.user));
       navigate('/');
-      window.location.reload(); // Перезагружаем для применения состояния аутентификации
+      window.location.reload();
     } catch (err) {
       setError(err.response?.data?.message || 'Ошибка авторизации. Проверьте почту и пароль.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // 2. Вход через Google
+  const handleGoogleSuccess = async (credentialResponse) => {
+    setError('');
+    setLoading(true);
+    try {
+      // Отправляем токен Google на бэкенд
+      const response = await api.post('/auth/google', {
+        token: credentialResponse.credential
+      });
+
+      // Сохраняем данные как при обычном входе
+      localStorage.setItem('token', response.data.token);
+      localStorage.setItem('user', JSON.stringify(response.data.user));
+
+      navigate('/');
+      window.location.reload();
+    } catch (err) {
+      setError(err.response?.data?.message || 'Ошибка при входе через Google.');
     } finally {
       setLoading(false);
     }
@@ -70,7 +95,6 @@ const Login = () => {
                 required
               />
 
-              {/* Показываем глазок только если пароль не пустой */}
               {formData.password.length > 0 && (
                 <button
                   type="button"
@@ -99,7 +123,26 @@ const Login = () => {
           </button>
         </form>
 
-        <div className="auth-redirect">
+        {/* --- ВИЗУАЛЬНЫЙ РАЗДЕЛИТЕЛЬ --- */}
+        <div style={{ display: 'flex', alignItems: 'center', margin: '25px 0' }}>
+          <div style={{ flex: 1, height: '1px', backgroundColor: '#e0e0e0' }}></div>
+          <span style={{ padding: '0 10px', color: '#888', fontSize: '13px' }}>ИЛИ</span>
+          <div style={{ flex: 1, height: '1px', backgroundColor: '#e0e0e0' }}></div>
+        </div>
+
+        {/* --- КНОПКА GOOGLE --- */}
+        <div style={{ display: 'flex', justifyContent: 'center' }}>
+          <GoogleLogin
+            onSuccess={handleGoogleSuccess}
+            onError={() => setError('Ошибка авторизации через Google')}
+            useOneTap
+            theme="outline"
+            shape="rectangular"
+            width="250"
+          />
+        </div>
+
+        <div className="auth-redirect" style={{ marginTop: '20px' }}>
           Нет аккаунта? <Link to="/register">Зарегистрироваться</Link>
         </div>
       </div>
