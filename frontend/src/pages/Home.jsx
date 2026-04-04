@@ -3,7 +3,6 @@ import api from '../api/axios';
 import ObjectCard from '../components/ObjectCard';
 import './Home.css';
 
-// Синхронизация с generator.py (без торговых и производств)
 const CATEGORY_CONFIG = {
   'КВАРТИРА': [
     { name: 'rooms_count', label: 'Комнат', type: 'number' },
@@ -13,25 +12,26 @@ const CATEGORY_CONFIG = {
   'ДОМ': [
     { name: 'house_type', label: 'Тип дома', type: 'select', options: ['Коттедж', 'Таунхаус', 'Старый дом'] },
     { name: 'heating_type', label: 'Отопление', type: 'select', options: ['Газ', 'Твердотопливный', 'Электрическое'] },
-    { name: 'land_area', label: 'Участок (сот)', type: 'number' }
+    { name: 'plot_area_acres', label: 'Участок (сот.)', type: 'range' }
   ],
   'СКЛАД': [
     { name: 'warehouse_type', label: 'Тип склада', type: 'select', options: ['Отапливаемый', 'Холодный'] },
     { name: 'has_ramp', label: 'Пандус', type: 'boolean' },
-    { name: 'ceiling_height', label: 'Потолки (м)', type: 'number' }
+    { name: 'ceiling_height_m', label: 'Потолки (м)', type: 'range' }
   ],
   'ОФИС': [
     { name: 'business_center_class', label: 'Класс БЦ', type: 'select', options: ['A', 'B', 'C'] },
-    { name: 'has_parking', label: 'Парковка', type: 'boolean' }
+    { name: 'access_24_7', label: 'Доступ 24/7', type: 'boolean' }
   ],
   'УЧАСТОК': [
-    { name: 'land_category', label: 'Категория', type: 'select', options: ['ИЖС', 'СНТ', 'Пром'] },
+    { name: 'land_purpose', label: 'Назначение', type: 'select', options: ['ИЖС', 'Промназначение', 'Коммерция'] },
     { name: 'has_electricity', label: 'Свет', type: 'boolean' },
     { name: 'has_gas', label: 'Газ', type: 'boolean' }
   ],
   'ГАРАЖ': [
-    { name: 'garage_type', label: 'Тип', type: 'select', options: ['Металлический', 'Кирпичный'] },
-    { name: 'is_heated', label: 'Обогрев', type: 'boolean' }
+    { name: 'material', label: 'Тип', type: 'select', options: ['Металлический', 'Кирпичный'] },
+    { name: 'is_covered', label: 'Крытый', type: 'boolean' },
+    { name: 'has_pit', label: 'Яма', type: 'boolean' }
   ]
 };
 
@@ -50,6 +50,12 @@ const Home = () => {
   const user = JSON.parse(localStorage.getItem('user'));
   const token = localStorage.getItem('token');
   const dropdownRef = useRef(null);
+
+  // Хелпер для корректного приведения значений из БД к булеву типу
+  const toBool = (val) => {
+    if (val === true || val === 'true' || val === 'True' || val === 1) return true;
+    return false;
+  };
 
   useEffect(() => {
     const fetchObjects = async () => {
@@ -75,29 +81,47 @@ const Home = () => {
     if (filters.city) result = result.filter(obj => obj.city === filters.city);
     if (filters.minPrice) result = result.filter(obj => Number(obj.priceTotal) >= Number(filters.minPrice));
     if (filters.maxPrice) result = result.filter(obj => Number(obj.priceTotal) <= Number(filters.maxPrice));
+    if (filters.minArea) result = result.filter(obj => Number(obj.areaTotal) >= Number(filters.minArea));
+    if (filters.maxArea) result = result.filter(obj => Number(obj.areaTotal) <= Number(filters.maxArea));
 
     if (filters.categories.length > 0) {
       result = result.filter(obj => filters.categories.includes(obj.category));
     }
 
-    const activeAttrKeys = Object.keys(filters.attributes).filter(k =>
-      filters.attributes[k] !== '' && filters.attributes[k] !== null
-    );
+    const hasActiveAttrFilters = Object.entries(filters.attributes).some(([k, v]) => v !== '' && v !== null && v !== undefined && v !== false);
 
-    if (activeAttrKeys.length > 0) {
+    if (hasActiveAttrFilters) {
       result = result.filter(obj => {
-        let objAttrs = typeof obj.attributes === 'string' ? JSON.parse(obj.attributes) : obj.attributes;
+        const catConfig = CATEGORY_CONFIG[obj.category];
+        if (!catConfig) return true;
 
-        return activeAttrKeys.every(attrKey => {
-          const isApplicable = CATEGORY_CONFIG[obj.category]?.some(f => f.name === attrKey);
-          if (!isApplicable) return true;
+        let objAttrs = {};
+        try {
+          objAttrs = typeof obj.attributes === 'string' ? JSON.parse(obj.attributes) : (obj.attributes || {});
+        } catch (e) { objAttrs = {}; }
 
-          const filterVal = filters.attributes[attrKey];
-          const objVal = objAttrs ? objAttrs[attrKey] : null;
+        return catConfig.every(f => {
+          if (f.type === 'range') {
+            const minVal = filters.attributes[`${f.name}_min`];
+            const maxVal = filters.attributes[`${f.name}_max`];
+            const objVal = objAttrs[f.name];
+            if (minVal && (objVal === undefined || Number(objVal) < Number(minVal))) return false;
+            if (maxVal && (objVal === undefined || Number(objVal) > Number(maxVal))) return false;
+            return true;
+          } else if (f.type === 'boolean') {
+            const filterVal = filters.attributes[f.name];
+            // Если фильтр не задан ("Любой"), показываем всё
+            if (filterVal === undefined || filterVal === '') return true;
 
-          if (typeof filterVal === 'boolean') return !!objVal === filterVal;
-          if (objVal === null) return false;
-          return String(objVal).toLowerCase() === String(filterVal).toLowerCase();
+            // Строгое соответствие: если фильтр "Да" (true), ищем true. Если "Нет" (false), ищем false.
+            return toBool(objAttrs[f.name]) === filterVal;
+          } else {
+            const filterVal = filters.attributes[f.name];
+            if (filterVal === undefined || filterVal === '') return true;
+            const objVal = objAttrs[f.name];
+            if (objVal === null || objVal === undefined) return false;
+            return String(objVal).toLowerCase() === String(filterVal).toLowerCase();
+          }
         });
       });
     }
@@ -175,6 +199,14 @@ const Home = () => {
             </div>
           </div>
 
+          <div className="f-box">
+            <label>Площадь (м²)</label>
+            <div className="dual-inputs">
+              <input type="number" placeholder="От" value={filters.minArea} onChange={(e) => setFilters({ ...filters, minArea: e.target.value })} />
+              <input type="number" placeholder="До" value={filters.maxArea} onChange={(e) => setFilters({ ...filters, maxArea: e.target.value })} />
+            </div>
+          </div>
+
           <button className={`adv-toggle-btn ${showAdvanced ? 'active' : ''}`} onClick={() => setShowAdvanced(!showAdvanced)}>
             {showAdvanced ? 'Закрыть параметры' : 'Все фильтры ⚙️'}
           </button>
@@ -221,16 +253,23 @@ const Home = () => {
                           {f.options.map(o => <option key={o} value={o}>{o}</option>)}
                         </select>
                       ) : f.type === 'boolean' ? (
-                        <div className="switch-container">
-                          <span className="switch-label">{filters.attributes[f.name] ? 'Вкл' : 'Выкл'}</span>
-                          <label className="switch">
-                            <input
-                              type="checkbox"
-                              checked={!!filters.attributes[f.name]}
-                              onChange={(e) => handleAttrChange(f.name, e.target.checked)}
-                            />
-                            <span className="slider round"></span>
-                          </label>
+                        <select
+                          className="attr-select"
+                          value={filters.attributes[f.name] !== undefined && filters.attributes[f.name] !== '' ? filters.attributes[f.name].toString() : ''}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            if (val === '') handleAttrChange(f.name, ''); // Сброс в "Любой"
+                            else handleAttrChange(f.name, val === 'true'); // Конвертация строки в булево значение
+                          }}
+                        >
+                          <option value="">Любой</option>
+                          <option value="true">Да</option>
+                          <option value="false">Нет</option>
+                        </select>
+                      ) : f.type === 'range' ? (
+                        <div className="dual-inputs attr-range">
+                          <input className="attr-input" type="number" placeholder="От" value={filters.attributes[`${f.name}_min`] || ''} onChange={(e) => handleAttrChange(`${f.name}_min`, e.target.value)} />
+                          <input className="attr-input" type="number" placeholder="До" value={filters.attributes[`${f.name}_max`] || ''} onChange={(e) => handleAttrChange(`${f.name}_max`, e.target.value)} />
                         </div>
                       ) : (
                         <input className="attr-input" type="number" placeholder="Значение" value={filters.attributes[f.name] || ''} onChange={(e) => handleAttrChange(f.name, e.target.value)} />

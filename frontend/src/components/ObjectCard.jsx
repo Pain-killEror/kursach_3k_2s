@@ -8,13 +8,11 @@ const ObjectCard = ({ object }) => {
   let images = ['https://via.placeholder.com/350x200?text=Нет+фото'];
   if (object.imagesUrls) {
     try {
-      // Ваш генератор сохраняет как стандартный JSON список ["url1", "url2"]
       const parsedImages = JSON.parse(object.imagesUrls);
       if (Array.isArray(parsedImages) && parsedImages.length > 0) {
         images = parsedImages;
       }
     } catch (e) {
-      // Фолбэк, если вдруг пришла просто строка с запятыми
       const cleanString = object.imagesUrls.replace(/[\[\]'"]/g, '');
       const splitImages = cleanString.split(',').map(img => img.trim()).filter(img => img !== '');
       if (splitImages.length > 0) {
@@ -37,7 +35,6 @@ const ObjectCard = ({ object }) => {
   let parsedAttributes = null;
   if (object.attributes) {
     try {
-      // Меняем одинарные кавычки на двойные (если Python записал так) и булевы значения
       let validJson = object.attributes.replace(/'/g, '"').replace(/True/g, 'true').replace(/False/g, 'false');
       parsedAttributes = JSON.parse(validJson);
     } catch (e) {
@@ -45,10 +42,10 @@ const ObjectCard = ({ object }) => {
     }
   }
 
-  // 3. ПОЛНЫЙ словарь переводов (на основе вашего generator.py)
+  // 3. ПОЛНЫЙ словарь переводов
   const translateKey = (key) => {
     const dictionary = {
-      rooms_count: 'Кол-во комнат',
+      rooms_count: 'Комнат',
       renovation_state: 'Ремонт',
       has_balcony: 'Балкон',
       house_type: 'Тип дома',
@@ -62,8 +59,14 @@ const ObjectCard = ({ object }) => {
       retail_type: 'Тип помещения',
       power_kw: 'Мощность (кВт)',
       land_purpose: 'Назначение',
+      land_category: 'Категория',
       garage_type: 'Тип гаража',
-      has_security: 'Охрана'
+      has_security: 'Охрана',
+      is_covered: 'Крытый',
+      has_pit: 'Яма',
+      has_electricity: 'Свет',
+      has_gas: 'Газ',
+      material: 'Материал'
     };
     return dictionary[key] || key;
   };
@@ -102,10 +105,10 @@ const ObjectCard = ({ object }) => {
         {images.length > 1 && (
           <>
             <button className="image-nav-btn prev" onClick={handlePrevImage} title="Предыдущее фото">
-              <i className="fas fa-chevron-left"></i>
+              ❮
             </button>
             <button className="image-nav-btn next" onClick={handleNextImage} title="Следующее фото">
-              <i className="fas fa-chevron-right"></i>
+              ❯
             </button>
             <div className="image-counter">
               {currentImageIndex + 1} / {images.length}
@@ -140,7 +143,7 @@ const ObjectCard = ({ object }) => {
           {parsedAttributes && Object.keys(parsedAttributes).length > 0 ? (
             <div className="object-card-attributes">
               {Object.entries(parsedAttributes).map(([key, value]) => (
-                <div key={key} className="attribute-item">
+                <div key={key} className="attribute-item" title={`${translateKey(key)}: ${formatAttributeValue(value)}`}>
                   <span className="attribute-key">{translateKey(key)}:</span>
                   <span className="attribute-value">{formatAttributeValue(value)}</span>
                 </div>
