@@ -15,16 +15,21 @@ const ObjectDetails = () => {
     const dropdownRef = useRef(null);
     const user = JSON.parse(localStorage.getItem('user'));
 
-    // Стейты для карусели и модального окна
-    const [currentImageIndex, setCurrentImageIndex] = useState(0); // НОВОЕ: индекс текущей картинки
-    const [isModalOpen, setIsModalOpen] = useState(false); // НОВОЕ: состояние модалки
+    // Стейты для карусели и модалки
+    const [currentImageIndex, setCurrentImageIndex] = useState(0);
+    const [isModalOpen, setIsModalOpen] = useState(false);
 
-    // Стейты для мастера моделирования
+    // Стейты для мастера
     const [strategy, setStrategy] = useState('RENT');
     const [loanAmount, setLoanAmount] = useState(0);
     const [repairCost, setRepairCost] = useState(0);
     const [monthlyRent, setMonthlyRent] = useState(0);
     const [vacancyRate, setVacancyRate] = useState(5);
+
+    // 1. Прокрутка в самый верх при открытии страницы
+    useEffect(() => {
+        window.scrollTo(0, 0);
+    }, [id]);
 
     useEffect(() => {
         const fetchObject = async () => {
@@ -41,6 +46,7 @@ const ObjectDetails = () => {
         fetchObject();
     }, [id]);
 
+    // Закрытие дропдауна при клике вне его
     useEffect(() => {
         const handleClickOutside = (e) => {
             if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
@@ -57,28 +63,47 @@ const ObjectDetails = () => {
         navigate('/login');
     };
 
-    // НОВОЕ: Функции навигации в карусели
+    // Функции листания (используют callback, чтобы всегда брать актуальный стейт)
     const handlePrevImage = () => {
-        setCurrentImageIndex((prevIndex) => (prevIndex === 0 ? images.length - 1 : prevIndex - 1));
+        setCurrentImageIndex((prev) => (prev === 0 ? images.length - 1 : prev - 1));
     };
 
     const handleNextImage = () => {
-        setCurrentImageIndex((prevIndex) => (prevIndex === images.length - 1 ? 0 : prevIndex + 1));
+        setCurrentImageIndex((prev) => (prev === images.length - 1 ? 0 : prev + 1));
     };
 
-    const openModal = () => {
-        setIsModalOpen(true);
-    };
+    const openModal = () => setIsModalOpen(true);
+    const closeModal = () => setIsModalOpen(false);
 
-    const closeModal = () => {
-        setIsModalOpen(false);
-    };
+    // 2. Блокировка скролла фона и обработка клавиатуры
+    useEffect(() => {
+        if (isModalOpen) {
+            // Отключаем прокрутку страницы
+            document.body.style.overflow = 'hidden';
+
+            // Добавляем слушатель клавиатуры
+            const handleKeyDown = (e) => {
+                if (e.key === 'Escape') closeModal();
+                if (e.key === 'ArrowRight') handleNextImage();
+                if (e.key === 'ArrowLeft') handlePrevImage();
+            };
+
+            window.addEventListener('keydown', handleKeyDown);
+
+            // Очистка при закрытии модалки
+            return () => {
+                document.body.style.overflow = '';
+                window.removeEventListener('keydown', handleKeyDown);
+            };
+        } else {
+            document.body.style.overflow = '';
+        }
+    }, [isModalOpen]); // Зависит только от статуса модалки
 
     if (loading) return <div className="loader">Загрузка объекта...</div>;
     if (error) return <div className="error-message">{error}</div>;
     if (!object) return null;
 
-    // Парсинг картинок для детальной страницы
     let images = ['https://via.placeholder.com/600x400?text=Нет+фото'];
     if (object.imagesUrls) {
         try {
@@ -91,7 +116,6 @@ const ObjectDetails = () => {
         }
     }
 
-    // Бизнес-логика расчета ROI
     const basePrice = object.priceTotal || 0;
     const totalInvestment = basePrice + Number(repairCost) - Number(loanAmount);
     const annualIncome = (Number(monthlyRent) * 12) * ((100 - vacancyRate) / 100);
@@ -100,12 +124,11 @@ const ObjectDetails = () => {
 
     return (
         <div className="object-details-layout">
-            {/* Идентичная темная шапка как в Home.jsx */}
+            {/* Шапка */}
             <header className="home-header" style={{ padding: '30px 60px', margin: '0 auto', maxWidth: '1440px' }}>
                 <div className="brand" onClick={() => navigate('/')} style={{ cursor: 'pointer' }}>
                     💎 InvestHub
                 </div>
-
                 <div className="user-profile-container" ref={dropdownRef}>
                     <div className="avatar-wrapper" onClick={() => setIsMenuOpen(!isMenuOpen)}>
                         <div className="user-nickname">{user?.name || 'Инвестор'}</div>
@@ -116,7 +139,6 @@ const ObjectDetails = () => {
                             </svg>
                         </div>
                     </div>
-
                     {isMenuOpen && (
                         <div className="user-dropdown-menu">
                             <div className="dropdown-header">
@@ -132,9 +154,8 @@ const ObjectDetails = () => {
             </header>
 
             <main className="details-container">
-                {/* ЛЕВАЯ ЧАСТЬ: Информация об объекте */}
+                {/* ЛЕВАЯ ЧАСТЬ */}
                 <section className="info-section">
-                    {/* ОБНОВЛЕНО: Карусель картинок */}
                     <div className="main-image-container carousel">
                         {images.length > 1 && (
                             <>
@@ -146,8 +167,8 @@ const ObjectDetails = () => {
                             src={images[currentImageIndex]}
                             alt={`Фото ${currentImageIndex + 1}`}
                             className="main-image"
-                            onClick={openModal} // НОВОЕ: Открытие модалки по клику
-                            style={{ cursor: 'pointer' }} // НОВОЕ: Курсор-рука
+                            onClick={openModal}
+                            style={{ cursor: 'pointer' }}
                         />
                         {images.length > 1 && (
                             <div className="carousel-dots">
@@ -174,22 +195,10 @@ const ObjectDetails = () => {
                     <h2 className="price">{object.priceTotal?.toLocaleString()} {object.currency || 'USD'}</h2>
 
                     <div className="specs-grid">
-                        <div className="spec-item">
-                            <span className="spec-label">Общая площадь:</span>
-                            <span className="spec-value">{object.areaTotal} м²</span>
-                        </div>
-                        <div className="spec-item">
-                            <span className="spec-label">Этаж:</span>
-                            <span className="spec-value">{object.floor} / {object.floorsTotal}</span>
-                        </div>
-                        <div className="spec-item">
-                            <span className="spec-label">Год постройки:</span>
-                            <span className="spec-value">{object.yearBuilt || 'Не указан'}</span>
-                        </div>
-                        <div className="spec-item">
-                            <span className="spec-label">Цена за м²:</span>
-                            <span className="spec-value">{object.pricePerM2?.toLocaleString()} {object.currency}</span>
-                        </div>
+                        <div className="spec-item"><span className="spec-label">Общая площадь:</span><span className="spec-value">{object.areaTotal} м²</span></div>
+                        <div className="spec-item"><span className="spec-label">Этаж:</span><span className="spec-value">{object.floor} / {object.floorsTotal}</span></div>
+                        <div className="spec-item"><span className="spec-label">Год постройки:</span><span className="spec-value">{object.yearBuilt || 'Не указан'}</span></div>
+                        <div className="spec-item"><span className="spec-label">Цена за м²:</span><span className="spec-value">{object.pricePerM2?.toLocaleString()} {object.currency}</span></div>
                     </div>
 
                     <div className="description-block">
@@ -198,7 +207,7 @@ const ObjectDetails = () => {
                     </div>
                 </section>
 
-                {/* ПРАВАЯ ЧАСТЬ: Мастер моделирования (Wizard) */}
+                {/* ПРАВАЯ ЧАСТЬ (Wizard) */}
                 <section className="wizard-section">
                     <div className="wizard-card">
                         <h3>Мастер моделирования 📈</h3>
@@ -214,50 +223,26 @@ const ObjectDetails = () => {
 
                         <div className="wizard-step">
                             <label>Шаг 2: Вложения</label>
-                            <div className="input-group">
-                                <span>Кредитное плечо ({object.currency})</span>
-                                <input type="number" value={loanAmount} onChange={(e) => setLoanAmount(e.target.value)} />
-                            </div>
-                            <div className="input-group">
-                                <span>Ремонт и мебель ({object.currency})</span>
-                                <input type="number" value={repairCost} onChange={(e) => setRepairCost(e.target.value)} />
-                            </div>
+                            <div className="input-group"><span>Кредитное плечо ({object.currency})</span><input type="number" value={loanAmount} onChange={(e) => setLoanAmount(e.target.value)} /></div>
+                            <div className="input-group"><span>Ремонт и мебель ({object.currency})</span><input type="number" value={repairCost} onChange={(e) => setRepairCost(e.target.value)} /></div>
                         </div>
 
                         {strategy !== 'FLIP' && (
                             <div className="wizard-step">
                                 <label>Шаг 3: Потоки</label>
-                                <div className="input-group">
-                                    <span>Ожидаемая аренда/мес ({object.currency})</span>
-                                    <input type="number" value={monthlyRent} onChange={(e) => setMonthlyRent(e.target.value)} />
-                                </div>
-                                <div className="input-group">
-                                    <span>Риск простоя (% в год) <span title="Vacancy rate">❓</span></span>
-                                    <input type="number" value={vacancyRate} onChange={(e) => setVacancyRate(e.target.value)} max="100" />
-                                </div>
+                                <div className="input-group"><span>Ожидаемая аренда/мес ({object.currency})</span><input type="number" value={monthlyRent} onChange={(e) => setMonthlyRent(e.target.value)} /></div>
+                                <div className="input-group"><span>Риск простоя (% в год) ❓</span><input type="number" value={vacancyRate} onChange={(e) => setVacancyRate(e.target.value)} max="100" /></div>
                             </div>
                         )}
 
                         <div className="wizard-results">
                             <h4>Прогноз рентабельности</h4>
-                            <div className="result-row">
-                                <span>Итого инвестиций:</span>
-                                <strong>{totalInvestment.toLocaleString()} {object.currency}</strong>
-                            </div>
+                            <div className="result-row"><span>Итого инвестиций:</span><strong>{totalInvestment.toLocaleString()} {object.currency}</strong></div>
                             {strategy !== 'FLIP' && (
                                 <>
-                                    <div className="result-row">
-                                        <span>Чистый опер. доход (NOI):</span>
-                                        <strong>{annualIncome.toLocaleString()} {object.currency}/год</strong>
-                                    </div>
-                                    <div className="result-row highlight">
-                                        <span>ROI (Рентабельность):</span>
-                                        <strong>{roi}%</strong>
-                                    </div>
-                                    <div className="result-row">
-                                        <span>Окупаемость:</span>
-                                        <strong>{payback} лет</strong>
-                                    </div>
+                                    <div className="result-row"><span>Чистый опер. доход (NOI):</span><strong>{annualIncome.toLocaleString()} {object.currency}/год</strong></div>
+                                    <div className="result-row highlight"><span>ROI (Рентабельность):</span><strong>{roi}%</strong></div>
+                                    <div className="result-row"><span>Окупаемость:</span><strong>{payback} лет</strong></div>
                                 </>
                             )}
                         </div>
@@ -267,12 +252,29 @@ const ObjectDetails = () => {
                 </section>
             </main>
 
-            {/* НОВОЕ: Модальное окно для картинок */}
+            {/* МОДАЛЬНОЕ ОКНО */}
             {isModalOpen && (
                 <div className="image-modal-overlay" onClick={closeModal}>
                     <div className="image-modal-content" onClick={(e) => e.stopPropagation()}>
-                        <button className="modal-close-btn" onClick={closeModal}>&times;</button>
+
+                        <button className="modal-close-btn" onClick={closeModal} title="Закрыть (Esc)">&times;</button>
+
+                        {/* Левая зона клика для предыдущей картинки */}
+                        {images.length > 1 && (
+                            <button className="modal-side-nav prev" onClick={handlePrevImage}>
+                                <span>&lt;</span>
+                            </button>
+                        )}
+
                         <img src={images[currentImageIndex]} alt="Фото во весь экран" className="modal-image" />
+
+                        {/* Правая зона клика для следующей картинки */}
+                        {images.length > 1 && (
+                            <button className="modal-side-nav next" onClick={handleNextImage}>
+                                <span>&gt;</span>
+                            </button>
+                        )}
+
                     </div>
                 </div>
             )}
