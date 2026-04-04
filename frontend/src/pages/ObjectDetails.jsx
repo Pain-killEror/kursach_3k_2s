@@ -13,7 +13,11 @@ const ObjectDetails = () => {
     // Для шапки
     const [isMenuOpen, setIsMenuOpen] = useState(false);
     const dropdownRef = useRef(null);
-    const user = JSON.parse(localStorage.getItem('user')); // Достаем юзера
+    const user = JSON.parse(localStorage.getItem('user'));
+
+    // Стейты для карусели и модального окна
+    const [currentImageIndex, setCurrentImageIndex] = useState(0); // НОВОЕ: индекс текущей картинки
+    const [isModalOpen, setIsModalOpen] = useState(false); // НОВОЕ: состояние модалки
 
     // Стейты для мастера моделирования
     const [strategy, setStrategy] = useState('RENT');
@@ -25,7 +29,6 @@ const ObjectDetails = () => {
     useEffect(() => {
         const fetchObject = async () => {
             try {
-                // ИСПРАВЛЕНО: убрали дублирующийся /api, теперь просто /objects/
                 const response = await api.get(`/objects/${id}`);
                 setObject(response.data);
             } catch (err) {
@@ -52,6 +55,23 @@ const ObjectDetails = () => {
         localStorage.removeItem('token');
         localStorage.removeItem('user');
         navigate('/login');
+    };
+
+    // НОВОЕ: Функции навигации в карусели
+    const handlePrevImage = () => {
+        setCurrentImageIndex((prevIndex) => (prevIndex === 0 ? images.length - 1 : prevIndex - 1));
+    };
+
+    const handleNextImage = () => {
+        setCurrentImageIndex((prevIndex) => (prevIndex === images.length - 1 ? 0 : prevIndex + 1));
+    };
+
+    const openModal = () => {
+        setIsModalOpen(true);
+    };
+
+    const closeModal = () => {
+        setIsModalOpen(false);
     };
 
     if (loading) return <div className="loader">Загрузка объекта...</div>;
@@ -114,8 +134,32 @@ const ObjectDetails = () => {
             <main className="details-container">
                 {/* ЛЕВАЯ ЧАСТЬ: Информация об объекте */}
                 <section className="info-section">
-                    <div className="main-image-container">
-                        <img src={images[0]} alt="Главное фото" className="main-image" />
+                    {/* ОБНОВЛЕНО: Карусель картинок */}
+                    <div className="main-image-container carousel">
+                        {images.length > 1 && (
+                            <>
+                                <button className="carousel-btn prev" onClick={handlePrevImage}>&lt;</button>
+                                <button className="carousel-btn next" onClick={handleNextImage}>&gt;</button>
+                            </>
+                        )}
+                        <img
+                            src={images[currentImageIndex]}
+                            alt={`Фото ${currentImageIndex + 1}`}
+                            className="main-image"
+                            onClick={openModal} // НОВОЕ: Открытие модалки по клику
+                            style={{ cursor: 'pointer' }} // НОВОЕ: Курсор-рука
+                        />
+                        {images.length > 1 && (
+                            <div className="carousel-dots">
+                                {images.map((_, index) => (
+                                    <span
+                                        key={index}
+                                        className={`carousel-dot ${index === currentImageIndex ? 'active' : ''}`}
+                                        onClick={() => setCurrentImageIndex(index)}
+                                    ></span>
+                                ))}
+                            </div>
+                        )}
                     </div>
 
                     <div className="info-header">
@@ -222,6 +266,16 @@ const ObjectDetails = () => {
                     </div>
                 </section>
             </main>
+
+            {/* НОВОЕ: Модальное окно для картинок */}
+            {isModalOpen && (
+                <div className="image-modal-overlay" onClick={closeModal}>
+                    <div className="image-modal-content" onClick={(e) => e.stopPropagation()}>
+                        <button className="modal-close-btn" onClick={closeModal}>&times;</button>
+                        <img src={images[currentImageIndex]} alt="Фото во весь экран" className="modal-image" />
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
