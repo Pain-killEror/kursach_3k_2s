@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
 import './ObjectCard.css';
+import { useNavigate } from 'react-router-dom';
 
 const ObjectCard = ({ object }) => {
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
-
+  const navigate = useNavigate();
   // 1. Безопасный парсинг картинок
   let images = ['https://via.placeholder.com/350x200?text=Нет+фото'];
   if (object.imagesUrls) {
@@ -94,7 +95,7 @@ const ObjectCard = ({ object }) => {
   };
 
   return (
-    <div className="object-card">
+    <div className="object-card" onClick={() => navigate(`/object/${object.id}`)}>
       <div className="object-card-image-container">
         <img
           src={images[currentImageIndex]}

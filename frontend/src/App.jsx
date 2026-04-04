@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import Home from './pages/Home';
 import Login from './pages/Login';
 import Register from './pages/Register';
+import ObjectDetails from './pages/ObjectDetails';
 
 // Защищает приватные страницы (если НЕТ токена -> на логин)
 const ProtectedRoute = ({ children }) => {
@@ -40,6 +41,12 @@ function App() {
           path="/"
           element={<ProtectedRoute><Home /></ProtectedRoute>}
         />
+
+        <Route path="/object/:id" element={
+          <ProtectedRoute>
+            <ObjectDetails />
+          </ProtectedRoute>
+        } />
 
         {/* Если ввели несуществующий адрес — кидаем на главную */}
         <Route path="*" element={<Navigate to="/" replace />} />
