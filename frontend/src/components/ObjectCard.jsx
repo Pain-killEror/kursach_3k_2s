@@ -1,10 +1,12 @@
 import React, { useState } from 'react';
 import './ObjectCard.css';
 import { useNavigate } from 'react-router-dom';
+import { useCurrency } from '../context/CurrencyContext';
 
 const ObjectCard = ({ object }) => {
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const navigate = useNavigate();
+  const { convertPrice, formatPrice: formatCurrency } = useCurrency();
   // 1. Безопасный парсинг картинок
   let images = ['https://via.placeholder.com/350x200?text=Нет+фото'];
   if (object.imagesUrls) {
@@ -79,9 +81,10 @@ const ObjectCard = ({ object }) => {
     return value;
   };
 
-  const formatPrice = (price) => {
-    if (!price) return 'Цена не указана';
-    return new Intl.NumberFormat('ru-RU').format(price);
+  const getDisplayPrice = () => {
+    if (!object.priceTotal) return 'Цена не указана';
+    const convertedPrice = convertPrice(Number(object.priceTotal), object.currency);
+    return formatCurrency(convertedPrice);
   };
 
   const renderFloorInfo = () => {
@@ -124,7 +127,7 @@ const ObjectCard = ({ object }) => {
             {object.title || 'Без названия'}
           </h3>
           <p className="object-card-price">
-            {formatPrice(object.priceTotal)} {object.currency || ''}
+            {getDisplayPrice()}
           </p>
           <p className="object-card-address" title={`${object.city || ''}, ${object.address || ''}`}>
             {object.city ? `${object.city}, ` : ''}{object.address || 'Адрес не указан'}

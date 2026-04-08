@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useMemo, useRef } from 'react';
 import api from '../api/axios';
 import ObjectCard from '../components/ObjectCard';
+import { useCurrency } from '../context/CurrencyContext';
 import './Home.css';
 
 const CATEGORY_CONFIG = {
@@ -51,6 +52,8 @@ const Home = () => {
   const token = localStorage.getItem('token');
   const dropdownRef = useRef(null);
 
+  const { currency, setCurrency, convertPrice } = useCurrency();
+
   // Хелпер для корректного приведения значений из БД к булеву типу
   const toBool = (val) => {
     if (val === true || val === 'true' || val === 'True' || val === 1) return true;
@@ -79,8 +82,12 @@ const Home = () => {
     let result = [...allObjects];
 
     if (filters.city) result = result.filter(obj => obj.city === filters.city);
-    if (filters.minPrice) result = result.filter(obj => Number(obj.priceTotal) >= Number(filters.minPrice));
-    if (filters.maxPrice) result = result.filter(obj => Number(obj.priceTotal) <= Number(filters.maxPrice));
+    if (filters.minPrice) {
+      result = result.filter(obj => convertPrice(Number(obj.priceTotal), obj.currency) >= Number(filters.minPrice));
+    }
+    if (filters.maxPrice) {
+      result = result.filter(obj => convertPrice(Number(obj.priceTotal), obj.currency) <= Number(filters.maxPrice));
+    }
     if (filters.minArea) result = result.filter(obj => Number(obj.areaTotal) >= Number(filters.minArea));
     if (filters.maxArea) result = result.filter(obj => Number(obj.areaTotal) <= Number(filters.maxArea));
 
@@ -126,8 +133,11 @@ const Home = () => {
       });
     }
 
-    if (sortOption === 'price_asc') result.sort((a, b) => Number(a.priceTotal) - Number(b.priceTotal));
-    else if (sortOption === 'price_desc') result.sort((a, b) => Number(b.priceTotal) - Number(a.priceTotal));
+    if (sortOption === 'price_asc') {
+      result.sort((a, b) => convertPrice(Number(a.priceTotal), a.currency) - convertPrice(Number(b.priceTotal), b.currency));
+    } else if (sortOption === 'price_desc') {
+      result.sort((a, b) => convertPrice(Number(b.priceTotal), b.currency) - convertPrice(Number(a.priceTotal), a.currency));
+    }
 
     setDisplayedObjects(result);
   }, [allObjects, filters, sortOption]);
@@ -159,6 +169,30 @@ const Home = () => {
     <div className="home-container">
       <header className="home-header">
         <div className="brand">💎 InvestHub</div>
+
+        {/* <--- ДОБАВЛЯЕМ ПЕРЕКЛЮЧАТЕЛЬ СЮДА ---> */}
+        <div className="currency-selector" style={{ marginLeft: 'auto', marginRight: '20px' }}>
+          <select
+            value={currency}
+            onChange={(e) => setCurrency(e.target.value)}
+            style={{
+              padding: '8px 14px',
+              borderRadius: '8px',
+              border: '1px solid #444',
+              cursor: 'pointer',
+              outline: 'none',
+              background: '#1a1a1a', // Темный фон
+              color: 'white',        // Белый текст
+              fontWeight: '600',
+              fontSize: '14px',
+              transition: 'all 0.3s ease'
+            }}
+          >
+            <option value="USD">USD ($)</option>
+            <option value="BYN">BYN (Br)</option>
+          </select>
+        </div>
+
         <div className="user-profile-container" ref={dropdownRef}>
           <div className="avatar-wrapper" onClick={() => setIsMenuOpen(!isMenuOpen)}>
             <span className="user-nickname">{user?.name || 'Гость'}</span>
@@ -192,7 +226,7 @@ const Home = () => {
           </div>
 
           <div className="f-box">
-            <label>Бюджет (₽)</label>
+            <label>Бюджет ({currency === 'BYN' ? 'BYN' : '$'})</label>
             <div className="dual-inputs">
               <input type="number" placeholder="От" value={filters.minPrice} onChange={(e) => setFilters({ ...filters, minPrice: e.target.value })} />
               <input type="number" placeholder="До" value={filters.maxPrice} onChange={(e) => setFilters({ ...filters, maxPrice: e.target.value })} />

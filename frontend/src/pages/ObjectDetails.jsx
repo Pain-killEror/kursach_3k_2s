@@ -9,6 +9,8 @@ import './ObjectDetails.css';
 // 3. Добавляем импорт Яндекса:
 import { YMaps, Map, Placemark, useYMaps } from '@pbe/react-yandex-maps';
 
+import { useCurrency } from '../context/CurrencyContext';
+
 const MapWithMarker = ({ address }) => {
     // Подключаем встроенный геокодер
     const ymaps = useYMaps(['geocode']);
@@ -49,6 +51,7 @@ const MapWithMarker = ({ address }) => {
 const ObjectDetails = () => {
     const { id } = useParams();
     const navigate = useNavigate();
+    const { currency, convertPrice, formatPrice } = useCurrency();
     const [object, setObject] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
@@ -159,8 +162,12 @@ const ObjectDetails = () => {
         }
     }
 
-    const basePrice = object.priceTotal || 0;
-    const totalInvestment = basePrice + Number(repairCost) - Number(loanAmount);
+    // Сначала конвертируем цены из базы данных в выбранную валюту
+    const displayBasePrice = convertPrice(object.priceTotal || 0, object.currency);
+    const displayPriceM2 = convertPrice(object.pricePerM2 || 0, object.currency);
+
+    // Считаем инвестиции: базовая цена (уже в нужной валюте) + ввод юзера (считаем, что он вводит в выбранной валюте)
+    const totalInvestment = displayBasePrice + Number(repairCost) - Number(loanAmount);
     const annualIncome = (Number(monthlyRent) * 12) * ((100 - vacancyRate) / 100);
     const roi = totalInvestment > 0 ? ((annualIncome / totalInvestment) * 100).toFixed(2) : 0;
     const payback = annualIncome > 0 ? (totalInvestment / annualIncome).toFixed(1) : '∞';
@@ -239,13 +246,13 @@ const ObjectDetails = () => {
                     </div>
 
                     <p className="address">📍 {object.city}, {object.address}</p>
-                    <h2 className="price">{object.priceTotal?.toLocaleString()} {object.currency || 'USD'}</h2>
+                    <h2 className="price">{formatPrice(displayBasePrice)}</h2>
 
                     <div className="specs-grid">
                         <div className="spec-item"><span className="spec-label">Общая площадь:</span><span className="spec-value">{object.areaTotal} м²</span></div>
                         <div className="spec-item"><span className="spec-label">Этаж:</span><span className="spec-value">{object.floor} / {object.floorsTotal}</span></div>
                         <div className="spec-item"><span className="spec-label">Год постройки:</span><span className="spec-value">{object.yearBuilt || 'Не указан'}</span></div>
-                        <div className="spec-item"><span className="spec-label">Цена за м²:</span><span className="spec-value">{object.pricePerM2?.toLocaleString()} {object.currency}</span></div>
+                        <div className="spec-item"><span className="spec-label">Цена за м²:</span><span className="spec-value">{formatPrice(displayPriceM2)}</span></div>
                     </div>
 
                     <div className="description-block">
@@ -280,24 +287,26 @@ const ObjectDetails = () => {
 
                         <div className="wizard-step">
                             <label>Шаг 2: Вложения</label>
-                            <div className="input-group"><span>Кредитное плечо ({object.currency})</span><input type="number" value={loanAmount} onChange={(e) => setLoanAmount(e.target.value)} /></div>
-                            <div className="input-group"><span>Ремонт и мебель ({object.currency})</span><input type="number" value={repairCost} onChange={(e) => setRepairCost(e.target.value)} /></div>
+                            {/* Показываем значок текущей валюты вместо object.currency */}
+                            <div className="input-group"><span>Кредитное плечо ({currency === 'BYN' ? 'BYN' : '$'})</span><input type="number" value={loanAmount} onChange={(e) => setLoanAmount(e.target.value)} /></div>
+                            <div className="input-group"><span>Ремонт и мебель ({currency === 'BYN' ? 'BYN' : '$'})</span><input type="number" value={repairCost} onChange={(e) => setRepairCost(e.target.value)} /></div>
                         </div>
 
                         {strategy !== 'FLIP' && (
                             <div className="wizard-step">
                                 <label>Шаг 3: Потоки</label>
-                                <div className="input-group"><span>Ожидаемая аренда/мес ({object.currency})</span><input type="number" value={monthlyRent} onChange={(e) => setMonthlyRent(e.target.value)} /></div>
+                                <div className="input-group"><span>Ожидаемая аренда/мес ({currency === 'BYN' ? 'BYN' : '$'})</span><input type="number" value={monthlyRent} onChange={(e) => setMonthlyRent(e.target.value)} /></div>
                                 <div className="input-group"><span>Риск простоя (% в год) ❓</span><input type="number" value={vacancyRate} onChange={(e) => setVacancyRate(e.target.value)} max="100" /></div>
                             </div>
                         )}
 
                         <div className="wizard-results">
                             <h4>Прогноз рентабельности</h4>
-                            <div className="result-row"><span>Итого инвестиций:</span><strong>{totalInvestment.toLocaleString()} {object.currency}</strong></div>
+                            {/* Форматируем результат через formatPrice */}
+                            <div className="result-row"><span>Итого инвестиций:</span><strong>{formatPrice(totalInvestment)}</strong></div>
                             {strategy !== 'FLIP' && (
                                 <>
-                                    <div className="result-row"><span>Чистый опер. доход (NOI):</span><strong>{annualIncome.toLocaleString()} {object.currency}/год</strong></div>
+                                    <div className="result-row"><span>Чистый опер. доход (NOI):</span><strong>{formatPrice(annualIncome)}/год</strong></div>
                                     <div className="result-row highlight"><span>ROI (Рентабельность):</span><strong>{roi}%</strong></div>
                                     <div className="result-row"><span>Окупаемость:</span><strong>{payback} лет</strong></div>
                                 </>
