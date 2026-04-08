@@ -1,7 +1,50 @@
-import React, { useEffect, useState, useRef } from 'react';
+// 1. Собираем все нужные хуки из React в одну строчку:
+import React, { useState, useEffect, useRef } from 'react';
+
+// 2. Оставляем твои стандартные импорты (они у тебя там наверняка есть):
 import { useParams, useNavigate } from 'react-router-dom';
 import api from '../api/axios';
 import './ObjectDetails.css';
+
+// 3. Добавляем импорт Яндекса:
+import { YMaps, Map, Placemark, useYMaps } from '@pbe/react-yandex-maps';
+
+const MapWithMarker = ({ address }) => {
+    // Подключаем встроенный геокодер
+    const ymaps = useYMaps(['geocode']);
+    const [coords, setCoords] = useState(null);
+
+    useEffect(() => {
+        if (!ymaps || !address) return;
+
+        // Превращаем текстовый адрес в координаты [широта, долгота]
+        ymaps.geocode(address).then((result) => {
+            const firstGeoObject = result.geoObjects.get(0);
+            if (firstGeoObject) {
+                setCoords(firstGeoObject.geometry.getCoordinates());
+            }
+        });
+    }, [ymaps, address]);
+
+    // Пока ищем координаты, показываем красивую заглушку
+    if (!coords) {
+        return (
+            <div style={{ height: '400px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f8fafc', borderRadius: '12px', color: '#64748b' }}>
+                Ищем объект на карте...
+            </div>
+        );
+    }
+
+    return (
+        <div style={{ borderRadius: '12px', overflow: 'hidden', border: '1px solid #e2e8f0', boxShadow: '0 2px 4px rgba(0,0,0,0.05)' }}>
+            {/* Отрисовываем саму карту. zoom: 16 - радиус около 500 метров */}
+            <Map defaultState={{ center: coords, zoom: 16 }} width="100%" height="400px">
+                {/* Голая метка, без лишних окон поиска! */}
+                <Placemark geometry={coords} />
+            </Map>
+        </div>
+    );
+};
 
 const ObjectDetails = () => {
     const { id } = useParams();
@@ -122,6 +165,10 @@ const ObjectDetails = () => {
     const roi = totalInvestment > 0 ? ((annualIncome / totalInvestment) * 100).toFixed(2) : 0;
     const payback = annualIncome > 0 ? (totalInvestment / annualIncome).toFixed(1) : '∞';
 
+    const fullAddress = object.city && object.address
+        ? `${object.city}, ${object.address}`
+        : object.address || object.city || 'Минск';
+
     return (
         <div className="object-details-layout">
             {/* Шапка */}
@@ -204,6 +251,16 @@ const ObjectDetails = () => {
                     <div className="description-block">
                         <h3>Описание</h3>
                         <p>{object.description}</p>
+                    </div>
+                    <div className="map-section" style={{ marginTop: '30px' }}>
+                        <h3 style={{ marginBottom: '15px', fontSize: '1.2rem', fontWeight: 'bold' }}>
+                            Расположение на карте
+                        </h3>
+
+                        <YMaps query={{ apikey: '336d56de-38a8-483c-b152-781ed261ecf7', lang: 'ru_RU' }}>
+                            <MapWithMarker address={fullAddress} />
+                        </YMaps>
+
                     </div>
                 </section>
 
