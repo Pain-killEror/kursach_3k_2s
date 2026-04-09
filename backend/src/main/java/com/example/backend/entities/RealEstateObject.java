@@ -4,6 +4,7 @@ import jakarta.persistence.*;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.UUID;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 
 @Entity
 @Table(name = "real_estate_objects")
@@ -30,8 +31,6 @@ public class RealEstateObject {
 
     @Column(length = 1000)
     private String address;
-
-    // УДАЛЕНЫ latitude и longitude
 
     @Column(name = "area_total")
     private BigDecimal areaTotal;
@@ -70,14 +69,23 @@ public class RealEstateObject {
     @Column(name = "updated_at")
     private LocalDateTime updatedAt;
 
-    // ДОБАВЛЕНО новое поле attributes (JSON)
     @Column(columnDefinition = "json")
     private String attributes;
+
+    @JsonIgnore
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "user_id", referencedColumnName = "id")
+    private User user;
 
     public RealEstateObject() {
     }
 
-    public RealEstateObject(UUID id, String externalId, String type, String category, String title, String description, String city, String address, BigDecimal areaTotal, BigDecimal areaLiving, Integer floor, Integer floorsTotal, String wallMaterial, Integer yearBuilt, BigDecimal priceTotal, BigDecimal pricePerM2, String currency, String imagesUrls, String sourceUrl, LocalDateTime createdAt, LocalDateTime updatedAt, String attributes) {
+    public RealEstateObject(UUID id, String externalId, String type, String category, String title, 
+                            String description, String city, String address, BigDecimal areaTotal, 
+                            BigDecimal areaLiving, Integer floor, Integer floorsTotal, String wallMaterial, 
+                            Integer yearBuilt, BigDecimal priceTotal, BigDecimal pricePerM2, String currency, 
+                            String imagesUrls, String sourceUrl, LocalDateTime createdAt, 
+                            LocalDateTime updatedAt, String attributes, User user) {
         this.id = id;
         this.externalId = externalId;
         this.type = type;
@@ -100,6 +108,7 @@ public class RealEstateObject {
         this.createdAt = createdAt;
         this.updatedAt = updatedAt;
         this.attributes = attributes;
+        this.user = user;
     }
 
     // --- GETTERS & SETTERS ---
@@ -169,4 +178,7 @@ public class RealEstateObject {
 
     public String getAttributes() { return attributes; }
     public void setAttributes(String attributes) { this.attributes = attributes; }
+
+    public User getUser() { return user; }
+    public void setUser(User user) { this.user = user; }
 }

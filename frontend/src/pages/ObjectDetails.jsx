@@ -5,6 +5,9 @@ import './ObjectDetails.css';
 import { YMaps, Map, Placemark, useYMaps } from '@pbe/react-yandex-maps';
 import { useCurrency } from '../context/CurrencyContext';
 
+// Константа для доступа к серверу бэкенда (для загруженных фото)
+const API_BASE_URL = "http://localhost:8080";
+
 const MapWithMarker = ({ address }) => {
     const ymaps = useYMaps(['geocode']);
     const [coords, setCoords] = useState(null);
@@ -47,6 +50,7 @@ const ObjectDetails = () => {
     const [isMenuOpen, setIsMenuOpen] = useState(false);
     const dropdownRef = useRef(null);
 
+    // Получаем текущего пользователя
     const user = useMemo(() => {
         try {
             const u = localStorage.getItem('user');
@@ -57,6 +61,7 @@ const ObjectDetails = () => {
     const [currentImageIndex, setCurrentImageIndex] = useState(0);
     const [isModalOpen, setIsModalOpen] = useState(false);
 
+    // Состояния для калькулятора (Мастера)
     const [strategy, setStrategy] = useState('RENT');
     const [loanAmount, setLoanAmount] = useState(0);
     const [repairCost, setRepairCost] = useState(0);
@@ -97,20 +102,38 @@ const ObjectDetails = () => {
         navigate('/login');
     };
 
-    let images = ['https://via.placeholder.com/600x400?text=Нет+фото'];
-    if (object?.imagesUrls) {
-        try {
-            const parsed = JSON.parse(object.imagesUrls);
-            if (Array.isArray(parsed) && parsed.length > 0) images = parsed;
-        } catch (e) {
-            const cleanString = object.imagesUrls.replace(/[\[\]'"]/g, '');
-            const splitImages = cleanString.split(',').map(img => img.trim()).filter(img => img !== '');
-            if (splitImages.length > 0) images = splitImages;
-        }
-    }
+    // --- Обработка изображений (Исправлено для локальных путей) ---
+    const images = useMemo(() => {
+        let res = ['https://via.placeholder.com/600x400?text=Нет+фото'];
+        if (object?.imagesUrls) {
+            let rawList = [];
+            try {
+                const parsed = JSON.parse(object.imagesUrls);
+                rawList = Array.isArray(parsed) ? parsed : [parsed];
+            } catch (e) {
+                const cleanString = object.imagesUrls.replace(/[\[\]'"]/g, '');
+                rawList = cleanString.split(',').map(img => img.trim()).filter(img => img !== '');
+            }
 
-    const handlePrevImage = () => setCurrentImageIndex((prev) => (prev === 0 ? images.length - 1 : prev - 1));
-    const handleNextImage = () => setCurrentImageIndex((prev) => (prev === images.length - 1 ? 0 : prev + 1));
+            if (rawList.length > 0) {
+                res = rawList.map(img =>
+                    img.startsWith('/uploads') ? `${API_BASE_URL}${img}` : img
+                );
+            }
+        }
+        return res;
+    }, [object]);
+
+    const handlePrevImage = (e) => {
+        if (e) e.stopPropagation();
+        setCurrentImageIndex((prev) => (prev === 0 ? images.length - 1 : prev - 1));
+    };
+
+    const handleNextImage = (e) => {
+        if (e) e.stopPropagation();
+        setCurrentImageIndex((prev) => (prev === images.length - 1 ? 0 : prev + 1));
+    };
+
     const openModal = () => setIsModalOpen(true);
     const closeModal = () => setIsModalOpen(false);
 
@@ -134,6 +157,7 @@ const ObjectDetails = () => {
     if (error) return <div className="error-message">{error}</div>;
     if (!object) return null;
 
+    // Расчеты цен
     const displayBasePrice = convertPrice(object.priceTotal || 0, object.currency);
     const displayPriceM2 = convertPrice(object.pricePerM2 || 0, object.currency);
 
@@ -156,13 +180,8 @@ const ObjectDetails = () => {
                         value={currency}
                         onChange={(e) => setCurrency(e.target.value)}
                         style={{
-                            padding: '8px 14px',
-                            borderRadius: '8px',
-                            border: '1px solid #444',
-                            background: '#1a1a1a',
-                            color: 'white',
-                            fontWeight: '600',
-                            cursor: 'pointer'
+                            padding: '8px 14px', borderRadius: '8px', border: '1px solid #444',
+                            background: '#1a1a1a', color: 'white', fontWeight: '600', cursor: 'pointer'
                         }}
                     >
                         <option value="USD">USD ($)</option>
@@ -175,15 +194,9 @@ const ObjectDetails = () => {
                         className="sell-property-btn"
                         onClick={() => navigate('/add-object')}
                         style={{
-                            marginRight: '15px',
-                            padding: '8px 18px',
-                            backgroundColor: '#2ecc71',
-                            color: 'white',
-                            border: 'none',
-                            borderRadius: '8px',
-                            fontWeight: '600',
-                            cursor: 'pointer',
-                            fontSize: '13px'
+                            marginRight: '15px', padding: '8px 18px', backgroundColor: '#2ecc71',
+                            color: 'white', border: 'none', borderRadius: '8px', fontWeight: '600',
+                            cursor: 'pointer', fontSize: '13px'
                         }}
                     >
                         + Продать недвижимость
@@ -214,7 +227,6 @@ const ObjectDetails = () => {
             </header>
 
             <main className="details-container">
-                {/* 1. Секция информации об объекте */}
                 <section className="info-section">
                     <div className="main-image-container carousel">
                         {images.length > 1 && (
@@ -223,14 +235,21 @@ const ObjectDetails = () => {
                                 <button className="carousel-btn next" onClick={handleNextImage}>&gt;</button>
                             </>
                         )}
-                        <img src={images[currentImageIndex]} alt="Объект" className="main-image" onClick={openModal} style={{ cursor: 'pointer' }} />
+                        <img
+                            src={images[currentImageIndex]}
+                            alt="Объект"
+                            className="main-image"
+                            onClick={openModal}
+                            style={{ cursor: 'pointer' }}
+                            onError={(e) => { e.target.src = 'https://via.placeholder.com/600x400?text=Ошибка+загрузки'; }}
+                        />
                         {images.length > 1 && (
                             <div className="carousel-dots">
                                 {images.map((_, index) => (
                                     <span
                                         key={index}
                                         className={`carousel-dot ${index === currentImageIndex ? 'active' : ''}`}
-                                        onClick={() => setCurrentImageIndex(index)}
+                                        onClick={(e) => { e.stopPropagation(); setCurrentImageIndex(index); }}
                                     ></span>
                                 ))}
                             </div>
@@ -255,7 +274,7 @@ const ObjectDetails = () => {
                         </div>
                         <div className="spec-item">
                             <span className="spec-label">Этаж</span>
-                            <span className="spec-value">{object.floor} / {object.floorsTotal}</span>
+                            <span className="spec-value">{object.floor || '—'} / {object.floorsTotal || '—'}</span>
                         </div>
                         <div className="spec-item">
                             <span className="spec-label">Год постройки</span>
@@ -280,7 +299,7 @@ const ObjectDetails = () => {
                     </div>
                 </section>
 
-                {/* 2. Секция расчетов (для ИНВЕСТОРА в самом низу) */}
+                {/* Секция расчетов: Скрыта для продавцов */}
                 {user?.role !== 'SELLER' && (
                     <section className="wizard-section">
                         <div className="wizard-card">
@@ -354,13 +373,22 @@ const ObjectDetails = () => {
                 )}
             </main>
 
+            {/* Модальное окно (fullscreen просмотр) */}
             {isModalOpen && (
                 <div className="image-modal-overlay" onClick={closeModal}>
                     <div className="image-modal-content" onClick={(e) => e.stopPropagation()}>
                         <button className="modal-close-btn" onClick={closeModal}>&times;</button>
-                        {images.length > 1 && <button className="modal-side-nav prev" onClick={handlePrevImage}><span>&lt;</span></button>}
+                        {images.length > 1 && (
+                            <button className="modal-side-nav prev" onClick={handlePrevImage}>
+                                <span>&lt;</span>
+                            </button>
+                        )}
                         <img src={images[currentImageIndex]} alt="Full screen" className="modal-image" />
-                        {images.length > 1 && <button className="modal-side-nav next" onClick={handleNextImage}><span>&gt;</span></button>}
+                        {images.length > 1 && (
+                            <button className="modal-side-nav next" onClick={handleNextImage}>
+                                <span>&gt;</span>
+                            </button>
+                        )}
                     </div>
                 </div>
             )}

@@ -3,24 +3,32 @@ import './ObjectCard.css';
 import { useNavigate } from 'react-router-dom';
 import { useCurrency } from '../context/CurrencyContext';
 
+// Константа для доступа к серверу, где хранятся загруженные файлы
+const API_BASE_URL = "http://localhost:8080";
+
 const ObjectCard = ({ object }) => {
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const navigate = useNavigate();
   const { convertPrice, formatPrice: formatCurrency } = useCurrency();
-  // 1. Безопасный парсинг картинок
+
+  // 1. Обработка картинок (внешние ссылки + локальные загрузки)
   let images = ['https://via.placeholder.com/350x200?text=Нет+фото'];
+
   if (object.imagesUrls) {
+    let rawImages = [];
     try {
-      const parsedImages = JSON.parse(object.imagesUrls);
-      if (Array.isArray(parsedImages) && parsedImages.length > 0) {
-        images = parsedImages;
-      }
+      const parsed = JSON.parse(object.imagesUrls);
+      rawImages = Array.isArray(parsed) ? parsed : [parsed];
     } catch (e) {
       const cleanString = object.imagesUrls.replace(/[\[\]'"]/g, '');
-      const splitImages = cleanString.split(',').map(img => img.trim()).filter(img => img !== '');
-      if (splitImages.length > 0) {
-        images = splitImages;
-      }
+      rawImages = cleanString.split(',').map(img => img.trim()).filter(img => img !== '');
+    }
+
+    if (rawImages.length > 0) {
+      // Превращаем относительные пути (/uploads/...) в полные ссылки на бэкенд
+      images = rawImages.map(img =>
+        img.startsWith('/uploads') ? `${API_BASE_URL}${img}` : img
+      );
     }
   }
 
@@ -34,10 +42,11 @@ const ObjectCard = ({ object }) => {
     setCurrentImageIndex((prev) => (prev === images.length - 1 ? 0 : prev + 1));
   };
 
-  // 2. Умный парсинг атрибутов
+  // 2. Умный парсинг атрибутов (JSON)
   let parsedAttributes = null;
   if (object.attributes) {
     try {
+      // Пытаемся обработать как стандартный JSON, заменяя одинарные кавычки на двойные
       let validJson = object.attributes.replace(/'/g, '"').replace(/True/g, 'true').replace(/False/g, 'false');
       parsedAttributes = JSON.parse(validJson);
     } catch (e) {
@@ -45,7 +54,7 @@ const ObjectCard = ({ object }) => {
     }
   }
 
-  // 3. ПОЛНЫЙ словарь переводов
+  // 3. Словарь переводов
   const translateKey = (key) => {
     const dictionary = {
       rooms_count: 'Комнат',
@@ -60,6 +69,7 @@ const ObjectCard = ({ object }) => {
       ceiling_height_m: 'Потолки (м)',
       has_ramp: 'Рампа',
       retail_type: 'Тип помещения',
+      commercial_type: 'Тип комерц.',
       power_kw: 'Мощность (кВт)',
       land_purpose: 'Назначение',
       land_category: 'Категория',
@@ -74,7 +84,7 @@ const ObjectCard = ({ object }) => {
     return dictionary[key] || key;
   };
 
-  // 4. Форматирование значений (превращаем true/false в Да/Нет)
+  // 4. Форматирование булевых значений
   const formatAttributeValue = (value) => {
     if (value === true || value === 'true' || value === 'True') return 'Да';
     if (value === false || value === 'false' || value === 'False') return 'Нет';
@@ -89,10 +99,9 @@ const ObjectCard = ({ object }) => {
 
   const renderFloorInfo = () => {
     if (!object.floor || object.floor === 0) return null;
-    if ((object.floor === 1 && object.floorsTotal === 1) || !object.floorsTotal) return null;
     return (
       <span className="object-card-detail">
-        <span className="detail-icon">🏢</span> {object.floor}/{object.floorsTotal}
+        <span className="detail-icon">🏢</span> {object.floor}{object.floorsTotal ? `/${object.floorsTotal}` : ''} эт.
       </span>
     );
   };
@@ -104,16 +113,13 @@ const ObjectCard = ({ object }) => {
           src={images[currentImageIndex]}
           alt={object.title || 'Объект'}
           className="object-card-image"
+          onError={(e) => { e.target.src = 'https://via.placeholder.com/350x200?text=Ошибка+загрузки'; }}
         />
 
         {images.length > 1 && (
           <>
-            <button className="image-nav-btn prev" onClick={handlePrevImage} title="Предыдущее фото">
-              ❮
-            </button>
-            <button className="image-nav-btn next" onClick={handleNextImage} title="Следующее фото">
-              ❯
-            </button>
+            <button className="image-nav-btn prev" onClick={handlePrevImage}>❮</button>
+            <button className="image-nav-btn next" onClick={handleNextImage}>❯</button>
             <div className="image-counter">
               {currentImageIndex + 1} / {images.length}
             </div>
@@ -123,13 +129,9 @@ const ObjectCard = ({ object }) => {
 
       <div className="object-card-content">
         <div className="object-card-header-info">
-          <h3 className="object-card-title" title={object.title}>
-            {object.title || 'Без названия'}
-          </h3>
-          <p className="object-card-price">
-            {getDisplayPrice()}
-          </p>
-          <p className="object-card-address" title={`${object.city || ''}, ${object.address || ''}`}>
+          <h3 className="object-card-title">{object.title || 'Без названия'}</h3>
+          <p className="object-card-price">{getDisplayPrice()}</p>
+          <p className="object-card-address">
             {object.city ? `${object.city}, ` : ''}{object.address || 'Адрес не указан'}
           </p>
 
@@ -147,7 +149,7 @@ const ObjectCard = ({ object }) => {
           {parsedAttributes && Object.keys(parsedAttributes).length > 0 ? (
             <div className="object-card-attributes">
               {Object.entries(parsedAttributes).map(([key, value]) => (
-                <div key={key} className="attribute-item" title={`${translateKey(key)}: ${formatAttributeValue(value)}`}>
+                <div key={key} className="attribute-item">
                   <span className="attribute-key">{translateKey(key)}:</span>
                   <span className="attribute-value">{formatAttributeValue(value)}</span>
                 </div>
