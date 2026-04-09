@@ -27,14 +27,24 @@ public class AuthService {
     public JwtResponse login(String email, String password) {
         User user = userRepository.findByEmail(email).orElse(null);
         
-        // Проверяем, что пароль у юзера вообще есть (у тех кто через гугл зарегался, он пустой)
-        if (user != null && user.getPasswordHash() != null && !user.getPasswordHash().isEmpty()) {
-            if (passwordEncoder.matches(password, user.getPasswordHash())) {
-                String token = jwtUtils.generateToken(user.getEmail());
-                return new JwtResponse(token, user);
-            }
+        // 1. Если пользователя вообще нет в базе -> ругаемся на ПОЧТУ
+        if (user == null) {
+            throw new RuntimeException("Пользователь с таким email не найден");
         }
-        throw new RuntimeException("Неверный email или пароль");
+
+        // 2. Проверка на GOOGLE АККАУНТ -> ругаемся ОБЩЕЙ ошибкой сверху
+        if (user.getPasswordHash() == null || user.getPasswordHash().isEmpty()) {
+            throw new RuntimeException("Этот аккаунт привязан к Google. Пожалуйста, используйте кнопку 'Вход через Google' ниже.");
+        }
+
+        // 3. Обычная проверка пароля
+        if (passwordEncoder.matches(password, user.getPasswordHash())) {
+            String token = jwtUtils.generateToken(user.getEmail());
+            return new JwtResponse(token, user);
+        }
+        
+        // 4. Если пароль не подошел -> ругаемся на ПАРОЛЬ
+        throw new RuntimeException("Неверный пароль");
     }
 
     public User register(User user) {

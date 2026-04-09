@@ -41,7 +41,13 @@ public class AuthController {
 
     @PostMapping("/login")
     public ResponseEntity<?> login(@RequestBody LoginRequest loginRequest) {
-        return ResponseEntity.ok(authService.login(loginRequest.getEmail(), loginRequest.getPassword()));
+        try {
+            // Пытаемся залогинить
+            return ResponseEntity.ok(authService.login(loginRequest.getEmail(), loginRequest.getPassword()));
+        } catch (RuntimeException e) {
+            // Перехватываем нашу ошибку (про Google или неверный пароль) и отправляем на фронт
+            return ResponseEntity.badRequest().body(Map.of("message", e.getMessage()));
+        }
     }
 
     @GetMapping("/check-email")
