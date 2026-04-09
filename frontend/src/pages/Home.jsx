@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useMemo, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import api from '../api/axios';
 import ObjectCard from '../components/ObjectCard';
 import { useCurrency } from '../context/CurrencyContext';
@@ -37,6 +38,7 @@ const CATEGORY_CONFIG = {
 };
 
 const Home = () => {
+  const navigate = useNavigate();
   const [allObjects, setAllObjects] = useState([]);
   const [displayedObjects, setDisplayedObjects] = useState([]);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -48,13 +50,18 @@ const Home = () => {
   });
 
   const [sortOption, setSortOption] = useState('default');
-  const user = JSON.parse(localStorage.getItem('user'));
+
+  const user = useMemo(() => {
+    try {
+      const u = localStorage.getItem('user');
+      return u ? JSON.parse(u) : null;
+    } catch (e) { return null; }
+  }, []);
+
   const token = localStorage.getItem('token');
   const dropdownRef = useRef(null);
-
   const { currency, setCurrency, convertPrice } = useCurrency();
 
-  // Хелпер для корректного приведения значений из БД к булеву типу
   const toBool = (val) => {
     if (val === true || val === 'true' || val === 'True' || val === 1) return true;
     return false;
@@ -117,10 +124,7 @@ const Home = () => {
             return true;
           } else if (f.type === 'boolean') {
             const filterVal = filters.attributes[f.name];
-            // Если фильтр не задан ("Любой"), показываем всё
             if (filterVal === undefined || filterVal === '') return true;
-
-            // Строгое соответствие: если фильтр "Да" (true), ищем true. Если "Нет" (false), ищем false.
             return toBool(objAttrs[f.name]) === filterVal;
           } else {
             const filterVal = filters.attributes[f.name];
@@ -140,7 +144,7 @@ const Home = () => {
     }
 
     setDisplayedObjects(result);
-  }, [allObjects, filters, sortOption]);
+  }, [allObjects, filters, sortOption, convertPrice]);
 
   const toggleCategory = (cat) => {
     setFilters(prev => ({
@@ -168,10 +172,10 @@ const Home = () => {
   return (
     <div className="home-container">
       <header className="home-header">
-        <div className="brand">💎 InvestHub</div>
+        <div className="brand" onClick={() => navigate('/')} style={{ cursor: 'pointer' }}>💎 InvestHub</div>
 
-        {/* <--- ДОБАВЛЯЕМ ПЕРЕКЛЮЧАТЕЛЬ СЮДА ---> */}
-        <div className="currency-selector" style={{ marginLeft: 'auto', marginRight: '20px' }}>
+        {/* 1. Селектор валют (прижат вправо через auto margin) */}
+        <div className="currency-selector" style={{ marginLeft: 'auto', marginRight: '15px' }}>
           <select
             value={currency}
             onChange={(e) => setCurrency(e.target.value)}
@@ -181,11 +185,10 @@ const Home = () => {
               border: '1px solid #444',
               cursor: 'pointer',
               outline: 'none',
-              background: '#1a1a1a', // Темный фон
-              color: 'white',        // Белый текст
+              background: '#1a1a1a',
+              color: 'white',
               fontWeight: '600',
-              fontSize: '14px',
-              transition: 'all 0.3s ease'
+              fontSize: '14px'
             }}
           >
             <option value="USD">USD ($)</option>
@@ -193,6 +196,38 @@ const Home = () => {
           </select>
         </div>
 
+        {/* 2. Кнопка "Продать" для SELLER (между валютой и аватаром) */}
+        {user?.role === 'SELLER' && (
+          <button
+            className="sell-property-btn"
+            onClick={() => navigate('/add-object')}
+            style={{
+              marginRight: '15px',
+              padding: '8px 18px',
+              backgroundColor: '#2ecc71',
+              color: 'white',
+              border: 'none',
+              borderRadius: '8px',
+              fontWeight: '600',
+              cursor: 'pointer',
+              fontSize: '13px',
+              boxShadow: '0 2px 8px rgba(46, 204, 113, 0.3)',
+              transition: 'all 0.2s ease'
+            }}
+            onMouseOver={(e) => {
+              e.target.style.backgroundColor = '#27ae60';
+              e.target.style.transform = 'translateY(-1px)';
+            }}
+            onMouseOut={(e) => {
+              e.target.style.backgroundColor = '#2ecc71';
+              e.target.style.transform = 'translateY(0)';
+            }}
+          >
+            + Продать недвижимость
+          </button>
+        )}
+
+        {/* 3. Контейнер пользователя */}
         <div className="user-profile-container" ref={dropdownRef}>
           <div className="avatar-wrapper" onClick={() => setIsMenuOpen(!isMenuOpen)}>
             <span className="user-nickname">{user?.name || 'Гость'}</span>
@@ -207,6 +242,7 @@ const Home = () => {
               <div className="dropdown-header">
                 <p className="d-name">{user?.name}</p>
                 <p className="d-email">{user?.email}</p>
+                <p className="d-role" style={{ fontSize: '10px', color: '#888', textTransform: 'uppercase' }}>{user?.role}</p>
               </div>
               <button className="dropdown-item">Мой профиль</button>
               <button onClick={() => { localStorage.clear(); window.location.reload(); }} className="dropdown-item logout">Выйти</button>
@@ -215,6 +251,7 @@ const Home = () => {
         </div>
       </header>
 
+      {/* --- Остальная часть фильтров и контента без изменений --- */}
       <div className="filter-wrapper">
         <div className="main-filter-row">
           <div className="f-box">
@@ -293,8 +330,8 @@ const Home = () => {
                           value={filters.attributes[f.name] !== undefined && filters.attributes[f.name] !== '' ? filters.attributes[f.name].toString() : ''}
                           onChange={(e) => {
                             const val = e.target.value;
-                            if (val === '') handleAttrChange(f.name, ''); // Сброс в "Любой"
-                            else handleAttrChange(f.name, val === 'true'); // Конвертация строки в булево значение
+                            if (val === '') handleAttrChange(f.name, '');
+                            else handleAttrChange(f.name, val === 'true');
                           }}
                         >
                           <option value="">Любой</option>
