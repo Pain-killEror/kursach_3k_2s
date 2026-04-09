@@ -4,32 +4,30 @@ import api from '../api/axios';
 import { GoogleLogin } from '@react-oauth/google';
 
 const Login = () => {
-  // Отключаем прокрутку только для страницы входа
   useEffect(() => {
     const originalStyle = window.getComputedStyle(document.body).overflow;
     document.body.style.overflow = 'hidden';
-
-    // Возвращаем настройки прокрутки при уходе со страницы
     return () => {
       document.body.style.overflow = originalStyle;
     };
   }, []);
 
-  const [formData, setFormData] = useState({
-    email: '',
-    password: ''
-  });
+  const [formData, setFormData] = useState({ email: '', password: '' });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
+  // --- Новые стейты для завершения регистрации через Google ---
+  const [needsRegistration, setNeedsRegistration] = useState(false);
+  const [googleData, setGoogleData] = useState({ email: '', name: '', token: '' });
+  const [extraData, setExtraData] = useState({ phoneNumber: '', role: 'INVESTOR' });
+
   const navigate = useNavigate();
 
-  const handleChange = (e) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
-  };
+  const handleChange = (e) => setFormData({ ...formData, [e.target.name]: e.target.value });
+  const handleExtraChange = (e) => setExtraData({ ...extraData, [e.target.name]: e.target.value });
 
-  // Обычный вход по почте/паролю
+  // Обычный вход
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
@@ -56,10 +54,22 @@ const Login = () => {
       const response = await api.post('/auth/google', {
         token: credentialResponse.credential
       });
-      localStorage.setItem('token', response.data.token);
-      localStorage.setItem('user', JSON.stringify(response.data.user));
-      navigate('/');
-      window.location.reload();
+
+      // Перехватываем нового пользователя!
+      if (response.data.needsRegistration) {
+        setGoogleData({
+          email: response.data.email,
+          name: response.data.name,
+          token: credentialResponse.credential
+        });
+        setNeedsRegistration(true);
+      } else {
+        // Обычный успешный вход
+        localStorage.setItem('token', response.data.token);
+        localStorage.setItem('user', JSON.stringify(response.data.user));
+        navigate('/');
+        window.location.reload();
+      }
     } catch (err) {
       setError('Ошибка при входе через Google.');
     } finally {
@@ -67,6 +77,87 @@ const Login = () => {
     }
   };
 
+  // Завершение регистрации после Google OAuth
+  const handleCompleteRegistration = async (e) => {
+    e.preventDefault();
+    setError('');
+    setLoading(true);
+
+    try {
+      // 1. Создаем пользователя в БД
+      await api.post('/auth/register', {
+        name: googleData.name,
+        email: googleData.email,
+        phoneNumber: extraData.phoneNumber,
+        role: extraData.role,
+        password: "" // Пустой пароль, так как вход через Google
+      });
+
+      // 2. Сразу после успешной регистрации авторизуем его снова через сохраненный токен
+      const loginResponse = await api.post('/auth/google', { token: googleData.token });
+      localStorage.setItem('token', loginResponse.data.token);
+      localStorage.setItem('user', JSON.stringify(loginResponse.data.user));
+      navigate('/');
+      window.location.reload();
+
+    } catch (err) {
+      setError(err.response?.data?.message || 'Ошибка завершения регистрации.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // ЕСЛИ ТРЕБУЕТСЯ ЗАВЕРШЕНИЕ РЕГИСТРАЦИИ, ПОКАЗЫВАЕМ ТОЛЬКО ЭТУ ФОРМУ
+  if (needsRegistration) {
+    return (
+      <div className="auth-container">
+        <div className="auth-card" style={{ padding: '24px 32px' }}>
+          <h2 style={{ marginBottom: '4px', fontSize: '1.5rem', textAlign: 'center', color: '#fff' }}>
+            Почти готово!
+          </h2>
+          <p className="auth-subtitle" style={{ marginBottom: '16px', fontSize: '0.85rem', textAlign: 'center', color: '#a1a1aa' }}>
+            Укажите вашу роль и номер телефона для завершения регистрации
+          </p>
+
+          {error && <div className="error-message" style={{ padding: '8px', marginBottom: '12px', fontSize: '0.8rem' }}>{error}</div>}
+
+          <form onSubmit={handleCompleteRegistration} className="auth-form" style={{ gap: '12px', display: 'flex', flexDirection: 'column' }}>
+            <div className="input-group" style={{ gap: '4px', display: 'flex', flexDirection: 'column' }}>
+              <label style={{ fontSize: '0.85rem', color: '#e4e4e7' }}>Роль</label>
+              <select
+                name="role"
+                value={extraData.role}
+                onChange={handleExtraChange}
+                style={{ padding: '10px 12px', borderRadius: '4px', border: '1px solid #3f3f46', background: '#27272a', color: '#fff' }}
+              >
+                <option value="INVESTOR">Инвестор</option>
+                <option value="SELLER">Продавец</option>
+              </select>
+            </div>
+
+            <div className="input-group" style={{ gap: '4px', display: 'flex', flexDirection: 'column' }}>
+              <label style={{ fontSize: '0.85rem', color: '#e4e4e7' }}>Номер телефона</label>
+              <input
+                type="tel"
+                name="phoneNumber"
+                value={extraData.phoneNumber}
+                onChange={handleExtraChange}
+                placeholder="+375 (44) 000-00-00"
+                required
+                style={{ padding: '10px 12px' }}
+              />
+            </div>
+
+            <button type="submit" className="auth-button" disabled={loading} style={{ marginTop: '10px', padding: '10px' }}>
+              {loading ? 'Завершение...' : 'Завершить регистрацию'}
+            </button>
+          </form>
+        </div>
+      </div>
+    );
+  }
+
+  // ОБЫЧНАЯ ФОРМА ЛОГИНА
   return (
     <div className="auth-container">
       <div className="auth-card" style={{ padding: '24px 32px' }}>
@@ -99,62 +190,56 @@ const Login = () => {
 
           <div className="input-group" style={{ gap: '4px', display: 'flex', flexDirection: 'column' }}>
             <label style={{ fontSize: '0.85rem', color: '#e4e4e7' }}>Пароль</label>
-            <div className="password-input-container">
+            <div className="password-input-container" style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
               <input
                 type={showPassword ? "text" : "password"}
                 name="password"
                 value={formData.password}
                 onChange={handleChange}
-                placeholder="Введите пароль"
+                placeholder="Ваш пароль"
                 required
-                style={{ padding: '10px 12px' }}
+                style={{ padding: '10px 12px', paddingRight: '40px', width: '100%' }}
               />
+              {/* Кнопка появляется только если введен хотя бы один символ */}
               {formData.password.length > 0 && (
                 <button
                   type="button"
                   className="toggle-password-btn"
                   onClick={() => setShowPassword(!showPassword)}
-                  style={{ right: '10px' }}
+                  style={{
+                    position: 'absolute', right: '10px', background: 'none', border: 'none',
+                    cursor: 'pointer', display: 'flex', alignItems: 'center', padding: '0'
+                  }}
                 >
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="eye-icon" style={{ width: '18px' }}>
-                    {showPassword ? (
-                      <><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></>
-                    ) : (
-                      <><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line></>
-                    )}
-                  </svg>
+                  {showPassword ? (
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#a1a1aa" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>
+                  ) : (
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#a1a1aa" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>
+                  )}
                 </button>
               )}
             </div>
           </div>
 
-          <button type="submit" className="submit-btn" disabled={loading} style={{ marginTop: '4px', padding: '10px' }}>
+          <button type="submit" className="auth-button" disabled={loading} style={{ marginTop: '10px', padding: '10px' }}>
             {loading ? 'Вход...' : 'Войти'}
           </button>
         </form>
 
-        <div style={{ display: 'flex', alignItems: 'center', margin: '14px 0' }}>
-          <div style={{ flex: 1, height: '1px', backgroundColor: 'rgba(255,255,255,0.1)' }}></div>
-          <span style={{ padding: '0 10px', color: '#888', fontSize: '11px' }}>ИЛИ</span>
-          <div style={{ flex: 1, height: '1px', backgroundColor: 'rgba(255,255,255,0.1)' }}></div>
+        <div className="divider" style={{ margin: '20px 0', textAlign: 'center', color: '#a1a1aa', fontSize: '0.85rem' }}>
+          или
         </div>
 
-        <div style={{ display: 'flex', justifyContent: 'center' }}>
+        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '15px' }}>
           <GoogleLogin
             onSuccess={handleGoogleSuccess}
-            onError={() => setError('Ошибка Google')}
-            theme="outline"
-            shape="rectangular"
-            width="100%"
+            onError={() => setError('Ошибка при подключении Google.')}
           />
         </div>
 
-        <div className="auth-redirect" style={{ marginTop: '14px', fontSize: '0.85rem', textAlign: 'center' }}>
-          <span style={{ color: '#a1a1aa' }}>Нет аккаунта?</span>
-          <Link to="/register" style={{ color: '#3b82f6', textDecoration: 'none', marginLeft: '5px' }}>
-            Зарегистрироваться
-          </Link>
-        </div>
+        <p className="auth-footer" style={{ marginTop: '10px', textAlign: 'center', fontSize: '0.85rem' }}>
+          Нет аккаунта? <Link to="/register">Зарегистрироваться</Link>
+        </p>
       </div>
     </div>
   );

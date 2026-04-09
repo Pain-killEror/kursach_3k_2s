@@ -26,6 +26,10 @@ public class User {
 
     private String email;
 
+    // Новое поле для номера телефона
+    @Column(name = "phone_number", length = 20)
+    private String phoneNumber;
+
     @JsonProperty("password")
     @Column(name = "password_hash")
     private String passwordHash;
@@ -42,10 +46,12 @@ public class User {
     public User() {
     }
 
-    public User(UUID id, String name, String email, String passwordHash, Role role, Status status, LocalDateTime createdAt) {
+    // Обновленный конструктор с полем phoneNumber
+    public User(UUID id, String name, String email, String phoneNumber, String passwordHash, Role role, Status status, LocalDateTime createdAt) {
         this.id = id;
         this.name = name;
         this.email = email;
+        this.phoneNumber = phoneNumber;
         this.passwordHash = passwordHash;
         this.role = role;
         this.status = status;
@@ -74,6 +80,15 @@ public class User {
 
     public void setEmail(String email) {
         this.email = email;
+    }
+
+    // Геттер и сеттер для phoneNumber
+    public String getPhoneNumber() {
+        return phoneNumber;
+    }
+
+    public void setPhoneNumber(String phoneNumber) {
+        this.phoneNumber = phoneNumber;
     }
 
     public String getPasswordHash() {

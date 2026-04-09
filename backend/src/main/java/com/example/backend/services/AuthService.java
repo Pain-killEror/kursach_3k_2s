@@ -26,14 +26,24 @@ public class AuthService {
 
     public JwtResponse login(String email, String password) {
         User user = userRepository.findByEmail(email).orElse(null);
-        if (user != null && user.getPasswordHash() != null && passwordEncoder.matches(password, user.getPasswordHash())) {
-            String token = jwtUtils.generateToken(user.getEmail());
-            return new JwtResponse(token, user);
+        
+        // Проверяем, что пароль у юзера вообще есть (у тех кто через гугл зарегался, он пустой)
+        if (user != null && user.getPasswordHash() != null && !user.getPasswordHash().isEmpty()) {
+            if (passwordEncoder.matches(password, user.getPasswordHash())) {
+                String token = jwtUtils.generateToken(user.getEmail());
+                return new JwtResponse(token, user);
+            }
         }
         throw new RuntimeException("Неверный email или пароль");
     }
 
     public User register(User user) {
+        // Защита от дублей
+        if (userRepository.findByEmail(user.getEmail()).isPresent()) {
+            throw new RuntimeException("Пользователь с таким email уже существует");
+        }
+
+        // Если роль не передали с фронтенда, ставим инвестора по умолчанию (страховка)
         if (user.getRole() == null) {
             user.setRole(Role.INVESTOR);
         }
@@ -43,9 +53,12 @@ public class AuthService {
         if (user.getCreatedAt() == null) {
             user.setCreatedAt(LocalDateTime.now());
         }
-        if (user.getPasswordHash() != null) {
+        
+        // Хешируем пароль, если он не пустой. Для Google регистрации он будет пустой строкой ""
+        if (user.getPasswordHash() != null && !user.getPasswordHash().isEmpty()) {
             user.setPasswordHash(passwordEncoder.encode(user.getPasswordHash()));
         }
+
         return userRepository.save(user);
     }
 }

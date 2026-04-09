@@ -33,7 +33,7 @@ public class SecurityConfig {
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
                 // Найди в методе filterChain строку .requestMatchers и обнови её:
-.requestMatchers("/api/auth/login", "/api/auth/register", "/api/auth/google").permitAll()
+                .requestMatchers("/api/auth/login", "/api/auth/register", "/api/auth/google", "/api/auth/check-email").permitAll()
                 .anyRequest().authenticated()
             )
             // ДОБАВЛЯЕМ НАШ ФИЛЬТР В ЦЕПОЧКУ
