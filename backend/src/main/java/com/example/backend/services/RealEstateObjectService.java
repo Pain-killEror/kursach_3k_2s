@@ -53,6 +53,11 @@ public class RealEstateObjectService {
         User owner = userRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("Пользователь (продавец) не найден"));
         
+        // Нормализуем поле города
+        if (obj.getCity() != null) {
+            obj.setCity(normalizeCity(obj.getCity()));
+        }
+
         // 2. Устанавливаем обязательные системные поля
         obj.setUser(owner);
         obj.setCreatedAt(LocalDateTime.now());
@@ -81,5 +86,27 @@ public class RealEstateObjectService {
         }
 
         return savedObject;
+    }
+
+    /**
+     * Нормализация названия города: убирает префиксы г., г, город и лишние пробелы,
+     * а затем возвращает в формате "г. Название"
+     */
+    private String normalizeCity(String city) {
+        if (city == null || city.trim().isEmpty()) {
+            return city;
+        }
+
+        // Удаляем префиксы "г.", "г ", "город " в любом регистре и пробелы после них
+        String cleaned = city.trim().replaceFirst("^(?i)(г\\.|г\\s+|город\\s+)\\s*", "");
+
+        if (cleaned.isEmpty()) {
+            return city;
+        }
+
+        // Возводим первую букву в верхний регистр
+        cleaned = cleaned.substring(0, 1).toUpperCase() + cleaned.substring(1);
+
+        return "г. " + cleaned;
     }
 }
