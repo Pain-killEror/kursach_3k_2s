@@ -46,14 +46,27 @@ const Home = () => {
   const [allObjects, setAllObjects] = useState([]);
   const [displayedObjects, setDisplayedObjects] = useState([]);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const [showAdvanced, setShowAdvanced] = useState(false);
-
-  const [filters, setFilters] = useState({
-    city: '', minPrice: '', maxPrice: '', minArea: '', maxArea: '',
-    categories: [], attributes: {}
+  // Инициализируем состояния из sessionStorage, если они там есть
+  const [showAdvanced, setShowAdvanced] = useState(() => {
+    const saved = sessionStorage.getItem('homeShowAdvanced');
+    return saved ? JSON.parse(saved) : false;
   });
 
-  const [sortOption, setSortOption] = useState('default');
+  const [filters, setFilters] = useState(() => {
+    const saved = sessionStorage.getItem('homeFilters');
+    return saved ? JSON.parse(saved) : {
+      city: '', minPrice: '', maxPrice: '', minArea: '', maxArea: '',
+      categories: [], attributes: {}
+    };
+  });
+
+  const [sortOption, setSortOption] = useState(() => {
+    const saved = sessionStorage.getItem('homeSortOption');
+    return saved ? saved : 'default';
+  });
+
+  // Состояние для отображения кнопки "Наверх"
+  const [showScrollTop, setShowScrollTop] = useState(false);
 
   const user = useMemo(() => {
     try {
@@ -62,9 +75,118 @@ const Home = () => {
     } catch (e) { return null; }
   }, []);
 
+  // 1. Сохраняем фильтры и настройки при их изменении
+  useEffect(() => {
+    sessionStorage.setItem('homeFilters', JSON.stringify(filters));
+    sessionStorage.setItem('homeSortOption', sortOption);
+    sessionStorage.setItem('homeShowAdvanced', JSON.stringify(showAdvanced));
+  }, [filters, sortOption, showAdvanced]);
+
+  // 2. Отслеживаем скролл (для кнопки "Наверх" и сохранения позиции)
+  useEffect(() => {
+    let timeoutId;
+    const handleScroll = () => {
+      // Игнорируем фантомные события скролла при первоначальной отрисовке макета!
+      if (!hasRestoredScroll.current) return;
+
+      if (window.scrollY > 400) setShowScrollTop(true);
+      else setShowScrollTop(false);
+
+      clearTimeout(timeoutId);
+      timeoutId = setTimeout(() => {
+        sessionStorage.setItem('homeScrollPosition', window.scrollY);
+      }, 100);
+    };
+
+    window.addEventListener('scroll', handleScroll);
+    return () => {
+      window.removeEventListener('scroll', handleScroll);
+      clearTimeout(timeoutId);
+    };
+  }, []);
+
+  // 3. Восстанавливаем позицию скролла, когда объекты загрузились и отрендерились
+  useEffect(() => {
+    if (hasRestoredScroll.current) return;
+
+    const savedScroll = sessionStorage.getItem('homeScrollPosition');
+    if (savedScroll && displayedObjects.length > 0) {
+      // Даем 150мс на то, чтобы открытая панель фильтров полностью увеличила высоту страницы
+      setTimeout(() => {
+        window.scrollTo({ top: parseInt(savedScroll, 10), behavior: 'instant' });
+        // Разрешаем сохранять скролл только после успешного прыжка
+        setTimeout(() => { hasRestoredScroll.current = true; }, 50);
+      }, 150);
+    } else if (displayedObjects.length > 0) {
+      // Если скролла нет (первый заход), просто разрешаем сохранение
+      hasRestoredScroll.current = true;
+    }
+  }, [displayedObjects]);
+
+  // Функция для кнопки "Наверх"
+  const scrollToTop = () => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
   const token = localStorage.getItem('token');
   const dropdownRef = useRef(null);
+  const hasRestoredScroll = useRef(false);
   const { currency, setCurrency, convertPrice } = useCurrency();
+
+  const activeFiltersText = useMemo(() => {
+    const list = [];
+    if (filters.city) list.push(`Город: ${filters.city}`);
+
+    if (filters.minPrice || filters.maxPrice) {
+      let p = `Бюджет (${currency}): `;
+      if (filters.minPrice) p += `от ${filters.minPrice} `;
+      if (filters.maxPrice) p += `до ${filters.maxPrice}`;
+      list.push(p.trim());
+    }
+
+    if (filters.minArea || filters.maxArea) {
+      let a = 'Площадь: ';
+      if (filters.minArea) a += `от ${filters.minArea} `;
+      if (filters.maxArea) a += `до ${filters.maxArea}`;
+      list.push(a.trim() + ' м²');
+    }
+
+    if (filters.categories.length > 0) {
+      list.push(`Тип: ${filters.categories.map(c => c.replace('_', ' ')).join(', ')}`);
+    }
+
+    const attrList = [];
+    Object.keys(CATEGORY_CONFIG).forEach(cat => {
+      // Игнорируем атрибуты категорий, которые не выбраны (если выбрана хоть одна)
+      if (filters.categories.length > 0 && !filters.categories.includes(cat)) return;
+
+      CATEGORY_CONFIG[cat].forEach(f => {
+        if (f.type === 'range') {
+          const min = filters.attributes[`${f.name}_min`];
+          const max = filters.attributes[`${f.name}_max`];
+          if (min || max) {
+            let text = `${f.label}: `;
+            if (min) text += `от ${min} `;
+            if (max) text += `до ${max}`;
+            attrList.push(text.trim());
+          }
+        } else if (f.type === 'boolean') {
+          const val = filters.attributes[f.name];
+          if (val === true || val === 'true') attrList.push(`${f.label}: Да`);
+          if (val === false || val === 'false') attrList.push(`${f.label}: Нет`);
+        } else {
+          const val = filters.attributes[f.name];
+          if (val) attrList.push(`${f.label}: ${val}`);
+        }
+      });
+    });
+
+    // Убираем дубликаты (если один атрибут есть в разных категориях)
+    const uniqueAttrs = [...new Set(attrList)];
+    list.push(...uniqueAttrs);
+
+    return list.length > 0 ? list.join(' • ') : null;
+  }, [filters, currency]);
 
   const toBool = (val) => {
     if (val === true || val === 'true' || val === 'True' || val === 1) return true;
@@ -151,10 +273,34 @@ const Home = () => {
   }, [allObjects, filters, sortOption, convertPrice]);
 
   const toggleCategory = (cat) => {
-    setFilters(prev => ({
-      ...prev,
-      categories: prev.categories.includes(cat) ? prev.categories.filter(c => c !== cat) : [...prev.categories, cat]
-    }));
+    setFilters(prev => {
+      const isRemoving = prev.categories.includes(cat);
+
+      // Обновляем список категорий
+      const newCategories = isRemoving
+        ? prev.categories.filter(c => c !== cat)
+        : [...prev.categories, cat];
+
+      // Копируем текущие атрибуты
+      const newAttributes = { ...prev.attributes };
+
+      // Если мы ОТКЛЮЧАЕМ категорию, то удаляем все её внутренние параметры
+      if (isRemoving && CATEGORY_CONFIG[cat]) {
+        CATEGORY_CONFIG[cat].forEach(f => {
+          delete newAttributes[f.name];
+          if (f.type === 'range') {
+            delete newAttributes[`${f.name}_min`];
+            delete newAttributes[`${f.name}_max`];
+          }
+        });
+      }
+
+      return {
+        ...prev,
+        categories: newCategories,
+        attributes: newAttributes
+      };
+    });
   };
 
   const handleAttrChange = (name, value) => {
@@ -246,7 +392,7 @@ const Home = () => {
                 <p className="d-role" style={{ fontSize: '10px', color: '#888', textTransform: 'uppercase' }}>{user?.role}</p>
               </div>
               <button className="dropdown-item">Мой профиль</button>
-              <button onClick={() => { localStorage.clear(); window.location.reload(); }} className="dropdown-item logout">Выйти</button>
+              <button onClick={() => { localStorage.clear(); sessionStorage.clear(); window.location.reload(); }} className="dropdown-item logout">Выйти</button>
             </div>
           )}
         </div>
@@ -278,8 +424,11 @@ const Home = () => {
             </div>
           </div>
 
-          <button className={`adv-toggle-btn ${showAdvanced ? 'active' : ''}`} onClick={() => setShowAdvanced(!showAdvanced)}>
-            {showAdvanced ? 'Закрыть параметры' : 'Все фильтры ⚙️'}
+          <button
+            className={`adv-toggle-btn ${showAdvanced ? 'active' : (filters.categories.length > 0 || Object.values(filters.attributes).some(v => v !== '' && v !== null && v !== undefined && v !== false) ? 'partial-active' : '')}`}
+            onClick={() => setShowAdvanced(!showAdvanced)}
+          >
+            {showAdvanced ? 'Закрыть фильтры ⚙️' : 'Все фильтры ⚙️'}
           </button>
 
           <div className="f-box">
@@ -355,11 +504,26 @@ const Home = () => {
         )}
       </div>
 
+      {activeFiltersText && (
+        <div style={{ color: '#888', fontSize: '13px', marginBottom: '8px', marginTop: '0px', padding: '0 5px' }}>
+          <b>Фильтры:</b> {activeFiltersText}
+        </div>
+      )}
+
       <div className="results-bar">Найдено объектов: <b>{displayedObjects.length}</b></div>
 
       <div className="objects-grid">
         {displayedObjects.map(obj => <ObjectCard key={obj.id} object={obj} />)}
       </div>
+      <button
+        className={`scroll-to-top-btn ${showScrollTop ? 'visible' : ''}`}
+        onClick={scrollToTop}
+        title="Наверх"
+      >
+        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M18 15l-6-6-6 6" />
+        </svg>
+      </button>
     </div>
   );
 };

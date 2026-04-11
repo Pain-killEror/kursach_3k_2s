@@ -238,6 +238,20 @@
   border-color: var(--accent-blue);
 }
 
+.adv-toggle-btn.partial-active {
+  background-color: #d0e6ff;
+  /* Тускло-голубой цвет */
+  color: #0056b3;
+  /* Темно-голубой текст */
+  border: 1px solid #8ab4f8;
+  /* Мягкая голубая рамка */
+}
+
+.adv-toggle-btn.partial-active:hover {
+  background-color: #baddff;
+  /* Чуть темнее при наведении */
+}
+
 /* Кнопка сброса */
 .reset-all-btn {
   height: 48px;
@@ -456,4 +470,46 @@ input:checked+.slider:before {
 
 ::-webkit-scrollbar-thumb:hover {
   background: var(--text-secondary);
+}
+
+/* === КНОПКА ВОЗВРАТА НАВЕРХ === */
+.scroll-to-top-btn {
+  position: fixed;
+  bottom: 30px;
+  right: 30px;
+  width: 50px;
+  height: 50px;
+  background-color: #2ecc71;
+  /* Цвет в стиле вашей кнопки "Продать" */
+  color: white;
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+  z-index: 1000;
+
+  /* Состояние скрытости */
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(20px);
+  transition: opacity 0.3s ease, transform 0.3s ease, visibility 0.3s ease, background-color 0.2s;
+
+  /* Центрируем иконку внутри */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Состояние видимости */
+.scroll-to-top-btn.visible {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
+}
+
+/* Наведение мыши */
+.scroll-to-top-btn:hover {
+  background-color: #27ae60;
+  transform: translateY(-3px) scale(1.05);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
 }
