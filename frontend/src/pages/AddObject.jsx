@@ -47,6 +47,13 @@ const AddObject = () => {
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [errors, setErrors] = useState({});
 
+    // === СОСТОЯНИЕ ФОТОГРАФИЙ И ЛАЙТБОКСА ===
+    const [photos, setPhotos] = useState([]);
+    const [draggedIdx, setDraggedIdx] = useState(null);
+    const [dragOverIdx, setDragOverIdx] = useState(null);
+    const [lightboxIndex, setLightboxIndex] = useState(null);
+    const [dropTargetIdx, setDropTargetIdx] = useState(null);
+
     const [formData, setFormData] = useState({
         type: 'Квартира',
         category: 'Средний ремонт',
@@ -77,15 +84,27 @@ const AddObject = () => {
         currency: 'USD'
     });
 
-    const [images, setImages] = useState([]);
-    const [previewUrls, setPreviewUrls] = useState([]);
-
-    // Очистка блокировки скролла, если вдруг компонент размонтируется раньше времени
     useEffect(() => {
-        return () => {
+        if (isSubmitting || lightboxIndex !== null) {
+            document.body.style.overflow = 'hidden';
+        } else {
             document.body.style.overflow = 'auto';
+        }
+        return () => { document.body.style.overflow = 'auto'; };
+    }, [isSubmitting, lightboxIndex]);
+
+    useEffect(() => {
+        if (lightboxIndex === null) return;
+
+        const handleKeyDown = (e) => {
+            if (e.key === 'Escape') setLightboxIndex(null);
+            if (e.key === 'ArrowLeft') setLightboxIndex(prev => prev > 0 ? prev - 1 : photos.length - 1);
+            if (e.key === 'ArrowRight') setLightboxIndex(prev => prev < photos.length - 1 ? prev + 1 : 0);
         };
-    }, []);
+
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [lightboxIndex, photos.length]);
 
     const handleTypeChange = (e) => {
         const newType = e.target.value;
@@ -111,50 +130,115 @@ const AddObject = () => {
         const { name, value, type } = e.target;
         let finalValue = value;
 
-        // --- УМНЫЙ ФОРМАТЕР ТЕКСТА ---
+        if (name === 'title') finalValue = finalValue.replace(/^[-—–]+/, '');
+
         if (['title', 'description', 'address', 'wall_material'].includes(name)) {
-            // 1. Запрет пробела в самом начале
             finalValue = finalValue.replace(/^\s+/, '');
-
-            // 2. Запрет двух пробелов подряд
             finalValue = finalValue.replace(/\s{2,}/g, ' ');
-
-            // 3. Знак препинания прилипает к слову (убираем пробел перед ним)
             finalValue = finalValue.replace(/\s+([.,!?:;])/g, '$1');
-
-            // 4. Запрет нескольких знаков препинания подряд (оставляем только первый)
             finalValue = finalValue.replace(/([.,!?:;])([.,!?:;])+/g, '$1');
 
             if (finalValue.length > 0) {
-                // 5. Защита от КАПСА (опускаем все в нижний регистр)
                 finalValue = finalValue.toLowerCase();
-
-                // 6. Первая буква предложения всегда заглавная
                 finalValue = finalValue.replace(/(^\s*|[.!?]\s*)([a-zа-яё])/gi, (match, separator, char) => {
                     return separator + char.toUpperCase();
                 });
             }
         }
 
-        // ЖЕСТКАЯ ВАЛИДАЦИЯ МАТЕРИАЛА СТЕН (Только буквы)
-        if (name === 'wall_material') {
-            finalValue = finalValue.replace(/[^a-zA-Zа-яА-ЯёЁ\s\-]/g, '');
-        }
-
-        // ЖЕСТКАЯ ВАЛИДАЦИЯ ЧИСЕЛ (Без минусов)
-        if (type === 'number' && finalValue.includes('-')) {
-            finalValue = finalValue.replace('-', '');
-        }
+        if (name === 'wall_material') finalValue = finalValue.replace(/[^a-zA-Zа-яА-ЯёЁ\s\-]/g, '');
+        if (type === 'number' && finalValue.includes('-')) finalValue = finalValue.replace('-', '');
 
         setFormData(prev => ({ ...prev, [name]: finalValue }));
         if (errors[name]) setErrors(prev => ({ ...prev, [name]: null }));
     };
 
+    // === ОБНОВЛЕННАЯ ЗАГРУЗКА И ПРОВЕРКА НА ДУБЛИКАТЫ ===
     const handleImageChange = (e) => {
         const files = Array.from(e.target.files);
-        setImages(files);
-        const urls = files.map(file => URL.createObjectURL(file));
-        setPreviewUrls(urls);
+        if (files.length === 0) return;
+
+        const newPhotos = [];
+        let duplicatesFound = false;
+
+        files.forEach(file => {
+            // Проверка: есть ли уже файл с таким же именем, размером и датой изменения
+            const isDuplicate = photos.some(p =>
+                p.file.name === file.name &&
+                p.file.size === file.size &&
+                p.file.lastModified === file.lastModified
+            );
+
+            if (!isDuplicate) {
+                newPhotos.push({
+                    id: Math.random().toString(36).substr(2, 9),
+                    file,
+                    url: URL.createObjectURL(file)
+                });
+            } else {
+                duplicatesFound = true;
+            }
+        });
+
+        if (duplicatesFound) {
+            setErrors(prev => ({ ...prev, images: 'Некоторые фотографии были пропущены, так как они уже загружены.' }));
+        } else if (errors.images) {
+            setErrors(prev => ({ ...prev, images: null }));
+        }
+
+        if (newPhotos.length > 0) {
+            setPhotos(prev => [...prev, ...newPhotos]);
+        }
+
+        // Сбрасываем значение input, чтобы можно было загрузить тот же файл после удаления
+        e.target.value = null;
+    };
+
+    const removePhoto = (id, e) => {
+        e.stopPropagation();
+        setPhotos(prev => {
+            const photoToRemove = prev.find(p => p.id === id);
+            if (photoToRemove) URL.revokeObjectURL(photoToRemove.url);
+            return prev.filter(p => p.id !== id);
+        });
+    };
+
+    // === СТАБИЛИЗИРОВАННЫЙ DRAG & DROP ===
+    const handleDragStart = (e, index) => {
+        setDraggedIdx(index);
+        e.dataTransfer.effectAllowed = "move";
+        e.dataTransfer.setData("text/plain", index);
+    };
+
+    const handleDragOver = (e, index) => {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = "move";
+        if (dragOverIdx !== index) {
+            setDragOverIdx(index);
+        }
+    };
+
+    const handleDrop = (e, targetIdx) => {
+        e.preventDefault();
+        const sourceIdx = draggedIdx;
+        setDraggedIdx(null);
+        setDropTargetIdx(null);
+
+        if (sourceIdx === null || sourceIdx === targetIdx) return;
+
+        const newPhotos = [...photos];
+        const [movedItem] = newPhotos.splice(sourceIdx, 1);
+
+        // Корректный расчет индекса вставки
+        const finalInsertIdx = targetIdx > sourceIdx ? targetIdx - 1 : targetIdx;
+        newPhotos.splice(finalInsertIdx, 0, movedItem);
+
+        setPhotos(newPhotos);
+    };
+
+    const handleDragEnd = () => {
+        setDraggedIdx(null);
+        setDragOverIdx(null);
     };
 
     const handleSubmit = async (e) => {
@@ -179,23 +263,41 @@ const AddObject = () => {
             return setGlobalError('Ошибка: ID пользователя не найден. Пожалуйста, выйдите из аккаунта и авторизуйтесь заново.');
         }
 
-        if (images.length === 0) {
+        if (photos.length === 0) {
             setIsSubmitting(false);
-            window.scrollTo({ top: 0, behavior: 'smooth' });
-            return setGlobalError('Пожалуйста, загрузите хотя бы одну фотографию объекта. Это обязательно.');
+            setErrors(prev => ({ ...prev, images: 'Пожалуйста, загрузите хотя бы одну фотографию объекта.' }));
+            setTimeout(() => {
+                const errEl = document.querySelector('.photo-upload-section');
+                if (errEl) errEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }, 100);
+            return;
         }
 
         const activeFields = REAL_ESTATE_CONFIG[formData.type].fields;
         const newErrors = {};
 
-        // ВАЛИДАЦИЯ ПЛОЩАДЕЙ
+        if (activeFields.includes('title') && formData.title) {
+            const titleStr = formData.title.trim();
+            const wordsCount = titleStr.split(/\s+/).filter(w => w.length > 0).length;
+
+            if (wordsCount < 3) {
+                newErrors.title = 'Заголовок должен состоять минимум из 3 слов!';
+            } else if (!/[a-zA-Zа-яА-ЯёЁ]/.test(titleStr)) {
+                newErrors.title = 'Заголовок должен содержать буквы, а не только цифры!';
+            }
+        }
+
         if (activeFields.includes('area_total') && activeFields.includes('area_living')) {
-            if (parseFloat(formData.area_living) > parseFloat(formData.area_total)) {
+            const living = parseFloat(formData.area_living);
+            const total = parseFloat(formData.area_total);
+
+            if (living < 2) {
+                newErrors.area_living = 'Жилая площадь должна быть не меньше 2 м²!';
+            } else if (living > total) {
                 newErrors.area_living = 'Жилая площадь не может быть больше общей!';
             }
         }
 
-        // ВАЛИДАЦИЯ ЭТАЖЕЙ
         if (activeFields.includes('floor') && activeFields.includes('floors_total') && formData.type !== 'Склад') {
             const floorVal = (formData.type === 'Коммерция' && formData.category === 'Стрит-ритейл') ? 1 : parseInt(formData.floor, 10);
             const floorsTotalVal = parseInt(formData.floors_total, 10);
@@ -205,7 +307,6 @@ const AddObject = () => {
             }
         }
 
-        // ВАЛИДАЦИЯ ГОДА
         if (activeFields.includes('year_built') && formData.year_built) {
             const year = parseInt(formData.year_built, 10);
             if (year < 1800 || year > 2026) {
@@ -223,12 +324,8 @@ const AddObject = () => {
             return;
         }
 
-        const objectData = {
-            type: 'REALTY',
-            category: formData.type.toUpperCase()
-        };
+        const objectData = { type: 'REALTY', category: formData.type.toUpperCase() };
 
-        // Обрезаем возможные пробелы в конце перед отправкой (trim)
         if (activeFields.includes('title')) objectData.title = formData.title.trim();
         if (activeFields.includes('description')) objectData.description = formData.description.trim();
         if (activeFields.includes('city')) objectData.city = formData.city;
@@ -254,17 +351,11 @@ const AddObject = () => {
             objectData.yearBuilt = parseInt(formData.year_built, 10);
         }
 
-        // Логика этажей
         if (formData.type === 'Склад') {
-            objectData.floor = 1;
-            objectData.floorsTotal = 1;
-        } else if (formData.type === 'Дом') {
-            if (formData.floors_total) objectData.floorsTotal = parseInt(formData.floors_total, 10);
+            objectData.floor = 1; objectData.floorsTotal = 1;
         } else if (formData.type === 'Коммерция' && formData.category === 'Стрит-ритейл') {
             objectData.floor = 1;
-            if (activeFields.includes('floors_total') && formData.floors_total) {
-                objectData.floorsTotal = parseInt(formData.floors_total, 10);
-            }
+            if (activeFields.includes('floors_total') && formData.floors_total) objectData.floorsTotal = parseInt(formData.floors_total, 10);
         } else {
             if (activeFields.includes('floor') && formData.floor) objectData.floor = parseInt(formData.floor, 10);
             if (activeFields.includes('floors_total') && formData.floors_total) objectData.floorsTotal = parseInt(formData.floors_total, 10);
@@ -275,7 +366,6 @@ const AddObject = () => {
         }
 
         const attributesObj = {};
-
         if (formData.type === 'Квартира') attributesObj.renovation_state = formData.category;
         if (formData.type === 'Дом') attributesObj.house_type = formData.category;
         if (formData.type === 'Офис') attributesObj.business_center_class = formData.category;
@@ -303,27 +393,17 @@ const AddObject = () => {
         payload.append('objectData', new Blob([JSON.stringify(objectData)], { type: 'application/json' }));
         payload.append('userId', userId);
 
-        images.forEach(image => {
-            payload.append('images', image);
+        photos.forEach(photo => {
+            payload.append('images', photo.file);
         });
 
         try {
-            await api.post('/objects', payload, {
-                headers: { 'Content-Type': 'multipart/form-data' }
-            });
+            await api.post('/objects', payload, { headers: { 'Content-Type': 'multipart/form-data' } });
 
             setSuccessMessage('🎉 Объявление успешно опубликовано! Через несколько секунд вы будете перенаправлены на главную...');
             window.scrollTo({ top: 0, behavior: 'smooth' });
 
-            // Блокируем скролл страницы на время показа уведомления
-            document.body.style.overflow = 'hidden';
-
-            // Увеличили время до 4 секунд
-            setTimeout(() => {
-                document.body.style.overflow = 'auto'; // Разблокируем скролл
-                navigate('/');
-            }, 4000);
-
+            setTimeout(() => { navigate('/'); }, 4000);
         } catch (err) {
             console.error(err);
             setIsSubmitting(false);
@@ -336,19 +416,62 @@ const AddObject = () => {
 
     return (
         <div className="add-object-container">
+            <style>
+                {`
+                .photo-card-wrapper {
+                    position: relative;
+                    transition: transform 0.2s, opacity 0.2s, margin-left 0.2s ease-in-out;
+                }
+                
+                /* Визуальный эффект при перетаскивании */
+                .photo-card-wrapper.drag-over {
+                    margin-left: 30px; 
+                }
+                .photo-card-wrapper.drag-over::before {
+                    content: '';
+                    position: absolute;
+                    left: -18px;
+                    top: 0;
+                    height: 120px;
+                    width: 6px;
+                    background: #007bff;
+                    border-radius: 4px;
+                    box-shadow: 0 0 10px rgba(0, 123, 255, 0.5);
+                    pointer-events: none;
+                }
+                
+                .add-photo-btn.drag-over {
+                    transform: scale(1.05);
+                    border-color: #007bff !important;
+                    background: #e6f2ff !important;
+                }
+
+                .photo-card-wrapper .delete-photo-btn {
+                    opacity: 0;
+                    transition: opacity 0.2s ease, background 0.2s ease;
+                }
+                .photo-card-wrapper:hover .delete-photo-btn {
+                    opacity: 1;
+                }
+                .delete-photo-btn:hover {
+                    background: #ff3b30 !important;
+                }
+                `}
+            </style>
+
             <div className="add-header">
                 <button className="back-link" onClick={() => navigate(-1)} disabled={isSubmitting}>← Назад</button>
                 <h2>Добавить объект недвижимости</h2>
             </div>
 
             {globalError && (
-                <div className="error-message" style={{ color: '#ff3b30', background: 'rgba(255, 59, 48, 0.1)', padding: '10px 15px', borderRadius: '8px', marginBottom: '15px', border: '1px solid rgba(255, 59, 48, 0.3)' }}>
+                <div className="error-message" style={{ marginTop: '-10px', color: '#ff3b30', background: 'rgba(255, 59, 48, 0.1)', padding: '10px 15px', borderRadius: '8px', marginBottom: '15px', border: '1px solid rgba(255, 59, 48, 0.3)' }}>
                     {globalError}
                 </div>
             )}
 
             {successMessage && (
-                <div className="success-message" style={{ color: '#28a745', background: 'rgba(40, 167, 69, 0.1)', padding: '15px', borderRadius: '8px', marginBottom: '15px', border: '1px solid #28a745', fontWeight: 'bold', textAlign: 'center' }}>
+                <div className="success-message" style={{ marginTop: '-10px', color: '#28a745', background: 'rgba(40, 167, 69, 0.1)', padding: '15px', borderRadius: '8px', marginBottom: '15px', border: '1px solid #28a745', fontWeight: 'bold', textAlign: 'center' }}>
                     {successMessage}
                 </div>
             )}
@@ -378,7 +501,11 @@ const AddObject = () => {
                     {activeFields.includes('title') && (
                         <div className="input-field">
                             <label>Заголовок объявления</label>
-                            <input type="text" name="title" value={formData.title} onChange={handleChange} required disabled={isSubmitting} />
+                            <input
+                                className={errors.title ? 'input-error' : ''}
+                                type="text" name="title" value={formData.title} onChange={handleChange} required disabled={isSubmitting}
+                            />
+                            {errors.title && <span className="error-text">{errors.title}</span>}
                         </div>
                     )}
                 </div>
@@ -409,7 +536,7 @@ const AddObject = () => {
                             <div className="input-field">
                                 <label>Общая площадь (м²)</label>
                                 <input
-                                    type="number" step="0.01" min="0" name="area_total"
+                                    type="number" step="0.01" min="2" name="area_total"
                                     value={formData.area_total} onChange={handleChange} required
                                     onWheel={(e) => e.target.blur()} disabled={isSubmitting}
                                 />
@@ -420,7 +547,7 @@ const AddObject = () => {
                                 <label>Жилая площадь (м²)</label>
                                 <input
                                     className={errors.area_living ? 'input-error' : ''}
-                                    type="number" step="0.01" min="0" name="area_living"
+                                    type="number" step="0.01" min="2" name="area_living"
                                     value={formData.area_living}
                                     onChange={handleChange} required
                                     onWheel={(e) => e.target.blur()} disabled={isSubmitting}
@@ -435,7 +562,7 @@ const AddObject = () => {
                             <div className="input-field">
                                 <label>Участок (в сотках)</label>
                                 <input
-                                    type="number" step="0.01" min="0" name="plot_area_acres"
+                                    type="number" step="0.01" min="0.01" name="plot_area_acres"
                                     value={formData.plot_area_acres} onChange={handleChange} required
                                     onWheel={(e) => e.target.blur()} disabled={isSubmitting}
                                 />
@@ -458,7 +585,7 @@ const AddObject = () => {
                             <div className="input-field">
                                 <label>Высота потолков (м)</label>
                                 <input
-                                    type="number" step="0.01" min="0" name="ceiling_height_m"
+                                    type="number" step="0.01" min="0.01" name="ceiling_height_m"
                                     value={formData.ceiling_height_m} onChange={handleChange} required
                                     onWheel={(e) => e.target.blur()} disabled={isSubmitting}
                                 />
@@ -468,7 +595,7 @@ const AddObject = () => {
                             <div className="input-field">
                                 <label>Электрическая мощность (кВт)</label>
                                 <input
-                                    type="number" step="0.1" min="0" name="power_kw"
+                                    type="number" step="0.1" min="0.1" name="power_kw"
                                     value={formData.power_kw} onChange={handleChange} required
                                     onWheel={(e) => e.target.blur()} disabled={isSubmitting}
                                 />
@@ -629,7 +756,7 @@ const AddObject = () => {
                             <div className="input-field" style={{ flex: 2 }}>
                                 <label>Стоимость</label>
                                 <input
-                                    type="number" min="0" step="0.01" name="price_total"
+                                    type="number" min="0.01" step="0.01" name="price_total"
                                     value={formData.price_total} onChange={handleChange} required
                                     onWheel={(e) => e.target.blur()} disabled={isSubmitting}
                                 />
@@ -655,22 +782,80 @@ const AddObject = () => {
                     )}
                 </div>
 
-                <div className="form-section">
+                <div className="form-section photo-upload-section" style={{ opacity: isSubmitting ? 0.5 : 1, pointerEvents: isSubmitting ? 'none' : 'auto' }}>
                     <h3>Фотографии</h3>
-                    <div className="file-upload-zone" style={{ opacity: isSubmitting ? 0.5 : 1, pointerEvents: isSubmitting ? 'none' : 'auto' }}>
-                        <label className="file-label">
-                            <span style={{ fontSize: '30px', marginBottom: '10px' }}>📁</span>
-                            <span>Нажмите, чтобы выбрать фото</span>
-                            <input type="file" multiple accept="image/*" onChange={handleImageChange} style={{ display: 'none' }} disabled={isSubmitting} />
-                        </label>
-                    </div>
-                    {previewUrls.length > 0 && (
-                        <div className="previews-list">
-                            {previewUrls.map((url, idx) => (
-                                <img key={idx} src={url} alt={`Preview ${idx}`} className="img-preview" />
-                            ))}
+
+                    {errors.images && (
+                        <div className="error-text" style={{ marginBottom: '15px', fontSize: '15px', background: 'rgba(255,59,48,0.1)', padding: '10px', borderRadius: '8px', color: '#ff3b30' }}>
+                            {errors.images}
                         </div>
                     )}
+
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '15px', alignItems: 'flex-start' }}>
+
+                        {/* Плитки с загруженными фото (Стабильный Drag & Drop) */}
+                        {photos.map((photo, index) => (
+                            <div
+                                key={photo.id}
+                                className={`photo-card-wrapper ${dragOverIdx === index && draggedIdx !== index ? 'drag-over' : ''}`}
+                                draggable
+                                onDragStart={(e) => handleDragStart(e, index)}
+                                onDragOver={(e) => handleDragOver(e, index)}
+                                onDrop={(e) => handleDrop(e, index)}
+                                onDragEnd={handleDragEnd}
+                                style={{
+                                    width: '120px',
+                                    cursor: 'grab',
+                                    opacity: draggedIdx === index ? 0.4 : 1,
+                                    transform: draggedIdx === index ? 'scale(0.95)' : 'scale(1)'
+                                }}
+                            >
+                                <div
+                                    style={{ position: 'relative', width: '100%', height: '120px', borderRadius: '8px', overflow: 'hidden', boxShadow: '0 2px 5px rgba(0,0,0,0.1)' }}
+                                    onClick={() => setLightboxIndex(index)}
+                                >
+                                    <img src={photo.url} alt={`preview ${index}`} style={{ width: '100%', height: '100%', objectFit: 'cover' }} draggable="false" />
+
+                                    <button
+                                        className="delete-photo-btn"
+                                        onClick={(e) => removePhoto(photo.id, e)}
+                                        style={{
+                                            position: 'absolute', top: '5px', right: '5px', width: '26px', height: '26px',
+                                            background: 'rgba(0, 0, 0, 0.6)', color: 'white', border: 'none', borderRadius: '50%',
+                                            display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer',
+                                            fontSize: '18px', fontWeight: 'bold', zIndex: 2
+                                        }}
+                                        title="Удалить фото"
+                                    >
+                                        −
+                                    </button>
+                                </div>
+                                <div style={{ textAlign: 'center', marginTop: '8px', fontSize: '13px', color: '#555', fontWeight: '500' }}>
+                                    {index + 1}-я фотография
+                                </div>
+                            </div>
+                        ))}
+
+                        {/* Кнопка добавления в конце */}
+                        <div
+                            className={`add-photo-btn ${dragOverIdx === photos.length && draggedIdx !== null ? 'drag-over' : ''}`}
+                            onClick={() => document.getElementById('photo-upload-input').click()}
+                            onDragOver={(e) => handleDragOver(e, photos.length)}
+                            onDrop={(e) => handleDrop(e, photos.length)}
+                            style={{
+                                width: '120px', height: '120px', border: `2px dashed ${errors.images ? '#ff3b30' : '#ccc'}`,
+                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                cursor: 'pointer', borderRadius: '8px', fontSize: '24px', fontWeight: 'bold',
+                                color: '#666', background: '#f9f9f9', transition: 'all 0.2s'
+                            }}
+                            onMouseOver={(e) => { if (draggedIdx === null) { e.currentTarget.style.background = '#eee'; e.currentTarget.style.borderColor = '#999'; } }}
+                            onMouseOut={(e) => { if (draggedIdx === null) { e.currentTarget.style.background = '#f9f9f9'; e.currentTarget.style.borderColor = errors.images ? '#ff3b30' : '#ccc'; } }}
+                        >
+                            + {photos.length + 1}
+                        </div>
+                        <input id="photo-upload-input" type="file" multiple accept="image/*" onChange={handleImageChange} style={{ display: 'none' }} disabled={isSubmitting} />
+
+                    </div>
                 </div>
 
                 <button
@@ -682,6 +867,58 @@ const AddObject = () => {
                     {isSubmitting ? 'Публикация...' : 'Опубликовать объявление'}
                 </button>
             </form>
+
+            {/* === ЛАЙТБОКС (ГАЛЕРЕЯ НА ВЕСЬ ЭКРАН) === */}
+            {lightboxIndex !== null && (
+                <div
+                    style={{
+                        position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh',
+                        background: 'rgba(0,0,0,0.85)', backdropFilter: 'blur(8px)',
+                        zIndex: 9999, display: 'flex', alignItems: 'center', justifyContent: 'center'
+                    }}
+                    onClick={() => setLightboxIndex(null)}
+                >
+                    <button
+                        style={{ position: 'absolute', top: '20px', right: '30px', background: 'none', border: 'none', color: '#fff', fontSize: '40px', cursor: 'pointer', zIndex: 10001 }}
+                        onClick={() => setLightboxIndex(null)}
+                    >
+                        &times;
+                    </button>
+
+                    {photos.length > 1 && (
+                        <button
+                            style={{ position: 'absolute', left: '30px', background: 'rgba(255,255,255,0.15)', border: 'none', color: 'white', fontSize: '30px', padding: '15px 20px', borderRadius: '8px', cursor: 'pointer', transition: '0.2s', zIndex: 10001 }}
+                            onClick={(e) => { e.stopPropagation(); setLightboxIndex(prev => prev > 0 ? prev - 1 : photos.length - 1); }}
+                            onMouseOver={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.3)'}
+                            onMouseOut={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.15)'}
+                        >
+                            &#10094;
+                        </button>
+                    )}
+
+                    <img
+                        src={photos[lightboxIndex].url}
+                        style={{ maxHeight: '90vh', maxWidth: '80vw', objectFit: 'contain', borderRadius: '8px', boxShadow: '0 10px 30px rgba(0,0,0,0.5)', zIndex: 10000 }}
+                        onClick={(e) => e.stopPropagation()}
+                        alt="Enlarged view"
+                    />
+
+                    {photos.length > 1 && (
+                        <button
+                            style={{ position: 'absolute', right: '30px', background: 'rgba(255,255,255,0.15)', border: 'none', color: 'white', fontSize: '30px', padding: '15px 20px', borderRadius: '8px', cursor: 'pointer', transition: '0.2s', zIndex: 10001 }}
+                            onClick={(e) => { e.stopPropagation(); setLightboxIndex(prev => prev < photos.length - 1 ? prev + 1 : 0); }}
+                            onMouseOver={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.3)'}
+                            onMouseOut={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.15)'}
+                        >
+                            &#10095;
+                        </button>
+                    )}
+
+                    <div style={{ position: 'absolute', bottom: '30px', color: '#fff', fontSize: '18px', background: 'rgba(0,0,0,0.5)', padding: '8px 16px', borderRadius: '20px' }}>
+                        {lightboxIndex + 1} из {photos.length}
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

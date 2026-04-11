@@ -36,7 +36,8 @@ const CATEGORY_CONFIG = {
     { name: 'has_pit', label: 'Яма', type: 'boolean' }
   ],
   'КОММЕРЦИЯ': [
-    { name: 'retail_type', label: 'Формат', type: 'select', options: ['Стрит-ритейл', 'ТЦ'] }
+    { name: 'retail_type', label: 'Формат', type: 'select', options: ['Стрит-ритейл', 'ТЦ'] },
+    { name: 'power_kw', label: 'Мощность (кВт)', type: 'range' } // ДОБАВЛЕН ФИЛЬТР МОЩНОСТИ
   ]
 };
 
@@ -177,7 +178,6 @@ const Home = () => {
       <header className="home-header">
         <div className="brand" onClick={() => navigate('/')} style={{ cursor: 'pointer' }}>💎 InvestHub</div>
 
-        {/* 1. Селектор валют (прижат вправо через auto margin) */}
         <div className="currency-selector" style={{ marginLeft: 'auto', marginRight: '15px' }}>
           <select
             value={currency}
@@ -199,7 +199,6 @@ const Home = () => {
           </select>
         </div>
 
-        {/* 2. Кнопка "Продать" для SELLER (между валютой и аватаром) */}
         {user?.role === 'SELLER' && (
           <button
             className="sell-property-btn"
@@ -230,7 +229,6 @@ const Home = () => {
           </button>
         )}
 
-        {/* 3. Контейнер пользователя */}
         <div className="user-profile-container" ref={dropdownRef}>
           <div className="avatar-wrapper" onClick={() => setIsMenuOpen(!isMenuOpen)}>
             <span className="user-nickname">{user?.name || 'Гость'}</span>
@@ -267,16 +265,16 @@ const Home = () => {
           <div className="f-box">
             <label>Бюджет ({currency === 'BYN' ? 'BYN' : '$'})</label>
             <div className="dual-inputs">
-              <input type="number" placeholder="От" value={filters.minPrice} onChange={(e) => setFilters({ ...filters, minPrice: e.target.value })} />
-              <input type="number" placeholder="До" value={filters.maxPrice} onChange={(e) => setFilters({ ...filters, maxPrice: e.target.value })} />
+              <input type="number" placeholder="От" value={filters.minPrice} onChange={(e) => setFilters({ ...filters, minPrice: e.target.value })} onWheel={(e) => e.target.blur()} />
+              <input type="number" placeholder="До" value={filters.maxPrice} onChange={(e) => setFilters({ ...filters, maxPrice: e.target.value })} onWheel={(e) => e.target.blur()} />
             </div>
           </div>
 
           <div className="f-box">
             <label>Площадь (м²)</label>
             <div className="dual-inputs">
-              <input type="number" placeholder="От" value={filters.minArea} onChange={(e) => setFilters({ ...filters, minArea: e.target.value })} />
-              <input type="number" placeholder="До" value={filters.maxArea} onChange={(e) => setFilters({ ...filters, maxArea: e.target.value })} />
+              <input type="number" placeholder="От" value={filters.minArea} onChange={(e) => setFilters({ ...filters, minArea: e.target.value })} onWheel={(e) => e.target.blur()} />
+              <input type="number" placeholder="До" value={filters.maxArea} onChange={(e) => setFilters({ ...filters, maxArea: e.target.value })} onWheel={(e) => e.target.blur()} />
             </div>
           </div>
 
@@ -342,11 +340,11 @@ const Home = () => {
                         </select>
                       ) : f.type === 'range' ? (
                         <div className="dual-inputs attr-range">
-                          <input className="attr-input" type="number" placeholder="От" value={filters.attributes[`${f.name}_min`] || ''} onChange={(e) => handleAttrChange(`${f.name}_min`, e.target.value)} />
-                          <input className="attr-input" type="number" placeholder="До" value={filters.attributes[`${f.name}_max`] || ''} onChange={(e) => handleAttrChange(`${f.name}_max`, e.target.value)} />
+                          <input className="attr-input" type="number" placeholder="От" value={filters.attributes[`${f.name}_min`] || ''} onChange={(e) => handleAttrChange(`${f.name}_min`, e.target.value)} onWheel={(e) => e.target.blur()} />
+                          <input className="attr-input" type="number" placeholder="До" value={filters.attributes[`${f.name}_max`] || ''} onChange={(e) => handleAttrChange(`${f.name}_max`, e.target.value)} onWheel={(e) => e.target.blur()} />
                         </div>
                       ) : (
-                        <input className="attr-input" type="number" placeholder="Значение" value={filters.attributes[f.name] || ''} onChange={(e) => handleAttrChange(f.name, e.target.value)} />
+                        <input className="attr-input" type="number" placeholder="Значение" value={filters.attributes[f.name] || ''} onChange={(e) => handleAttrChange(f.name, e.target.value)} onWheel={(e) => e.target.blur()} />
                       )}
                     </div>
                   ))
