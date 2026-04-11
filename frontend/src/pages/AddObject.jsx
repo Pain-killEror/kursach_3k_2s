@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../api/axios';
 import './AddObject.css';
@@ -80,6 +80,13 @@ const AddObject = () => {
     const [images, setImages] = useState([]);
     const [previewUrls, setPreviewUrls] = useState([]);
 
+    // Очистка блокировки скролла, если вдруг компонент размонтируется раньше времени
+    useEffect(() => {
+        return () => {
+            document.body.style.overflow = 'auto';
+        };
+    }, []);
+
     const handleTypeChange = (e) => {
         const newType = e.target.value;
         setErrors({});
@@ -104,19 +111,37 @@ const AddObject = () => {
         const { name, value, type } = e.target;
         let finalValue = value;
 
-        // УМНАЯ ЗАГЛАВНАЯ БУКВА
-        if (['title', 'description', 'address', 'wall_material'].includes(name) && finalValue.length > 0) {
-            finalValue = finalValue.replace(/(^\s*|[.!?]\s+)([a-zа-яё])/gi, (match, separator, char) => {
-                return separator + char.toUpperCase();
-            });
+        // --- УМНЫЙ ФОРМАТЕР ТЕКСТА ---
+        if (['title', 'description', 'address', 'wall_material'].includes(name)) {
+            // 1. Запрет пробела в самом начале
+            finalValue = finalValue.replace(/^\s+/, '');
+
+            // 2. Запрет двух пробелов подряд
+            finalValue = finalValue.replace(/\s{2,}/g, ' ');
+
+            // 3. Знак препинания прилипает к слову (убираем пробел перед ним)
+            finalValue = finalValue.replace(/\s+([.,!?:;])/g, '$1');
+
+            // 4. Запрет нескольких знаков препинания подряд (оставляем только первый)
+            finalValue = finalValue.replace(/([.,!?:;])([.,!?:;])+/g, '$1');
+
+            if (finalValue.length > 0) {
+                // 5. Защита от КАПСА (опускаем все в нижний регистр)
+                finalValue = finalValue.toLowerCase();
+
+                // 6. Первая буква предложения всегда заглавная
+                finalValue = finalValue.replace(/(^\s*|[.!?]\s*)([a-zа-яё])/gi, (match, separator, char) => {
+                    return separator + char.toUpperCase();
+                });
+            }
         }
 
-        // ЖЕСТКАЯ ВАЛИДАЦИЯ ТЕКСТА
+        // ЖЕСТКАЯ ВАЛИДАЦИЯ МАТЕРИАЛА СТЕН (Только буквы)
         if (name === 'wall_material') {
             finalValue = finalValue.replace(/[^a-zA-Zа-яА-ЯёЁ\s\-]/g, '');
         }
 
-        // ЖЕСТКАЯ ВАЛИДАЦИЯ ЧИСЕЛ
+        // ЖЕСТКАЯ ВАЛИДАЦИЯ ЧИСЕЛ (Без минусов)
         if (type === 'number' && finalValue.includes('-')) {
             finalValue = finalValue.replace('-', '');
         }
@@ -172,7 +197,6 @@ const AddObject = () => {
 
         // ВАЛИДАЦИЯ ЭТАЖЕЙ
         if (activeFields.includes('floor') && activeFields.includes('floors_total') && formData.type !== 'Склад') {
-            // Если это Стрит-ритейл, этаж всегда 1
             const floorVal = (formData.type === 'Коммерция' && formData.category === 'Стрит-ритейл') ? 1 : parseInt(formData.floor, 10);
             const floorsTotalVal = parseInt(formData.floors_total, 10);
 
@@ -204,10 +228,11 @@ const AddObject = () => {
             category: formData.type.toUpperCase()
         };
 
-        if (activeFields.includes('title')) objectData.title = formData.title;
-        if (activeFields.includes('description')) objectData.description = formData.description;
+        // Обрезаем возможные пробелы в конце перед отправкой (trim)
+        if (activeFields.includes('title')) objectData.title = formData.title.trim();
+        if (activeFields.includes('description')) objectData.description = formData.description.trim();
         if (activeFields.includes('city')) objectData.city = formData.city;
-        if (activeFields.includes('address')) objectData.address = formData.address;
+        if (activeFields.includes('address')) objectData.address = formData.address.trim();
         if (activeFields.includes('currency')) objectData.currency = formData.currency;
 
         if (activeFields.includes('price_total') && formData.price_total) {
@@ -236,7 +261,7 @@ const AddObject = () => {
         } else if (formData.type === 'Дом') {
             if (formData.floors_total) objectData.floorsTotal = parseInt(formData.floors_total, 10);
         } else if (formData.type === 'Коммерция' && formData.category === 'Стрит-ритейл') {
-            objectData.floor = 1; // Всегда 1 этаж
+            objectData.floor = 1;
             if (activeFields.includes('floors_total') && formData.floors_total) {
                 objectData.floorsTotal = parseInt(formData.floors_total, 10);
             }
@@ -245,7 +270,9 @@ const AddObject = () => {
             if (activeFields.includes('floors_total') && formData.floors_total) objectData.floorsTotal = parseInt(formData.floors_total, 10);
         }
 
-        if (activeFields.includes('wall_material')) objectData.wallMaterial = formData.wall_material;
+        if (activeFields.includes('wall_material') && formData.wall_material) {
+            objectData.wallMaterial = formData.wall_material.trim();
+        }
 
         const attributesObj = {};
 
@@ -285,12 +312,17 @@ const AddObject = () => {
                 headers: { 'Content-Type': 'multipart/form-data' }
             });
 
-            setSuccessMessage('🎉 Объявление успешно опубликовано! Возвращаем на главную страницу...');
+            setSuccessMessage('🎉 Объявление успешно опубликовано! Через несколько секунд вы будете перенаправлены на главную...');
             window.scrollTo({ top: 0, behavior: 'smooth' });
 
+            // Блокируем скролл страницы на время показа уведомления
+            document.body.style.overflow = 'hidden';
+
+            // Увеличили время до 4 секунд
             setTimeout(() => {
+                document.body.style.overflow = 'auto'; // Разблокируем скролл
                 navigate('/');
-            }, 2000);
+            }, 4000);
 
         } catch (err) {
             console.error(err);
