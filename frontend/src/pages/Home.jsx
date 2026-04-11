@@ -34,6 +34,9 @@ const CATEGORY_CONFIG = {
     { name: 'material', label: 'Тип', type: 'select', options: ['Металлический', 'Кирпичный'] },
     { name: 'is_covered', label: 'Крытый', type: 'boolean' },
     { name: 'has_pit', label: 'Яма', type: 'boolean' }
+  ],
+  'КОММЕРЦИЯ': [
+    { name: 'retail_type', label: 'Формат', type: 'select', options: ['Стрит-ритейл', 'ТЦ'] }
   ]
 };
 
@@ -251,7 +254,6 @@ const Home = () => {
         </div>
       </header>
 
-      {/* --- Остальная часть фильтров и контента без изменений --- */}
       <div className="filter-wrapper">
         <div className="main-filter-row">
           <div className="f-box">
