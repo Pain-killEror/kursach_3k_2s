@@ -14,7 +14,6 @@ const Login = () => {
 
   const [formData, setFormData] = useState({ email: '', password: '' });
 
-  // ТЕПЕРЬ ОШИБКИ РАЗДЕЛЕНЫ
   const [errors, setErrors] = useState({
     email: '',
     password: '',
@@ -27,14 +26,14 @@ const Login = () => {
   // Стейты для Google-регистрации
   const [needsRegistration, setNeedsRegistration] = useState(false);
   const [googleData, setGoogleData] = useState({ email: '', name: '', token: '' });
-  const [extraData, setExtraData] = useState({ phoneNumber: '', role: 'INVESTOR' });
+  // НОВОЕ: добавлено entityType: 'INDIVIDUAL'
+  const [extraData, setExtraData] = useState({ phoneNumber: '', role: 'INVESTOR', entityType: 'INDIVIDUAL' });
 
   const navigate = useNavigate();
 
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
 
-    // Очищаем конкретную ошибку, если пользователь начал исправлять поле
     if (e.target.name === 'email') {
       setErrors(prev => ({ ...prev, email: '', general: '' }));
     }
@@ -48,7 +47,7 @@ const Login = () => {
   // Обычный вход
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setErrors({ email: '', password: '', general: '' }); // Очищаем всё перед новым запросом
+    setErrors({ email: '', password: '', general: '' });
     setLoading(true);
 
     try {
@@ -61,13 +60,12 @@ const Login = () => {
     } catch (err) {
       const msg = err.response?.data?.message || '';
 
-      // Распределяем ошибки от сервера по нужным полям
       if (msg.includes('Google')) {
-        setErrors(prev => ({ ...prev, general: msg })); // Ошибка гугла - наверх
+        setErrors(prev => ({ ...prev, general: msg }));
       } else if (msg.toLowerCase().includes('email')) {
-        setErrors(prev => ({ ...prev, email: msg })); // Ошибка почты - вправо
+        setErrors(prev => ({ ...prev, email: msg }));
       } else if (msg.toLowerCase().includes('пароль')) {
-        setErrors(prev => ({ ...prev, password: msg })); // Ошибка пароля - вправо
+        setErrors(prev => ({ ...prev, password: msg }));
       } else {
         setErrors(prev => ({ ...prev, general: msg || 'Ошибка авторизации. Проверьте данные.' }));
       }
@@ -113,7 +111,8 @@ const Login = () => {
         email: googleData.email,
         phoneNumber: extraData.phoneNumber,
         role: extraData.role,
-        password: ""
+        entityType: extraData.entityType, // <-- НОВОЕ: отправляем статус
+        password: "" // Пароль пустой, как и должно быть
       });
 
       const loginResponse = await api.post('/auth/google', { token: googleData.token });
@@ -140,28 +139,39 @@ const Login = () => {
           </p>
 
           {errors.general && (
-            <div className="error-message" style={{
-              padding: '6px 10px',
-              margin: '0 0 12px 0', /* Жестко убираем отступ сверху */
-              fontSize: '0.75rem',  /* Чуть уменьшаем шрифт */
-              lineHeight: '1.2',
-              textAlign: 'center'
-            }}>
+            <div className="error-message" style={{ padding: '6px 10px', margin: '0 0 12px 0', fontSize: '0.75rem', lineHeight: '1.2', textAlign: 'center' }}>
               {errors.general}
             </div>
           )}
+
           <form onSubmit={handleCompleteRegistration} className="auth-form" style={{ gap: '12px', display: 'flex', flexDirection: 'column' }}>
-            <div className="input-group" style={{ gap: '4px', display: 'flex', flexDirection: 'column' }}>
-              <label style={{ fontSize: '0.85rem', color: '#e4e4e7' }}>Роль</label>
-              <select name="role" value={extraData.role} onChange={handleExtraChange} style={{ padding: '10px 12px', borderRadius: '4px', border: '1px solid #3f3f46', background: '#27272a', color: '#fff' }}>
-                <option value="INVESTOR">Инвестор</option>
-                <option value="SELLER">Продавец</option>
-              </select>
+
+            {/* Блок с Ролью и Статусом в один ряд */}
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <div className="input-group" style={{ gap: '4px', display: 'flex', flexDirection: 'column', flex: 1 }}>
+                <label style={{ fontSize: '0.85rem', color: '#e4e4e7' }}>Роль</label>
+                <select name="role" value={extraData.role} onChange={handleExtraChange} style={{ padding: '10px 12px', borderRadius: '4px', border: '1px solid #3f3f46', background: '#27272a', color: '#fff' }}>
+                  <option value="INVESTOR">Инвестор</option>
+                  <option value="SELLER">Продавец</option>
+                </select>
+              </div>
+
+              {/* НОВОЕ: Налоговый статус */}
+              <div className="input-group" style={{ gap: '4px', display: 'flex', flexDirection: 'column', flex: 1 }}>
+                <label style={{ fontSize: '0.85rem', color: '#e4e4e7' }}>Налоговый статус</label>
+                <select name="entityType" value={extraData.entityType} onChange={handleExtraChange} style={{ padding: '10px 12px', borderRadius: '4px', border: '1px solid #3f3f46', background: '#27272a', color: '#fff' }}>
+                  <option value="INDIVIDUAL">Физлицо</option>
+                  <option value="ENTREPRENEUR">ИП</option>
+                  <option value="LEGAL_ENTITY">Юрлицо</option>
+                </select>
+              </div>
             </div>
+
             <div className="input-group" style={{ gap: '4px', display: 'flex', flexDirection: 'column' }}>
               <label style={{ fontSize: '0.85rem', color: '#e4e4e7' }}>Номер телефона</label>
-              <input type="tel" name="phoneNumber" value={extraData.phoneNumber} onChange={handleExtraChange} placeholder="+7 (999) 000-00-00" required style={{ padding: '10px 12px' }} />
+              <input type="tel" name="phoneNumber" value={extraData.phoneNumber} onChange={handleExtraChange} placeholder="+375 (44) 000-00-00" required style={{ padding: '10px 12px' }} />
             </div>
+
             <button type="submit" className="auth-button" disabled={loading} style={{ marginTop: '10px', padding: '10px' }}>
               {loading ? 'Завершение...' : 'Завершить'}
             </button>
@@ -181,20 +191,13 @@ const Login = () => {
         </p>
 
         {errors.general && (
-          <div className="error-message" style={{
-            padding: '6px 10px',
-            margin: '0 0 12px 0',
-            fontSize: '0.75rem',
-            lineHeight: '1.2',
-            textAlign: 'center'
-          }}>
+          <div className="error-message" style={{ padding: '6px 10px', margin: '0 0 12px 0', fontSize: '0.75rem', lineHeight: '1.2', textAlign: 'center' }}>
             {errors.general}
           </div>
         )}
 
         <form onSubmit={handleSubmit} className="auth-form" style={{ gap: '12px', display: 'flex', flexDirection: 'column' }}>
 
-          {/* ПОЛЕ EMAIL */}
           <div className="input-group" style={{ gap: '4px', display: 'flex', flexDirection: 'column', position: 'relative' }}>
             <label style={{ fontSize: '0.85rem', color: '#e4e4e7' }}>Email</label>
             <input
@@ -205,14 +208,10 @@ const Login = () => {
               placeholder="example@mail.com"
               required
               style={{
-                padding: '10px 12px',
-                width: '100%',
-                outline: 'none',
-                transition: 'border-color 0.3s ease',
+                padding: '10px 12px', width: '100%', outline: 'none', transition: 'border-color 0.3s ease',
                 border: errors.email ? '1px solid #ef4444' : '1px solid #3f3f46'
               }}
             />
-            {/* Всплывашка ошибки Email */}
             {errors.email && (
               <div style={{
                 position: 'absolute', left: 'calc(100% + 12px)', top: '32px', background: '#ef4444', color: 'white',
@@ -224,7 +223,6 @@ const Login = () => {
             )}
           </div>
 
-          {/* ПОЛЕ ПАРОЛЬ */}
           <div className="input-group" style={{ gap: '4px', display: 'flex', flexDirection: 'column', position: 'relative' }}>
             <label style={{ fontSize: '0.85rem', color: '#e4e4e7' }}>Пароль</label>
             <div className="password-input-container" style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
@@ -236,11 +234,7 @@ const Login = () => {
                 placeholder="Ваш пароль"
                 required
                 style={{
-                  padding: '10px 12px',
-                  paddingRight: '40px',
-                  width: '100%',
-                  outline: 'none',
-                  transition: 'border-color 0.3s ease',
+                  padding: '10px 12px', paddingRight: '40px', width: '100%', outline: 'none', transition: 'border-color 0.3s ease',
                   border: errors.password ? '1px solid #ef4444' : '1px solid #3f3f46'
                 }}
               />
@@ -255,7 +249,6 @@ const Login = () => {
                 </button>
               )}
             </div>
-            {/* Всплывашка ошибки Пароля */}
             {errors.password && (
               <div style={{
                 position: 'absolute', left: 'calc(100% + 12px)', top: '32px', background: '#ef4444', color: 'white',

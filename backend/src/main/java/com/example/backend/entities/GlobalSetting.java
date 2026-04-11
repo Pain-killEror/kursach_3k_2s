@@ -1,39 +1,51 @@
 package com.example.backend.entities;
 
 import jakarta.persistence.*;
+import java.math.BigDecimal;
 
 @Entity
 @Table(name = "global_settings")
 public class GlobalSetting {
 
     @Id
-    @Column(name = "s_key")
-    private String sKey;
+    @Column(name = "setting_key", nullable = false)
+    private String settingKey;
 
-    @Column(name = "s_value")
-    private String sValue;
+    @Column(name = "setting_value", nullable = false, precision = 10, scale = 4)
+    private BigDecimal settingValue;
 
-    public GlobalSetting() {
+    @Column(name = "description", columnDefinition = "TEXT")
+    private String description;
+
+    public GlobalSetting() {}
+
+    public GlobalSetting(String settingKey, BigDecimal settingValue, String description) {
+        this.settingKey = settingKey;
+        this.settingValue = settingValue;
+        this.description = description;
     }
 
-    public GlobalSetting(String sKey, String sValue) {
-        this.sKey = sKey;
-        this.sValue = sValue;
+    public String getSettingKey() {
+        return settingKey;
     }
 
-    public String getsKey() {
-        return sKey;
+    public void setSettingKey(String settingKey) {
+        this.settingKey = settingKey;
     }
 
-    public void setsKey(String sKey) {
-        this.sKey = sKey;
+    public BigDecimal getSettingValue() {
+        return settingValue;
     }
 
-    public String getsValue() {
-        return sValue;
+    public void setSettingValue(BigDecimal settingValue) {
+        this.settingValue = settingValue;
     }
 
-    public void setsValue(String sValue) {
-        this.sValue = sValue;
+    public String getDescription() {
+        return description;
+    }
+
+    public void setDescription(String description) {
+        this.description = description;
     }
 }

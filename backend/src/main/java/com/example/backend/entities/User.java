@@ -9,6 +9,7 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.example.backend.entities.enums.EntityType; // Импорт нового перечисления
 
 import java.time.LocalDateTime;
 import java.util.UUID;
@@ -26,7 +27,7 @@ public class User {
 
     private String email;
 
-    // Новое поле для номера телефона
+    // Поле для номера телефона
     @Column(name = "phone_number", length = 20)
     private String phoneNumber;
 
@@ -40,14 +41,19 @@ public class User {
     @Enumerated(EnumType.STRING)
     private Status status;
 
+    // Новое поле: тип налогоплательщика (физлицо, ИП, юрлицо)
+    @Enumerated(EnumType.STRING)
+    @Column(name = "entity_type")
+    private EntityType entityType;
+
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
 
     public User() {
     }
 
-    // Обновленный конструктор с полем phoneNumber
-    public User(UUID id, String name, String email, String phoneNumber, String passwordHash, Role role, Status status, LocalDateTime createdAt) {
+    // Обновленный конструктор со всеми полями, включая entityType
+    public User(UUID id, String name, String email, String phoneNumber, String passwordHash, Role role, Status status, EntityType entityType, LocalDateTime createdAt) {
         this.id = id;
         this.name = name;
         this.email = email;
@@ -55,6 +61,7 @@ public class User {
         this.passwordHash = passwordHash;
         this.role = role;
         this.status = status;
+        this.entityType = entityType;
         this.createdAt = createdAt;
     }
 
@@ -113,6 +120,15 @@ public class User {
 
     public void setStatus(Status status) {
         this.status = status;
+    }
+
+    // Геттер и сеттер для entityType
+    public EntityType getEntityType() {
+        return entityType;
+    }
+
+    public void setEntityType(EntityType entityType) {
+        this.entityType = entityType;
     }
 
     public LocalDateTime getCreatedAt() {

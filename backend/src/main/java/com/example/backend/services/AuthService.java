@@ -57,6 +57,12 @@ public class AuthService {
         if (user.getRole() == null) {
             user.setRole(Role.INVESTOR);
         }
+        
+        // НОВОЕ: Если тип налогоплательщика не передали, ставим Физлицо по умолчанию
+        if (user.getEntityType() == null) {
+            user.setEntityType(com.example.backend.entities.enums.EntityType.INDIVIDUAL);
+        }
+
         if (user.getStatus() == null) {
             user.setStatus(Status.ACTIVE);
         }

@@ -17,6 +17,7 @@ const Register = () => {
     email: '',
     phoneNumber: '',
     role: 'INVESTOR',
+    entityType: 'INDIVIDUAL', // <-- НОВОЕ ПОЛЕ: Налоговый статус (по умолчанию Физлицо)
     password: '',
     confirmPassword: ''
   });
@@ -86,6 +87,7 @@ const Register = () => {
         email: formData.email,
         phoneNumber: formData.phoneNumber,
         role: formData.role,
+        entityType: formData.entityType, // <-- ОТПРАВЛЯЕМ СТАТУС НА БЭКЕНД
         password: formData.password
       });
       navigate('/login');
@@ -114,27 +116,44 @@ const Register = () => {
 
         <form onSubmit={handleSubmit} className="auth-form" style={{ gap: '10px' }}>
 
-          <div className="input-group" style={{ gap: '3px' }}>
-            <label style={{ fontSize: '0.85rem' }}>Роль</label>
-            <select
-              name="role"
-              value={formData.role}
-              onChange={handleChange}
-              style={{ padding: '10px 12px', borderRadius: '4px', border: '1px solid #ccc' }}
-            >
-              <option value="INVESTOR">Инвестор</option>
-              <option value="SELLER">Продавец</option>
-            </select>
+          {/* Блок с Ролью и Налоговым статусом в одну линию */}
+          <div style={{ display: 'flex', gap: '10px' }}>
+            <div className="input-group" style={{ gap: '3px', flex: 1 }}>
+              <label style={{ fontSize: '0.85rem' }}>Роль</label>
+              <select
+                name="role"
+                value={formData.role}
+                onChange={handleChange}
+                style={{ padding: '10px 12px', borderRadius: '4px', border: '1px solid #ccc' }}
+              >
+                <option value="INVESTOR">Инвестор</option>
+                <option value="SELLER">Продавец</option>
+              </select>
+            </div>
+
+            <div className="input-group" style={{ gap: '3px', flex: 1 }}>
+              <label style={{ fontSize: '0.85rem' }}>Налоговый статус</label>
+              <select
+                name="entityType"
+                value={formData.entityType}
+                onChange={handleChange}
+                style={{ padding: '10px 12px', borderRadius: '4px', border: '1px solid #ccc' }}
+              >
+                <option value="INDIVIDUAL">Физлицо</option>
+                <option value="ENTREPRENEUR">ИП</option>
+                <option value="LEGAL_ENTITY">Юрлицо</option>
+              </select>
+            </div>
           </div>
 
           <div className="input-group" style={{ gap: '3px' }}>
-            <label style={{ fontSize: '0.85rem' }}>Имя пользователя</label>
+            <label style={{ fontSize: '0.85rem' }}>Имя / Название компании</label>
             <input
               type="text"
               name="name"
               value={formData.name}
               onChange={handleChange}
-              placeholder="Иван Иванов"
+              placeholder="Иван Иванов или ООО 'Вектор'"
               required
               style={{ padding: '10px 12px' }}
             />
