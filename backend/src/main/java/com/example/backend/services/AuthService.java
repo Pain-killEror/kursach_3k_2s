@@ -38,13 +38,19 @@ public class AuthService {
         }
 
         // 3. Обычная проверка пароля
-        if (passwordEncoder.matches(password, user.getPasswordHash())) {
-            String token = jwtUtils.generateToken(user.getEmail());
-            return new JwtResponse(token, user);
+        if (!passwordEncoder.matches(password, user.getPasswordHash())) {
+            // 4. Если пароль не подошел -> ругаемся на ПАРОЛЬ
+            throw new RuntimeException("Неверный пароль");
         }
-        
-        // 4. Если пароль не подошел -> ругаемся на ПАРОЛЬ
-        throw new RuntimeException("Неверный пароль");
+
+        // 5. --- БЛОКИРОВКА ВХОДА ДЛЯ ЗАБЛОКИРОВАННЫХ ПОЛЬЗОВАТЕЛЕЙ ---
+        if (user.getStatus() == Status.BLOCKED) {
+            throw new RuntimeException("Ваш аккаунт заблокирован администратором");
+        }
+
+        // 6. Если все отлично, генерируем токен
+        String token = jwtUtils.generateToken(user.getEmail(), user.getRole().name());
+        return new JwtResponse(token, user);
     }
 
     public User register(User user) {

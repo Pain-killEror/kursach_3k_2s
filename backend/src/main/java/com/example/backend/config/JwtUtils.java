@@ -15,9 +15,11 @@ public class JwtUtils {
 
     private final Key key = Keys.hmacShaKeyFor(jwtSecret.getBytes());
 
-    public String generateToken(String email) {
+    // ИЗМЕНЕНИЕ 1: Теперь метод принимает роль
+    public String generateToken(String email, String role) {
         return Jwts.builder()
                 .setSubject(email)
+                .claim("role", role) // <--- Зашиваем роль прямо в токен!
                 .setIssuedAt(new Date())
                 .setExpiration(new Date((new Date()).getTime() + jwtExpirationMs))
                 .signWith(key, SignatureAlgorithm.HS256)
@@ -27,6 +29,16 @@ public class JwtUtils {
     public String getEmailFromToken(String token) {
         return Jwts.parserBuilder().setSigningKey(key).build()
                 .parseClaimsJws(token).getBody().getSubject();
+    }
+
+    // ИЗМЕНЕНИЕ 2: Метод для извлечения роли из токена
+    public String getRoleFromToken(String token) {
+        return Jwts.parserBuilder()
+                .setSigningKey(key)
+                .build()
+                .parseClaimsJws(token)
+                .getBody()
+                .get("role", String.class);
     }
 
     public boolean validateToken(String authToken) {

@@ -1,0 +1,253 @@
+.admin-container {
+    padding: 20px 40px;
+    min-height: 100vh;
+    background-color: #121212;
+    color: #ffffff;
+    font-family: 'Inter', sans-serif;
+}
+
+.admin-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 30px;
+}
+
+.admin-header h1 {
+    margin: 0;
+    font-size: 28px;
+    font-weight: 700;
+    color: #f1f1f1;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.back-home-btn {
+    background: transparent;
+    color: #8e44ad;
+    border: 1px solid #8e44ad;
+    padding: 8px 16px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-weight: 600;
+    transition: all 0.2s;
+}
+
+.back-home-btn:hover {
+    background: #8e44ad;
+    color: #fff;
+}
+
+/* Вкладки */
+.admin-tabs {
+    display: flex;
+    gap: 15px;
+    margin-bottom: 25px;
+    border-bottom: 2px solid #333;
+    padding-bottom: 10px;
+}
+
+.admin-tab {
+    background: transparent;
+    color: #888;
+    border: none;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    padding: 8px 12px;
+    border-radius: 6px;
+    transition: all 0.2s;
+}
+
+.admin-tab:hover {
+    color: #ddd;
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.admin-tab.active {
+    color: #fff;
+    background: #8e44ad;
+}
+
+/* Панель инструментов (Поиск и фильтры) */
+.admin-toolbar {
+    display: flex;
+    gap: 15px;
+    margin-bottom: 20px;
+    align-items: center;
+    flex-wrap: wrap;
+}
+
+.admin-search-input {
+    flex: 1;
+    min-width: 250px;
+    padding: 10px 15px;
+    border-radius: 8px;
+    border: 1px solid #444;
+    background: #1a1a1a;
+    color: #fff;
+    font-size: 14px;
+    outline: none;
+}
+
+.admin-search-input:focus {
+    border-color: #8e44ad;
+}
+
+.admin-filter-select {
+    padding: 10px 15px;
+    border-radius: 8px;
+    border: 1px solid #444;
+    background: #1a1a1a;
+    color: #fff;
+    font-size: 14px;
+    cursor: pointer;
+    outline: none;
+}
+
+/* Таблицы */
+.admin-table-wrapper {
+    background: #1a1a1a;
+    border-radius: 12px;
+    overflow-x: auto;
+    border: 1px solid #333;
+}
+
+.admin-table {
+    width: 100%;
+    border-collapse: collapse;
+    text-align: left;
+}
+
+.admin-table th {
+    background: #222;
+    padding: 15px;
+    font-size: 13px;
+    color: #aaa;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    font-weight: 600;
+    border-bottom: 2px solid #333;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.admin-table th:hover {
+    color: #fff;
+}
+
+.admin-table td {
+    padding: 15px;
+    border-bottom: 1px solid #333;
+    font-size: 14px;
+    color: #ddd;
+    vertical-align: middle;
+}
+
+.admin-table tr:hover {
+    background: rgba(255, 255, 255, 0.02);
+}
+
+.admin-table tr:last-child td {
+    border-bottom: none;
+}
+
+/* Бейджи статусов и ролей */
+.badge {
+    padding: 4px 10px;
+    border-radius: 20px;
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    display: inline-block;
+}
+
+.badge.active {
+    background: rgba(46, 204, 113, 0.2);
+    color: #2ecc71;
+}
+
+.badge.blocked {
+    background: rgba(231, 76, 60, 0.2);
+    color: #e74c3c;
+}
+
+.badge.role-admin {
+    background: rgba(142, 68, 173, 0.2);
+    color: #c39bd3;
+}
+
+.badge.role-investor {
+    background: rgba(52, 152, 219, 0.2);
+    color: #5dade2;
+}
+
+.badge.role-seller {
+    background: rgba(241, 196, 15, 0.2);
+    color: #f4d03f;
+}
+
+/* Кнопки действий в таблице */
+.action-cell {
+    display: flex;
+    gap: 8px;
+}
+
+.action-btn {
+    background: #2a2a2a;
+    border: 1px solid #444;
+    color: #fff;
+    padding: 6px 10px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 12px;
+    transition: all 0.2s;
+}
+
+.action-btn:hover {
+    background: #444;
+}
+
+.action-btn.danger:hover {
+    background: #e74c3c;
+    border-color: #e74c3c;
+}
+
+.action-btn.warn:hover {
+    background: #f39c12;
+    border-color: #f39c12;
+}
+
+.action-btn.success:hover {
+    background: #2ecc71;
+    border-color: #2ecc71;
+}
+
+/* Пагинация */
+.admin-pagination {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 15px;
+    margin-top: 25px;
+}
+
+.page-btn {
+    background: #1a1a1a;
+    border: 1px solid #444;
+    color: #fff;
+    padding: 8px 15px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: 0.2s;
+}
+
+.page-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.page-btn:not(:disabled):hover {
+    background: #333;
+}

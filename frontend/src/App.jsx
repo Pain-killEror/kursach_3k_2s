@@ -4,22 +4,30 @@ import Login from './pages/Login';
 import Register from './pages/Register';
 import ObjectDetails from './pages/ObjectDetails';
 import AddObject from './pages/AddObject';
+import Admin from './pages/Admin'; // <-- Импортируем нашу будущую страницу админки
 
-// Защищает приватные страницы (если НЕТ токена -> на логин)
+// Защищает обычные приватные страницы (если НЕТ токена -> на логин)
 const ProtectedRoute = ({ children }) => {
   const token = localStorage.getItem('token');
-  if (!token) {
-    return <Navigate to="/login" replace />;
-  }
+  if (!token) return <Navigate to="/login" replace />;
   return children;
 };
 
-// Защищает страницы логина/регистрации (если ЕСТЬ токен -> на главную)
-const PublicRoute = ({ children }) => {
+// НОВОЕ: Защищает страницу админа (если НЕТ токена ИЛИ роль НЕ ADMIN -> на главную)
+const AdminRoute = ({ children }) => {
   const token = localStorage.getItem('token');
-  if (token) {
+  let user = null;
+
+  try {
+    user = JSON.parse(localStorage.getItem('user'));
+  } catch (e) {
+    user = null;
+  }
+
+  if (!token || user?.role !== 'ADMIN') {
     return <Navigate to="/" replace />;
   }
+
   return children;
 };
 
@@ -27,32 +35,43 @@ function App() {
   return (
     <BrowserRouter>
       <Routes>
-        {/* Публичные страницы оборачиваем в PublicRoute */}
-        <Route
-          path="/login"
-          element={<PublicRoute><Login /></PublicRoute>}
-        />
-        <Route
-          path="/register"
-          element={<PublicRoute><Register /></PublicRoute>}
-        />
+        <Route path="/login" element={<Login />} />
+        <Route path="/register" element={<Register />} />
 
-        {/* Защищенная главная страница */}
         <Route
           path="/"
-          element={<ProtectedRoute><Home /></ProtectedRoute>}
+          element={
+            <ProtectedRoute>
+              <Home />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/object/:id"
+          element={
+            <ProtectedRoute>
+              <ObjectDetails />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/add-object"
+          element={
+            <ProtectedRoute>
+              <AddObject />
+            </ProtectedRoute>
+          }
         />
 
-        <Route path="/object/:id" element={
-          <ProtectedRoute>
-            <ObjectDetails />
-          </ProtectedRoute>
-        } />
-
-        <Route path="/add-object" element={<AddObject />} />
-
-        {/* Если ввели несуществующий адрес — кидаем на главную */}
-        <Route path="*" element={<Navigate to="/" replace />} />
+        {/* НОВЫЙ РОУТ ДЛЯ АДМИНА */}
+        <Route
+          path="/admin"
+          element={
+            <AdminRoute>
+              <Admin />
+            </AdminRoute>
+          }
+        />
       </Routes>
     </BrowserRouter>
   );

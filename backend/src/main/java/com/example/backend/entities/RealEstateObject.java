@@ -77,6 +77,9 @@ public class RealEstateObject {
     @JoinColumn(name = "user_id", referencedColumnName = "id")
     private User user;
 
+    @Column(name = "is_visible")
+    private Boolean isVisible = true;
+
     public RealEstateObject() {
     }
 
@@ -85,7 +88,7 @@ public class RealEstateObject {
                             BigDecimal areaLiving, Integer floor, Integer floorsTotal, String wallMaterial, 
                             Integer yearBuilt, BigDecimal priceTotal, BigDecimal pricePerM2, String currency, 
                             String imagesUrls, String sourceUrl, LocalDateTime createdAt, 
-                            LocalDateTime updatedAt, String attributes, User user) {
+                            LocalDateTime updatedAt, String attributes, User user, Boolean isVisible) {
         this.id = id;
         this.externalId = externalId;
         this.type = type;
@@ -109,6 +112,7 @@ public class RealEstateObject {
         this.updatedAt = updatedAt;
         this.attributes = attributes;
         this.user = user;
+        this.isVisible = isVisible;
     }
 
     // --- GETTERS & SETTERS ---
@@ -181,4 +185,7 @@ public class RealEstateObject {
 
     public User getUser() { return user; }
     public void setUser(User user) { this.user = user; }
+
+    public Boolean getIsVisible() { return isVisible; }
+    public void setIsVisible(Boolean isVisible) { this.isVisible = isVisible; }
 }

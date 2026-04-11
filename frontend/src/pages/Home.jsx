@@ -345,6 +345,7 @@ const Home = () => {
           </select>
         </div>
 
+        {/* Кнопка продавца */}
         {user?.role === 'SELLER' && (
           <button
             className="sell-property-btn"
@@ -372,6 +373,37 @@ const Home = () => {
             }}
           >
             + Продать недвижимость
+          </button>
+        )}
+
+        {/* НОВАЯ КНОПКА АДМИНА */}
+        {user?.role === 'ADMIN' && (
+          <button
+            className="admin-panel-btn"
+            onClick={() => navigate('/admin')} // Путь на будущую страницу админки
+            style={{
+              marginRight: '15px',
+              padding: '8px 18px',
+              backgroundColor: '#8e44ad', // Фиолетовый цвет для админки
+              color: 'white',
+              border: 'none',
+              borderRadius: '8px',
+              fontWeight: '600',
+              cursor: 'pointer',
+              fontSize: '13px',
+              boxShadow: '0 2px 8px rgba(142, 68, 173, 0.3)',
+              transition: 'all 0.2s ease'
+            }}
+            onMouseOver={(e) => {
+              e.target.style.backgroundColor = '#732d91';
+              e.target.style.transform = 'translateY(-1px)';
+            }}
+            onMouseOut={(e) => {
+              e.target.style.backgroundColor = '#8e44ad';
+              e.target.style.transform = 'translateY(0)';
+            }}
+          >
+            ⚙️ Администрирование
           </button>
         )}
 

@@ -108,7 +108,7 @@ public class AuthController {
                 }
 
                 // Успешный вход
-                String jwt = jwtUtils.generateToken(user.getEmail());
+                String jwt = jwtUtils.generateToken(user.getEmail(), user.getRole().name());
                 return ResponseEntity.ok(new JwtResponse(jwt, user));
             }
         } catch (Exception e) {
