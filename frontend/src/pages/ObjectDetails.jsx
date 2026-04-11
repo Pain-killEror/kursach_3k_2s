@@ -102,7 +102,7 @@ const ObjectDetails = () => {
         navigate('/login');
     };
 
-    // --- Обработка изображений (Исправлено для локальных путей) ---
+    // --- Обработка изображений ---
     const images = useMemo(() => {
         let res = ['https://via.placeholder.com/600x400?text=Нет+фото'];
         if (object?.imagesUrls) {
@@ -272,17 +272,30 @@ const ObjectDetails = () => {
                             <span className="spec-label">Общая площадь</span>
                             <span className="spec-value">{object.areaTotal} м²</span>
                         </div>
-                        <div className="spec-item">
-                            <span className="spec-label">Этаж</span>
-                            <span className="spec-value">{object.floor || '—'} / {object.floorsTotal || '—'}</span>
-                        </div>
+
+                        {/* ЛОГИКА ЭТАЖЕЙ: Скрываем для участков, выводим прочерк для домов */}
+                        {object.type !== 'Участок' && (
+                            <div className="spec-item">
+                                <span className="spec-label">Этаж</span>
+                                <span className="spec-value">
+                                    {object.type === 'Дом'
+                                        ? `- / ${object.floorsTotal || '—'}`
+                                        : `${object.floor || '—'} / ${object.floorsTotal || '—'}`}
+                                </span>
+                            </div>
+                        )}
+
                         <div className="spec-item">
                             <span className="spec-label">Год постройки</span>
                             <span className="spec-value">{object.yearBuilt || 'Не указан'}</span>
                         </div>
+
+                        {/* ЛОГИКА ЦЕНЫ ЗА М2: Оставляем до 2 знаков после запятой, чтобы не пропадали дробные значения */}
                         <div className="spec-item">
                             <span className="spec-label">Цена за м²</span>
-                            <span className="spec-value">{formatPrice(displayPriceM2)}</span>
+                            <span className="spec-value">
+                                {Number(displayPriceM2).toLocaleString('ru-RU', { maximumFractionDigits: 2 })} {currency === 'BYN' ? 'Br' : '$'}
+                            </span>
                         </div>
                     </div>
 

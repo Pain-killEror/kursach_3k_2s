@@ -1,244 +1,304 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import api from '../api/axios';
+import api from '../api/axios'; // Убедись, что путь к axios правильный
 import './AddObject.css';
 
-// Полная конфигурация полей на основе твоего парсера (generator.py)
-const CATEGORY_FIELDS = {
-    'КВАРТИРА': [
-        { name: 'rooms_count', label: 'Количество комнат', type: 'number' },
-        { name: 'renovation_state', label: 'Ремонт', type: 'select', options: ['Черновая отделка', 'Предчистовая', 'Плохой ремонт', 'Средний ремонт', 'Хороший ремонт', 'Элитный ремонт'] },
-        { name: 'has_balcony', label: 'Балкон', type: 'boolean' }
-    ],
-    'ДОМ': [
-        { name: 'house_type', label: 'Тип дома', type: 'select', options: ['Коттедж', 'Таунхаус', 'Старый дом'] },
-        { name: 'heating_type', label: 'Отопление', type: 'select', options: ['Газ', 'Твердотопливный', 'Электрическое'] },
-        { name: 'plot_area_acres', label: 'Участок (сот.)', type: 'number' }
-    ],
-    'КОММЕРЦИЯ': [
-        { name: 'commercial_type', label: 'Тип помещения', type: 'select', options: ['Стрит-ритейл', 'ТЦ', 'Офис'] },
-        { name: 'has_separate_entrance', label: 'Отдельный вход', type: 'boolean' },
-        { name: 'ceiling_height_m', label: 'Высота потолков (м)', type: 'number' }
-    ],
-    'ОФИС': [
-        { name: 'business_center_class', label: 'Класс БЦ', type: 'select', options: ['A', 'B', 'C'] },
-        { name: 'access_24_7', label: 'Доступ 24/7', type: 'boolean' }
-    ],
-    'СКЛАД': [
-        { name: 'warehouse_type', label: 'Тип склада', type: 'select', options: ['Отапливаемый', 'Холодный'] },
-        { name: 'has_ramp', label: 'Наличие пандуса', type: 'boolean' },
-        { name: 'ceiling_height_m', label: 'Высота потолков (м)', type: 'number' }
-    ],
-    'УЧАСТОК': [
-        { name: 'land_purpose', label: 'Назначение', type: 'select', options: ['ИЖС', 'СНТ', 'Промназначение'] },
-        { name: 'has_electricity', label: 'Электричество', type: 'boolean' },
-        { name: 'has_gas', label: 'Газ', type: 'boolean' }
-    ],
-    'ГАРАЖ': [
-        { name: 'material', label: 'Материал', type: 'select', options: ['Кирпичный', 'Металлический', 'Бетонный'] },
-        { name: 'is_covered', label: 'Крытый', type: 'boolean' },
-        { name: 'has_pit', label: 'Наличие ямы', type: 'boolean' }
-    ]
+// Конфигурация типов недвижимости и их полей
+const REAL_ESTATE_CONFIG = {
+    'Квартира': {
+        subcategories: ['Плохой ремонт', 'Предчистовая', 'Средний ремонт', 'Хороший ремонт', 'Черновая отделка', 'Элитный ремонт'],
+        fields: ['title', 'description', 'city', 'address', 'area_total', 'area_living', 'floor', 'floors_total', 'wall_material', 'year_built', 'price_total', 'currency']
+    },
+    'Дом': {
+        subcategories: ['Коттедж', 'Таунхаус', 'Старый дом'],
+        fields: ['title', 'description', 'city', 'address', 'area_total', 'area_living', 'floors_total', 'wall_material', 'year_built', 'price_total', 'currency']
+    },
+    'Участок': {
+        subcategories: ['Стандарт'],
+        fields: ['title', 'description', 'city', 'address', 'area_total', 'price_total', 'currency']
+    },
+    'Коммерция': {
+        subcategories: ['Стрит-ритейл', 'ТЦ'],
+        fields: ['title', 'description', 'city', 'address', 'area_total', 'floor', 'floors_total', 'year_built', 'price_total', 'currency']
+    },
+    'Офис': {
+        subcategories: ['A', 'B', 'C'],
+        fields: ['title', 'description', 'city', 'address', 'area_total', 'floor', 'floors_total', 'year_built', 'price_total', 'currency']
+    },
+    'Склад': {
+        subcategories: ['Отапливаемый', 'Холодный'],
+        fields: ['title', 'description', 'city', 'address', 'area_total', 'floor', 'floors_total', 'year_built', 'price_total', 'currency']
+    },
+    'Гараж': {
+        subcategories: ['Кирпичный', 'Металлический'],
+        fields: ['title', 'description', 'city', 'address', 'area_total', 'year_built', 'price_total', 'currency']
+    }
 };
+
+const BELARUS_CITIES = [
+    'г. Минск',
+    'Минская область',
+    'г. Брест',
+    'Брестская область',
+    'г. Витебск',
+    'Витебская область',
+    'г. Гомель',
+    'Гомельская область',
+    'г. Гродно',
+    'Гродненская область',
+    'г. Могилев',
+    'Могилевская область'
+];
 
 const AddObject = () => {
     const navigate = useNavigate();
-    const user = useMemo(() => {
-        try {
-            return JSON.parse(localStorage.getItem('user'));
-        } catch (e) { return null; }
-    }, []);
+    const [error, setError] = useState(null);
 
-    const [mainInfo, setMainInfo] = useState({
+    // Начальное состояние формы
+    const [formData, setFormData] = useState({
+        type: 'Квартира',
+        category: 'Средний ремонт',
         title: '',
-        category: 'КВАРТИРА',
-        type: 'Продажа',
-        city: '',
-        address: '',
-        priceTotal: '',
-        currency: 'USD',
-        areaTotal: '',
         description: '',
+        city: 'г. Минск',
+        address: '',
+        area_total: '',
+        area_living: '',
         floor: '',
-        floorsTotal: ''
+        floors_total: '',
+        wall_material: '',
+        year_built: '',
+        price_total: '',
+        currency: 'USD'
     });
 
-    const [attributes, setAttributes] = useState({});
-    const [selectedFiles, setSelectedFiles] = useState([]);
-    const [previews, setPreviews] = useState([]);
-    const [loading, setLoading] = useState(false);
+    const [images, setImages] = useState([]);
 
-    const handleFileChange = (e) => {
-        const files = Array.from(e.target.files);
-        setSelectedFiles(files);
-        const filePreviews = files.map(file => URL.createObjectURL(file));
-        setPreviews(filePreviews);
+    // Обработчик изменения типа недвижимости (сбрасывает категорию)
+    const handleTypeChange = (e) => {
+        const newType = e.target.value;
+        setFormData(prev => ({
+            ...prev,
+            type: newType,
+            category: REAL_ESTATE_CONFIG[newType].subcategories[0],
+            // Сбрасываем поля, которые могут быть не нужны в новом типе
+            area_living: '',
+            floor: '',
+            floors_total: '',
+            wall_material: '',
+            year_built: ''
+        }));
     };
 
-    const handleMainChange = (e) => {
+    const handleChange = (e) => {
         const { name, value } = e.target;
-        setMainInfo(prev => ({ ...prev, [name]: value }));
-        if (name === 'category') setAttributes({});
+        setFormData(prev => ({ ...prev, [name]: value }));
     };
 
-    const handleAttrChange = (name, value) => {
-        setAttributes(prev => ({ ...prev, [name]: value }));
+    const handleImageChange = (e) => {
+        setImages(Array.from(e.target.files));
     };
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-        if (!user) {
-            alert("Необходимо войти в систему");
-            return;
+        setError(null);
+
+        // ВАЛИДАЦИЯ ПЕРЕД ОТПРАВКОЙ
+        const activeFields = REAL_ESTATE_CONFIG[formData.type].fields;
+
+        if (activeFields.includes('area_total') && activeFields.includes('area_living')) {
+            if (parseFloat(formData.area_living) > parseFloat(formData.area_total)) {
+                return setError('Жилая площадь не может быть больше общей площади!');
+            }
         }
-        setLoading(true);
+
+        if (activeFields.includes('floor') && activeFields.includes('floors_total')) {
+            if (parseInt(formData.floor, 10) > parseInt(formData.floors_total, 10)) {
+                return setError('Этаж объекта не может быть больше общего количества этажей в здании!');
+            }
+        }
+
+        // Формируем payload. Строго парсим числа, чтобы избежать бага с "999999" вместо "1000000"
+        const payload = new FormData();
+
+        payload.append('type', formData.type);
+        payload.append('category', formData.category);
+
+        if (activeFields.includes('title')) payload.append('title', formData.title);
+        if (activeFields.includes('description')) payload.append('description', formData.description);
+        if (activeFields.includes('city')) payload.append('city', formData.city);
+        if (activeFields.includes('address')) payload.append('address', formData.address);
+        if (activeFields.includes('currency')) payload.append('currency', formData.currency);
+
+        // Числовые поля парсим явно!
+        if (activeFields.includes('price_total') && formData.price_total) {
+            // Используем parseFloat, чтобы сохранить введенные копейки/десятичные значения
+            payload.append('price_total', parseFloat(formData.price_total));
+        }
+        if (activeFields.includes('area_total') && formData.area_total) {
+            payload.append('area_total', parseFloat(formData.area_total));
+        }
+        if (activeFields.includes('area_living') && formData.area_living) {
+            payload.append('area_living', parseFloat(formData.area_living));
+        }
+        if (activeFields.includes('year_built') && formData.year_built) {
+            payload.append('year_built', parseInt(formData.year_built, 10));
+        }
+
+        // Логика этажей для Домов
+        if (formData.type === 'Дом') {
+            // Для дома текущий этаж не задается, но мы можем передать null или не передавать вообще
+            if (formData.floors_total) payload.append('floors_total', parseInt(formData.floors_total, 10));
+        } else {
+            if (activeFields.includes('floor') && formData.floor) payload.append('floor', parseInt(formData.floor, 10));
+            if (activeFields.includes('floors_total') && formData.floors_total) payload.append('floors_total', parseInt(formData.floors_total, 10));
+        }
+
+        if (activeFields.includes('wall_material')) payload.append('wall_material', formData.wall_material);
+
+        images.forEach(image => {
+            payload.append('images', image);
+        });
 
         try {
-            const formData = new FormData();
-
-            // Рассчитываем цену за м2 перед отправкой
-            const priceTotal = parseFloat(mainInfo.priceTotal);
-            const areaTotal = parseFloat(mainInfo.areaTotal);
-            const pricePerM2 = (priceTotal && areaTotal) ? (priceTotal / areaTotal).toFixed(2) : 0;
-
-            // Формируем объект данных для бэкенда
-            const objectData = {
-                ...mainInfo,
-                pricePerM2: pricePerM2,
-                attributes: JSON.stringify(attributes) // Сериализуем атрибуты в JSON строку
-            };
-
-            // Добавляем данные объекта как строку (RequestPart в Spring)
-            formData.append('objectData', JSON.stringify(objectData));
-
-            // Добавляем файлы изображений
-            selectedFiles.forEach(file => {
-                formData.append('images', file);
-            });
-
-            // Отправляем запрос с ID пользователя в параметрах
-            await api.post(`/objects?userId=${user.id}`, formData, {
+            await api.post('/objects', payload, {
                 headers: { 'Content-Type': 'multipart/form-data' }
             });
-
-            alert('Объявление успешно опубликовано!');
-            navigate('/');
-        } catch (error) {
-            console.error(error);
-            alert('Ошибка при сохранении: ' + (error.response?.data || error.message));
-        } finally {
-            setLoading(false);
+            navigate('/'); // Редирект на главную или в профиль
+        } catch (err) {
+            console.error(err);
+            setError('Ошибка при создании объекта. Проверьте данные.');
         }
     };
 
+    const activeFields = REAL_ESTATE_CONFIG[formData.type].fields;
+
     return (
         <div className="add-object-container">
-            <header className="add-header">
-                <button className="back-link" onClick={() => navigate(-1)}>← Назад</button>
-                <h1>Новое объявление</h1>
-            </header>
+            <h2>Добавить объект недвижимости</h2>
+            {error && <div className="error-message">{error}</div>}
 
-            <form onSubmit={handleSubmit} className="add-form">
-                <section className="form-section">
-                    <h3>Основная информация</h3>
-                    <div className="input-field">
+            <form onSubmit={handleSubmit} className="add-object-form">
+
+                <div className="form-group">
+                    <label>Вид недвижимости</label>
+                    <select name="type" value={formData.type} onChange={handleTypeChange} required>
+                        {Object.keys(REAL_ESTATE_CONFIG).map(type => (
+                            <option key={type} value={type}>{type}</option>
+                        ))}
+                    </select>
+                </div>
+
+                <div className="form-group">
+                    <label>Категория (состояние/тип)</label>
+                    <select name="category" value={formData.category} onChange={handleChange} required>
+                        {REAL_ESTATE_CONFIG[formData.type].subcategories.map(sub => (
+                            <option key={sub} value={sub}>{sub}</option>
+                        ))}
+                    </select>
+                </div>
+
+                {activeFields.includes('title') && (
+                    <div className="form-group">
                         <label>Заголовок объявления</label>
-                        <input name="title" required placeholder="Напр: Уютная квартира рядом с парком" onChange={handleMainChange} />
+                        <input type="text" name="title" value={formData.title} onChange={handleChange} required />
                     </div>
+                )}
 
-                    <div className="grid-row">
-                        <div className="input-field">
-                            <label>Категория недвижимости</label>
-                            <select name="category" value={mainInfo.category} onChange={handleMainChange}>
-                                {Object.keys(CATEGORY_FIELDS).map(cat => <option key={cat} value={cat}>{cat}</option>)}
+                {activeFields.includes('city') && (
+                    <div className="form-group">
+                        <label>Город / Регион</label>
+                        <select name="city" value={formData.city} onChange={handleChange} required>
+                            {BELARUS_CITIES.map(city => (
+                                <option key={city} value={city}>{city}</option>
+                            ))}
+                        </select>
+                    </div>
+                )}
+
+                {activeFields.includes('address') && (
+                    <div className="form-group">
+                        <label>Точный адрес</label>
+                        <input type="text" name="address" value={formData.address} onChange={handleChange} required />
+                    </div>
+                )}
+
+                <div className="form-row">
+                    {activeFields.includes('area_total') && (
+                        <div className="form-group half">
+                            <label>Общая площадь (м²)</label>
+                            <input type="number" step="0.1" name="area_total" value={formData.area_total} onChange={handleChange} required />
+                        </div>
+                    )}
+                    {activeFields.includes('area_living') && (
+                        <div className="form-group half">
+                            <label>Жилая площадь (м²)</label>
+                            <input type="number" step="0.1" name="area_living" value={formData.area_total && !formData.area_living && formData.type === 'Дом' ? formData.area_total : formData.area_living} onChange={handleChange} required />
+                        </div>
+                    )}
+                </div>
+
+                <div className="form-row">
+                    {activeFields.includes('floor') && formData.type !== 'Дом' && (
+                        <div className="form-group half">
+                            <label>Этаж</label>
+                            <input type="number" name="floor" value={formData.floor} onChange={handleChange} required={formData.type !== 'Участок'} />
+                        </div>
+                    )}
+                    {activeFields.includes('floors_total') && (
+                        <div className="form-group half">
+                            <label>{formData.type === 'Дом' ? 'Количество этажей' : 'Всего этажей в здании'}</label>
+                            <input type="number" name="floors_total" value={formData.floors_total} onChange={handleChange} required={formData.type !== 'Участок'} />
+                        </div>
+                    )}
+                </div>
+
+                {activeFields.includes('wall_material') && (
+                    <div className="form-group">
+                        <label>Материал стен</label>
+                        <input type="text" name="wall_material" value={formData.wall_material} onChange={handleChange} />
+                    </div>
+                )}
+
+                {activeFields.includes('year_built') && (
+                    <div className="form-group">
+                        <label>Год постройки</label>
+                        <input type="number" name="year_built" value={formData.year_built} onChange={handleChange} />
+                    </div>
+                )}
+
+                <div className="form-row">
+                    {activeFields.includes('price_total') && (
+                        <div className="form-group half">
+                            <label>Стоимость</label>
+                            <input type="number" name="price_total" value={formData.price_total} onChange={handleChange} required />
+                        </div>
+                    )}
+                    {activeFields.includes('currency') && (
+                        <div className="form-group half">
+                            <label>Валюта</label>
+                            <select name="currency" value={formData.currency} onChange={handleChange}>
+                                <option value="USD">USD ($)</option>
+                                <option value="BYN">BYN (Br)</option>
+                                <option value="EUR">EUR (€)</option>
                             </select>
                         </div>
-                        <div className="input-field">
-                            <label>Полная стоимость</label>
-                            <div className="price-row">
-                                <input type="number" name="priceTotal" required placeholder="0" onChange={handleMainChange} />
-                                <select name="currency" onChange={handleMainChange}>
-                                    <option value="USD">USD ($)</option>
-                                    <option value="BYN">BYN (Br)</option>
-                                </select>
-                            </div>
-                        </div>
-                    </div>
-                </section>
+                    )}
+                </div>
 
-                <section className="form-section">
-                    <h3>Местоположение и параметры</h3>
-                    <div className="grid-row">
-                        <div className="input-field">
-                            <label>Город</label>
-                            <input name="city" required placeholder="Минск" onChange={handleMainChange} />
-                        </div>
-                        <div className="input-field">
-                            <label>Адрес (Улица и номер дома)</label>
-                            <input name="address" required placeholder="ул. Ленина, 10" onChange={handleMainChange} />
-                        </div>
-                    </div>
-                    <div className="grid-row">
-                        <div className="input-field">
-                            <label>Общая площадь (м²)</label>
-                            <input type="number" step="0.01" name="areaTotal" required placeholder="0.00" onChange={handleMainChange} />
-                        </div>
-                        <div className="input-field">
-                            <label>Этаж (если есть)</label>
-                            <div className="price-row">
-                                <input type="number" name="floor" placeholder="Этаж" onChange={handleMainChange} />
-                                <span style={{ alignSelf: 'center', color: '#888' }}>/</span>
-                                <input type="number" name="floorsTotal" placeholder="Всего" onChange={handleMainChange} />
-                            </div>
-                        </div>
-                    </div>
-                    <div className="input-field">
+                {activeFields.includes('description') && (
+                    <div className="form-group">
                         <label>Описание</label>
-                        <textarea name="description" rows="5" placeholder="Расскажите об особенностях объекта..." onChange={handleMainChange}></textarea>
+                        <textarea name="description" value={formData.description} onChange={handleChange} rows="5"></textarea>
                     </div>
-                </section>
+                )}
 
-                <section className="form-section">
-                    <h3>Фотографии объекта</h3>
-                    <div className="file-upload-zone">
-                        <input type="file" id="images" multiple accept="image/*" onChange={handleFileChange} hidden />
-                        <label htmlFor="images" className="file-label">
-                            <span className="icon">📸</span>
-                            <span>Выберите фотографии для загрузки</span>
-                        </label>
-                    </div>
-                    <div className="previews-list">
-                        {previews.map((url, i) => <img key={i} src={url} alt="preview" className="img-preview" />)}
-                    </div>
-                </section>
+                <div className="form-group">
+                    <label>Фотографии</label>
+                    <input type="file" multiple accept="image/*" onChange={handleImageChange} />
+                </div>
 
-                <section className="form-section">
-                    <h3>Характеристики для: {mainInfo.category}</h3>
-                    <div className="grid-row">
-                        {CATEGORY_FIELDS[mainInfo.category].map(f => (
-                            <div key={f.name} className="input-field">
-                                <label>{f.label}</label>
-                                {f.type === 'select' ? (
-                                    <select onChange={(e) => handleAttrChange(f.name, e.target.value)}>
-                                        <option value="">Не выбрано</option>
-                                        {f.options.map(o => <option key={o} value={o}>{o}</option>)}
-                                    </select>
-                                ) : f.type === 'boolean' ? (
-                                    <select onChange={(e) => handleAttrChange(f.name, e.target.value === 'true')}>
-                                        <option value="false">Нет</option>
-                                        <option value="true">Да</option>
-                                    </select>
-                                ) : (
-                                    <input type="number" step="0.1" placeholder="0" onChange={(e) => handleAttrChange(f.name, e.target.value)} />
-                                )}
-                            </div>
-                        ))}
-                    </div>
-                </section>
-
-                <button type="submit" className="save-btn" disabled={loading}>
-                    {loading ? 'Публикация объявления...' : 'Опубликовать объявление'}
-                </button>
+                <button type="submit" className="submit-btn">Опубликовать объявление</button>
             </form>
         </div>
     );
