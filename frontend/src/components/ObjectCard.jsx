@@ -12,7 +12,7 @@ const ObjectCard = ({ object }) => {
   const { convertPrice, formatPrice: formatCurrency } = useCurrency();
 
   // 1. Обработка картинок (внешние ссылки + локальные загрузки)
-  let images = ['https://via.placeholder.com/350x200?text=Нет+фото'];
+  let images = ['/no-photo.png'];
 
   if (object.imagesUrls) {
     let rawImages = [];
@@ -113,7 +113,7 @@ const ObjectCard = ({ object }) => {
           src={images[currentImageIndex]}
           alt={object.title || 'Объект'}
           className="object-card-image"
-          onError={(e) => { e.target.src = 'https://via.placeholder.com/350x200?text=Ошибка+загрузки'; }}
+          onError={(e) => { e.target.src = '/no-photo.png'; }}
         />
 
         {images.length > 1 && (

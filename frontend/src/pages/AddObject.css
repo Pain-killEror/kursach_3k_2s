@@ -128,3 +128,17 @@
     background: #444;
     cursor: not-allowed;
 }
+
+/* Стили для вывода ошибок */
+.input-error {
+    border: 1px solid #ff3b30 !important;
+    background-color: rgba(255, 59, 48, 0.05) !important;
+}
+
+.error-text {
+    color: #ff3b30;
+    font-size: 13px;
+    margin-top: 6px;
+    display: block;
+    font-weight: 500;
+}

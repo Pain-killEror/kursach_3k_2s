@@ -104,7 +104,7 @@ const ObjectDetails = () => {
 
     // --- Обработка изображений ---
     const images = useMemo(() => {
-        let res = ['https://via.placeholder.com/600x400?text=Нет+фото'];
+        let res = ['/no-photo.png'];
         if (object?.imagesUrls) {
             let rawList = [];
             try {
@@ -241,7 +241,7 @@ const ObjectDetails = () => {
                             className="main-image"
                             onClick={openModal}
                             style={{ cursor: 'pointer' }}
-                            onError={(e) => { e.target.src = 'https://via.placeholder.com/600x400?text=Ошибка+загрузки'; }}
+                            onError={(e) => { e.target.src = '/no-photo.png'; }}
                         />
                         {images.length > 1 && (
                             <div className="carousel-dots">
