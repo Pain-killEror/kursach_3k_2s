@@ -49,10 +49,10 @@ const AddObject = () => {
 
     // === СОСТОЯНИЕ ФОТОГРАФИЙ И ЛАЙТБОКСА ===
     const [photos, setPhotos] = useState([]);
-    const [draggedIdx, setDraggedIdx] = useState(null);
-    const [dragOverIdx, setDragOverIdx] = useState(null);
     const [lightboxIndex, setLightboxIndex] = useState(null);
-    const [dropTargetIdx, setDropTargetIdx] = useState(null);
+    const [draggedId, setDraggedId] = useState(null);
+    const [dragOverId, setDragOverId] = useState(null);
+    const [dropPosition, setDropPosition] = useState(null);
 
     const [formData, setFormData] = useState({
         type: 'Квартира',
@@ -204,41 +204,76 @@ const AddObject = () => {
     };
 
     // === СТАБИЛИЗИРОВАННЫЙ DRAG & DROP ===
-    const handleDragStart = (e, index) => {
-        setDraggedIdx(index);
+    const handleDragStart = (e, id) => {
+        setDraggedId(id);
         e.dataTransfer.effectAllowed = "move";
-        e.dataTransfer.setData("text/plain", index);
+        e.dataTransfer.setData("text/plain", String(id));
     };
 
-    const handleDragOver = (e, index) => {
+    const handleDragOver = (e, id) => {
         e.preventDefault();
+        e.stopPropagation();
         e.dataTransfer.dropEffect = "move";
-        if (dragOverIdx !== index) {
-            setDragOverIdx(index);
+
+        if (id === 'END') {
+            if (dragOverId !== 'END') {
+                setDragOverId('END');
+                setDropPosition('left'); // Для кнопки "+" всегда рисуем линию слева
+            }
+            return;
+        }
+
+        // Вычисляем: курсор на левой или правой половине карточки?
+        const rect = e.currentTarget.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const position = x < rect.width / 2 ? 'left' : 'right';
+
+        if (dragOverId !== id || dropPosition !== position) {
+            setDragOverId(id);
+            setDropPosition(position);
         }
     };
 
-    const handleDrop = (e, targetIdx) => {
+    const handleDrop = (e, targetId) => {
         e.preventDefault();
-        const sourceIdx = draggedIdx;
-        setDraggedIdx(null);
-        setDropTargetIdx(null);
+        e.stopPropagation();
 
-        if (sourceIdx === null || sourceIdx === targetIdx) return;
+        const sourceId = e.dataTransfer.getData("text/plain") || String(draggedId);
 
-        const newPhotos = [...photos];
-        const [movedItem] = newPhotos.splice(sourceIdx, 1);
+        setDraggedId(null);
+        setDragOverId(null);
+        setDropPosition(null);
 
-        // Корректный расчет индекса вставки
-        const finalInsertIdx = targetIdx > sourceIdx ? targetIdx - 1 : targetIdx;
-        newPhotos.splice(finalInsertIdx, 0, movedItem);
+        if (!sourceId || sourceId === String(targetId)) return;
 
-        setPhotos(newPhotos);
+        setPhotos(prevPhotos => {
+            const sourceIdx = prevPhotos.findIndex(p => String(p.id) === sourceId);
+            if (sourceIdx === -1) return prevPhotos;
+
+            const newPhotos = [...prevPhotos];
+            const [movedItem] = newPhotos.splice(sourceIdx, 1);
+
+            if (targetId === 'END') {
+                newPhotos.push(movedItem);
+            } else {
+                let targetIdx = prevPhotos.findIndex(p => String(p.id) === String(targetId));
+
+                // Корректируем индекс вставки в зависимости от стороны
+                if (dropPosition === 'right') targetIdx += 1;
+                // Если вырезали элемент, который был раньше по списку, индекс смещается
+                if (sourceIdx < targetIdx) targetIdx -= 1;
+
+                newPhotos.splice(targetIdx, 0, movedItem);
+            }
+
+            return newPhotos;
+        });
     };
 
     const handleDragEnd = () => {
-        setDraggedIdx(null);
-        setDragOverIdx(null);
+        setDraggedId(null);
+        setDragOverId(null);
+        setDropPosition(null);
     };
 
     const handleSubmit = async (e) => {
@@ -419,10 +454,37 @@ const AddObject = () => {
             <style>
                 {`
                 .photo-card-wrapper {
-                    position: relative;
-                    transition: transform 0.2s, opacity 0.2s, margin-left 0.2s ease-in-out;
-                }
-                
+    position: relative;
+    transition: opacity 0.2s, transform 0.2s;
+}
+                .photo-card-wrapper.drag-over-left::before,
+.add-photo-btn-wrapper.drag-over-left::before {
+    content: '';
+    position: absolute;
+    left: 5px; 
+    top: 7.5px;
+    height: 120px; /* Высота строго по картинке */
+    width: 4px;
+    background: #007bff;
+    border-radius: 4px;
+    box-shadow: 0 0 8px rgba(0, 123, 255, 0.6);
+    pointer-events: none;
+    z-index: 10;
+}
+
+.photo-card-wrapper.drag-over-right::after {
+    content: '';
+    position: absolute;
+    right: 5px;
+    top: 7.5px;
+    height: 120px;
+    width: 4px;
+    background: #007bff;
+    border-radius: 4px;
+    box-shadow: 0 0 8px rgba(0, 123, 255, 0.6);
+    pointer-events: none;
+    z-index: 10;
+}
                 /* Визуальный эффект при перетаскивании */
                 .photo-card-wrapper.drag-over {
                     margin-left: 30px; 
@@ -447,15 +509,36 @@ const AddObject = () => {
                 }
 
                 .photo-card-wrapper .delete-photo-btn {
-                    opacity: 0;
-                    transition: opacity 0.2s ease, background 0.2s ease;
-                }
+    opacity: 0;
+    transition: opacity 0.2s ease, background 0.2s ease;
+}
                 .photo-card-wrapper:hover .delete-photo-btn {
                     opacity: 1;
                 }
                 .delete-photo-btn:hover {
                     background: #ff3b30 !important;
                 }
+                    /* Специальная зона для сброса в самый конец списка */
+.end-dropzone {
+    width: 20px;
+    height: 120px;
+    position: relative;
+}
+.end-dropzone.drag-over {
+    margin-left: 10px;
+}
+.end-dropzone.drag-over::before {
+    content: '';
+    position: absolute;
+    left: 7px;
+    top: 0;
+    height: 120px;
+    width: 6px;
+    background: #007bff;
+    border-radius: 4px;
+    box-shadow: 0 0 10px rgba(0, 123, 255, 0.5);
+    pointer-events: none;
+}
                 `}
             </style>
 
@@ -791,72 +874,86 @@ const AddObject = () => {
                         </div>
                     )}
 
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '15px', alignItems: 'flex-start' }}>
+                    {/* Вместо gap используем отрицательный margin для выравнивания сетки */}
+                    <div style={{ display: 'flex', flexWrap: 'wrap', margin: '-7.5px', alignItems: 'flex-start' }}>
 
-                        {/* Плитки с загруженными фото (Стабильный Drag & Drop) */}
-                        {photos.map((photo, index) => (
-                            <div
-                                key={photo.id}
-                                className={`photo-card-wrapper ${dragOverIdx === index && draggedIdx !== index ? 'drag-over' : ''}`}
-                                draggable
-                                onDragStart={(e) => handleDragStart(e, index)}
-                                onDragOver={(e) => handleDragOver(e, index)}
-                                onDrop={(e) => handleDrop(e, index)}
-                                onDragEnd={handleDragEnd}
-                                style={{
-                                    width: '120px',
-                                    cursor: 'grab',
-                                    opacity: draggedIdx === index ? 0.4 : 1,
-                                    transform: draggedIdx === index ? 'scale(0.95)' : 'scale(1)'
-                                }}
-                            >
+                        {/* Плитки с загруженными фото */}
+                        {photos.map((photo, index) => {
+                            const isDraggingOverThis = dragOverId === photo.id && draggedId !== photo.id;
+                            const dropClass = isDraggingOverThis ? (dropPosition === 'left' ? 'drag-over-left' : 'drag-over-right') : '';
+
+                            return (
                                 <div
-                                    style={{ position: 'relative', width: '100%', height: '120px', borderRadius: '8px', overflow: 'hidden', boxShadow: '0 2px 5px rgba(0,0,0,0.1)' }}
-                                    onClick={() => setLightboxIndex(index)}
+                                    key={photo.id}
+                                    className={`photo-card-wrapper ${dropClass}`}
+                                    draggable
+                                    onDragStart={(e) => handleDragStart(e, photo.id)}
+                                    onDragOver={(e) => handleDragOver(e, photo.id)}
+                                    onDrop={(e) => handleDrop(e, photo.id)}
+                                    onDragEnd={handleDragEnd}
+                                    style={{
+                                        padding: '7.5px', /* <-- Это покрывает "мёртвую зону" */
+                                        cursor: 'grab',
+                                        opacity: draggedId === photo.id ? 0.4 : 1,
+                                        transform: draggedId === photo.id ? 'scale(0.95)' : 'scale(1)'
+                                    }}
                                 >
-                                    <img src={photo.url} alt={`preview ${index}`} style={{ width: '100%', height: '100%', objectFit: 'cover' }} draggable="false" />
-
-                                    <button
-                                        className="delete-photo-btn"
-                                        onClick={(e) => removePhoto(photo.id, e)}
-                                        style={{
-                                            position: 'absolute', top: '5px', right: '5px', width: '26px', height: '26px',
-                                            background: 'rgba(0, 0, 0, 0.6)', color: 'white', border: 'none', borderRadius: '50%',
-                                            display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer',
-                                            fontSize: '18px', fontWeight: 'bold', zIndex: 2
-                                        }}
-                                        title="Удалить фото"
+                                    <div
+                                        style={{ position: 'relative', width: '120px', height: '120px', borderRadius: '8px', overflow: 'hidden', boxShadow: '0 2px 5px rgba(0,0,0,0.1)' }}
+                                        onClick={() => setLightboxIndex(index)}
                                     >
-                                        −
-                                    </button>
-                                </div>
-                                <div style={{ textAlign: 'center', marginTop: '8px', fontSize: '13px', color: '#555', fontWeight: '500' }}>
-                                    {index + 1}-я фотография
-                                </div>
-                            </div>
-                        ))}
+                                        <img src={photo.url} alt={`preview ${index}`} style={{ width: '100%', height: '100%', objectFit: 'cover' }} draggable="false" />
 
-                        {/* Кнопка добавления в конце */}
+                                        <button
+                                            className="delete-photo-btn"
+                                            onClick={(e) => removePhoto(photo.id, e)}
+                                            type="button"
+                                            style={{
+                                                position: 'absolute', top: '5px', right: '5px', width: '26px', height: '26px',
+                                                background: 'rgba(0, 0, 0, 0.6)', color: 'white', border: 'none', borderRadius: '50%',
+                                                display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer',
+                                                fontSize: '18px', fontWeight: 'bold', zIndex: 2
+                                            }}
+                                            title="Удалить фото"
+                                        >
+                                            −
+                                        </button>
+                                    </div>
+                                    <div style={{ textAlign: 'center', marginTop: '8px', fontSize: '13px', color: '#555', fontWeight: '500' }}>
+                                        {index + 1}-я
+                                    </div>
+                                </div>
+                            );
+                        })}
+
+                        {/* Обертка для кнопки добавления, чтобы она тоже перекрывала "мертвую зону" */}
                         <div
-                            className={`add-photo-btn ${dragOverIdx === photos.length && draggedIdx !== null ? 'drag-over' : ''}`}
-                            onClick={() => document.getElementById('photo-upload-input').click()}
-                            onDragOver={(e) => handleDragOver(e, photos.length)}
-                            onDrop={(e) => handleDrop(e, photos.length)}
-                            style={{
-                                width: '120px', height: '120px', border: `2px dashed ${errors.images ? '#ff3b30' : '#ccc'}`,
-                                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                cursor: 'pointer', borderRadius: '8px', fontSize: '24px', fontWeight: 'bold',
-                                color: '#666', background: '#f9f9f9', transition: 'all 0.2s'
-                            }}
-                            onMouseOver={(e) => { if (draggedIdx === null) { e.currentTarget.style.background = '#eee'; e.currentTarget.style.borderColor = '#999'; } }}
-                            onMouseOut={(e) => { if (draggedIdx === null) { e.currentTarget.style.background = '#f9f9f9'; e.currentTarget.style.borderColor = errors.images ? '#ff3b30' : '#ccc'; } }}
+                            className={`add-photo-btn-wrapper ${dragOverId === 'END' ? 'drag-over-left' : ''}`}
+                            onDragOver={(e) => handleDragOver(e, 'END')}
+                            onDrop={(e) => handleDrop(e, 'END')}
+                            style={{ padding: '7.5px', position: 'relative' }}
                         >
-                            + {photos.length + 1}
+                            <div
+                                className="add-photo-btn"
+                                onClick={() => document.getElementById('photo-upload-input').click()}
+                                style={{
+                                    width: '120px', height: '120px', border: `2px dashed ${errors.images ? '#ff3b30' : '#ccc'}`,
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                    cursor: 'pointer', borderRadius: '8px', fontSize: '24px', fontWeight: 'bold',
+                                    color: '#666', background: '#f9f9f9', transition: 'background 0.2s, border-color 0.2s'
+                                }}
+                                onMouseOver={(e) => { e.currentTarget.style.background = '#eee'; e.currentTarget.style.borderColor = '#999'; }}
+                                onMouseOut={(e) => { e.currentTarget.style.background = '#f9f9f9'; e.currentTarget.style.borderColor = errors.images ? '#ff3b30' : '#ccc'; }}
+                            >
+                                + {photos.length + 1}
+                            </div>
                         </div>
                         <input id="photo-upload-input" type="file" multiple accept="image/*" onChange={handleImageChange} style={{ display: 'none' }} disabled={isSubmitting} />
 
                     </div>
                 </div>
+
+
 
                 <button
                     type="submit"
