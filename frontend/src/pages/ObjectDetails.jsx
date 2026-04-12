@@ -4,6 +4,7 @@ import api from '../api/axios';
 import './ObjectDetails.css';
 import { YMaps, Map, Placemark, useYMaps } from '@pbe/react-yandex-maps';
 import { useCurrency } from '../context/CurrencyContext';
+import InvestmentAnalyzer from '../components/InvestmentAnalyzer';
 
 // Константа для доступа к серверу бэкенда (для загруженных фото)
 const API_BASE_URL = "http://localhost:8080";
@@ -61,16 +62,27 @@ const ObjectDetails = () => {
     const [currentImageIndex, setCurrentImageIndex] = useState(0);
     const [isModalOpen, setIsModalOpen] = useState(false);
 
-    // Состояния для калькулятора (Мастера)
-    const [strategy, setStrategy] = useState('RENT');
-    const [loanAmount, setLoanAmount] = useState(0);
-    const [repairCost, setRepairCost] = useState(0);
-    const [monthlyRent, setMonthlyRent] = useState(0);
-    const [vacancyRate, setVacancyRate] = useState(5);
+    // Состояние для налоговых ставок (инвестиционный анализатор)
+    const [taxRates, setTaxRates] = useState(null);
 
     useEffect(() => {
         window.scrollTo(0, 0);
     }, [id]);
+
+    // Загрузка налоговых ставок для текущего пользователя
+    useEffect(() => {
+        const fetchTaxRates = async () => {
+            try {
+                const response = await api.get('/settings/tax');
+                setTaxRates(response.data);
+            } catch (err) {
+                console.error('Ошибка загрузки налоговых ставок:', err);
+                // Дефолтные значения физлица при ошибке
+                setTaxRates({ entityType: 'INDIVIDUAL', incomeTaxRate: 13, propertyTaxRate: 0.1 });
+            }
+        };
+        fetchTaxRates();
+    }, []);
 
     useEffect(() => {
         const fetchObject = async () => {
@@ -160,11 +172,6 @@ const ObjectDetails = () => {
     // Расчеты цен
     const displayBasePrice = convertPrice(object.priceTotal || 0, object.currency);
     const displayPriceM2 = convertPrice(object.pricePerM2 || 0, object.currency);
-
-    const totalInvestment = displayBasePrice + Number(repairCost) - Number(loanAmount);
-    const annualIncome = (Number(monthlyRent) * 12) * ((100 - vacancyRate) / 100);
-    const roi = totalInvestment > 0 ? ((annualIncome / totalInvestment) * 100).toFixed(2) : 0;
-    const payback = annualIncome > 0 ? (totalInvestment / annualIncome).toFixed(1) : '∞';
 
     const fullAddress = object.city && object.address ? `${object.city}, ${object.address}` : object.address || object.city || 'Минск';
 
@@ -312,77 +319,15 @@ const ObjectDetails = () => {
                     </div>
                 </section>
 
-                {/* Секция расчетов: Скрыта для продавцов */}
-                {user?.role !== 'SELLER' && (
-                    <section className="wizard-section">
-                        <div className="wizard-card">
-                            <h3>Мастер моделирования 📈</h3>
-
-                            <div className="wizard-inputs-grid">
-                                <div className="wizard-step">
-                                    <label>Шаг 1: Стратегия</label>
-                                    <select value={strategy} onChange={(e) => setStrategy(e.target.value)}>
-                                        <option value="RENT">Долгосрочная аренда</option>
-                                        <option value="FLIP">Флиппинг (Ремонт и перепродажа)</option>
-                                        <option value="SUBRENT">Субаренда (Посуточная)</option>
-                                    </select>
-                                </div>
-
-                                <div className="wizard-step">
-                                    <label>Шаг 2: Вложения ({currency === 'BYN' ? 'BYN' : '$'})</label>
-                                    <div className="input-group">
-                                        <span>Кредитное плечо</span>
-                                        <input type="number" value={loanAmount} onChange={(e) => setLoanAmount(e.target.value)} />
-                                    </div>
-                                    <div className="input-group">
-                                        <span>Ремонт и мебель</span>
-                                        <input type="number" value={repairCost} onChange={(e) => setRepairCost(e.target.value)} />
-                                    </div>
-                                </div>
-
-                                {strategy !== 'FLIP' && (
-                                    <div className="wizard-step">
-                                        <label>Шаг 3: Потоки ({currency === 'BYN' ? 'BYN' : '$'})</label>
-                                        <div className="input-group">
-                                            <span>Аренда в месяц</span>
-                                            <input type="number" value={monthlyRent} onChange={(e) => setMonthlyRent(e.target.value)} />
-                                        </div>
-                                        <div className="input-group">
-                                            <span>Риск простоя %</span>
-                                            <input type="number" value={vacancyRate} onChange={(e) => setVacancyRate(e.target.value)} max="100" />
-                                        </div>
-                                    </div>
-                                )}
-                            </div>
-
-                            <div className="wizard-results">
-                                <div className="res-block">
-                                    <span>Итого инвестиций</span>
-                                    <strong>{formatPrice(totalInvestment)}</strong>
-                                </div>
-                                {strategy !== 'FLIP' && (
-                                    <>
-                                        <div className="res-block">
-                                            <span>Чистый доход (NOI)</span>
-                                            <strong>{formatPrice(annualIncome)}/год</strong>
-                                        </div>
-                                        <div className="res-block highlight">
-                                            <span>ROI (Рентабельность)</span>
-                                            <strong style={{ color: '#34c759' }}>{roi}%</strong>
-                                        </div>
-                                        <div className="res-block">
-                                            <span>Окупаемость</span>
-                                            <strong>{payback} лет</strong>
-                                        </div>
-                                    </>
-                                )}
-                            </div>
-
-                            <button className="btn-save-portfolio" style={{ maxWidth: '300px', alignSelf: 'center' }}>
-                                Сохранить в Мой Портфель
-                            </button>
-                        </div>
-                    </section>
+                {/* Секция профессионального инвестиционного анализа: Скрыта для продавцов */}
+                {user?.role !== 'SELLER' && taxRates && (
+                    <InvestmentAnalyzer
+                        object={object}
+                        taxRates={taxRates}
+                        formatPrice={formatPrice}
+                        currency={currency}
+                        convertPrice={convertPrice}
+                    />
                 )}
             </main>
 
