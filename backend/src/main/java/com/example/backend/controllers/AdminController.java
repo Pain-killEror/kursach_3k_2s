@@ -11,6 +11,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import java.security.Principal;
 
 import java.util.List;
 import java.util.Map;
@@ -29,13 +30,11 @@ public class AdminController {
     // ==========================================
 
     @GetMapping("/users")
-    public ResponseEntity<Page<User>> getUsers(
-            @RequestParam(required = false) String search,
-            @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "15") int size,
-            @RequestParam(defaultValue = "createdAt") String sortBy,
-            @RequestParam(defaultValue = "desc") String sortDir) {
-        return ResponseEntity.ok(adminService.getAllUsers(search, page, size, sortBy, sortDir));
+    public ResponseEntity<List<User>> getAllUsers(java.security.Principal principal) {
+        // Передаем email текущего пользователя (админа) в сервис
+        String currentAdminEmail = principal.getName();
+        List<User> users = adminService.getAllUsers(currentAdminEmail);
+        return ResponseEntity.ok(users);
     }
 
     @PatchMapping("/users/{id}/status")

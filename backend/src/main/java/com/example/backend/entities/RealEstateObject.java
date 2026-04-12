@@ -5,6 +5,7 @@ import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.UUID;
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonProperty;
 
 @Entity
 @Table(name = "real_estate_objects")
@@ -188,4 +189,9 @@ public class RealEstateObject {
 
     public Boolean getIsVisible() { return isVisible; }
     public void setIsVisible(Boolean isVisible) { this.isVisible = isVisible; }
+
+    @JsonProperty("ownerRole")
+    public String getOwnerRole() {
+        return (user != null && user.getRole() != null) ? user.getRole().name() : "UNKNOWN";
+    }
 }

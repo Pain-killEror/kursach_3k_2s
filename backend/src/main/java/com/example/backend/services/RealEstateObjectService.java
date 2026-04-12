@@ -35,7 +35,10 @@ public class RealEstateObjectService {
     }
 
     public List<RealEstateObject> getAllObjects() {
-        return repository.findAll();
+        return repository.findAll().stream()
+                .filter(obj -> obj.getUser() == null || obj.getUser().getStatus() != com.example.backend.entities.Status.BLOCKED)
+                .filter(obj -> obj.getIsVisible() == null || obj.getIsVisible())
+                .collect(java.util.stream.Collectors.toList());
     }
 
     public RealEstateObject getObjectById(UUID id) {

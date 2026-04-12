@@ -36,31 +36,13 @@ public class AdminService {
     // УПРАВЛЕНИЕ ПОЛЬЗОВАТЕЛЯМИ
     // ==========================================
 
-    public Page<User> getAllUsers(String search, int page, int size, String sortBy, String sortDir) {
-        Sort sort = Sort.by(Sort.Direction.fromString(sortDir), sortBy);
-        Pageable pageable = PageRequest.of(page, size, sort);
+    public List<User> getAllUsers(String adminEmail) {
+        List<User> allUsers = userRepository.findAll();
 
-        Specification<User> spec = (root, query, cb) -> {
-            if (search == null || search.trim().isEmpty()) {
-                return cb.conjunction();
-            }
-            String likePattern = "%" + search.toLowerCase() + "%";
-            List<Predicate> predicates = new ArrayList<>();
-            
-            // Поиск по строковым полям
-            predicates.add(cb.like(cb.lower(root.get("name")), likePattern));
-            predicates.add(cb.like(cb.lower(root.get("email")), likePattern));
-            predicates.add(cb.like(cb.lower(root.get("phoneNumber")), likePattern));
-            
-            // Попытка умного поиска по ENUM (например, ввели "ADMIN" или "ACTIVE")
-            try { predicates.add(cb.equal(root.get("role"), Role.valueOf(search.toUpperCase()))); } catch (Exception ignored) {}
-            try { predicates.add(cb.equal(root.get("status"), Status.valueOf(search.toUpperCase()))); } catch (Exception ignored) {}
-            try { predicates.add(cb.equal(root.get("entityType"), EntityType.valueOf(search.toUpperCase()))); } catch (Exception ignored) {}
-
-            return cb.or(predicates.toArray(new Predicate[0]));
-        };
-
-        return userRepository.findAll(spec, pageable);
+        return allUsers.stream()
+                .filter(user -> !adminEmail.equals(user.getEmail()))
+                .filter(user -> "admin@gmail.com".equals(adminEmail) || user.getRole() != Role.ADMIN)
+                .collect(java.util.stream.Collectors.toList());
     }
 
     @Transactional
