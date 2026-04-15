@@ -215,14 +215,27 @@
     grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
     gap: 30px;
     margin-bottom: 35px;
+    align-items: start;
+    /* Сбрасываем выравнивание сетки */
+}
+
+/* Делаем сам блок поля гибким, чтобы выровнять контент по низу */
+.wizard-step {
+    display: flex;
+    flex-direction: column;
 }
 
 .wizard-step label {
-    display: block;
+    display: flex;
+    align-items: flex-end;
+    /* Прижимает текст вниз, поближе к полю ввода */
+    min-height: 44px;
+    /* ЖЕСТКАЯ ВЫСОТА: ровно под 2 строчки текста */
+    margin-bottom: 10px;
     font-weight: 600;
-    margin-bottom: 12px;
     color: #8e8e93;
     font-size: 14px;
+    line-height: 1.3;
 }
 
 .wizard-step select,
@@ -235,6 +248,7 @@
     border-radius: 10px;
     font-size: 14px;
     outline: none;
+    box-sizing: border-box;
 }
 
 .input-group {

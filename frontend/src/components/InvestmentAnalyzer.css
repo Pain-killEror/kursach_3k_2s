@@ -38,9 +38,20 @@
     margin: 0 auto 25px;
 }
 
-.entity-badge.INDIVIDUAL { background: rgba(0, 122, 255, 0.15); color: #007aff; }
-.entity-badge.ENTREPRENEUR { background: rgba(255, 149, 0, 0.15); color: #ff9500; }
-.entity-badge.LEGAL_ENTITY { background: rgba(142, 68, 173, 0.15); color: #af52de; }
+.entity-badge.INDIVIDUAL {
+    background: rgba(0, 122, 255, 0.15);
+    color: #007aff;
+}
+
+.entity-badge.ENTREPRENEUR {
+    background: rgba(255, 149, 0, 0.15);
+    color: #ff9500;
+}
+
+.entity-badge.LEGAL_ENTITY {
+    background: rgba(142, 68, 173, 0.15);
+    color: #af52de;
+}
 
 /* ---- Секции ---- */
 .inv-section {
@@ -142,16 +153,22 @@
 }
 
 /* ---- Сетка полей ввода ---- */
+/* ---- Сетка полей ввода ---- */
 .inv-inputs-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-    gap: 14px;
+    column-gap: 14px;
+    row-gap: 32px;
+    /* Увеличили отступ между рядами, чтобы влезли подсказки и было просторнее */
+    align-items: end;
+    /* Прижимаем все инпуты к идеальной нижней линии */
 }
 
 .inv-field {
     display: flex;
     flex-direction: column;
-    gap: 5px;
+    position: relative;
+    /* Разрешаем подсказке (hint) позиционироваться относительно этого поля */
 }
 
 .inv-field label {
@@ -160,10 +177,13 @@
     font-weight: 500;
     text-transform: uppercase;
     letter-spacing: 0.3px;
+    margin-bottom: 8px;
+    line-height: 1.3;
 }
 
 .inv-field input,
 .inv-field select {
+    width: 100%;
     padding: 10px 12px;
     background: #2c2c2e;
     color: #fff;
@@ -171,6 +191,7 @@
     border-radius: 10px;
     font-size: 14px;
     outline: none;
+    box-sizing: border-box;
     transition: border-color 0.2s;
 }
 
@@ -179,10 +200,17 @@
     border-color: #007aff;
 }
 
+/* МАГИЯ ЗДЕСЬ: Достаем подсказку из общего потока, чтобы она не толкала инпут вверх */
 .inv-field .hint {
+    position: absolute;
+    top: 100%;
+    /* Прикрепляем ровно под нижнюю границу инпута */
+    left: 0;
+    margin-top: 4px;
     font-size: 11px;
     color: #636366;
     font-style: italic;
+    width: 100%;
 }
 
 /* ---- Ипотечная сводка ---- */
@@ -298,9 +326,17 @@
     font-weight: 700;
 }
 
-.metric-tile .mt-value.good { color: #34c759; }
-.metric-tile .mt-value.medium { color: #ff9f0a; }
-.metric-tile .mt-value.bad { color: #ff453a; }
+.metric-tile .mt-value.good {
+    color: #34c759;
+}
+
+.metric-tile .mt-value.medium {
+    color: #ff9f0a;
+}
+
+.metric-tile .mt-value.bad {
+    color: #ff453a;
+}
 
 .metric-tile .mt-info-btn {
     position: absolute;
@@ -378,9 +414,19 @@
     font-size: 14px;
 }
 
-.inv-breakdown-card .bd-row.total .bd-label { color: #f1f1f1; font-weight: 700; }
-.inv-breakdown-card .bd-row.total .bd-value { color: #34c759; font-weight: 700; }
-.inv-breakdown-card .bd-row.total .bd-value.negative { color: #ff453a; }
+.inv-breakdown-card .bd-row.total .bd-label {
+    color: #f1f1f1;
+    font-weight: 700;
+}
+
+.inv-breakdown-card .bd-row.total .bd-value {
+    color: #34c759;
+    font-weight: 700;
+}
+
+.inv-breakdown-card .bd-row.total .bd-value.negative {
+    color: #ff453a;
+}
 
 /* ---- Прогнозная таблица ---- */
 .forecast-section {
@@ -497,8 +543,14 @@
 }
 
 /* ---- Общие утилиты ---- */
-.inv-center { text-align: center; }
-.inv-flex-center { display: flex; justify-content: center; }
+.inv-center {
+    text-align: center;
+}
+
+.inv-flex-center {
+    display: flex;
+    justify-content: center;
+}
 
 .inv-divider {
     height: 1px;
@@ -541,8 +593,13 @@
     font-weight: 700;
 }
 
-.cf-item .cf-value.positive { color: #34c759; }
-.cf-item .cf-value.negative { color: #ff453a; }
+.cf-item .cf-value.positive {
+    color: #34c759;
+}
+
+.cf-item .cf-value.negative {
+    color: #ff453a;
+}
 
 /* ---- Responsive ---- */
 @media (max-width: 768px) {
