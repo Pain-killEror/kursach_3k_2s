@@ -59,6 +59,17 @@ const ObjectDetails = () => {
         } catch (e) { return null; }
     }, []);
 
+    const [totalUnread, setTotalUnread] = useState(0);
+
+    useEffect(() => {
+        const token = localStorage.getItem('token');
+        if (token) {
+            api.get('/chats/unread-count')
+                .then(res => setTotalUnread(res.data))
+                .catch(err => console.error("Ошибка загрузки счетчика:", err));
+        }
+    }, []);
+
     const [currentImageIndex, setCurrentImageIndex] = useState(0);
     const [isModalOpen, setIsModalOpen] = useState(false);
 
@@ -211,13 +222,16 @@ const ObjectDetails = () => {
                 )}
 
                 <div className="user-profile-container" ref={dropdownRef}>
-                    <div className="avatar-wrapper" onClick={() => setIsMenuOpen(!isMenuOpen)}>
+                    {/* Добавили position: 'relative' для красной точки */}
+                    <div className="avatar-wrapper" onClick={() => setIsMenuOpen(!isMenuOpen)} style={{ position: 'relative' }}>
                         <div className="user-nickname">{user?.name || 'Гость'}</div>
                         <div className="avatar-circle">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                                 <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle>
                             </svg>
                         </div>
+                        {/* --- КРАСНАЯ ТОЧКА УВЕДОМЛЕНИЯ --- */}
+                        {totalUnread > 0 && <span className="unread-dot"></span>}
                     </div>
                     {isMenuOpen && (
                         <div className="user-dropdown-menu">
@@ -227,6 +241,17 @@ const ObjectDetails = () => {
                                 <p className="d-role" style={{ fontSize: '10px', color: '#888', textTransform: 'uppercase' }}>{user?.role}</p>
                             </div>
                             <button className="dropdown-item">Профиль</button>
+
+                            {/* --- КНОПКА ЧАТОВ СО СЧЕТЧИКОМ --- */}
+                            <button
+                                className="dropdown-item"
+                                onClick={() => navigate('/chats')}
+                                style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}
+                            >
+                                Чаты
+                                {totalUnread > 0 && <span className="menu-badge">{totalUnread}</span>}
+                            </button>
+
                             <button className="dropdown-item logout" onClick={handleLogout}>Выйти</button>
                         </div>
                     )}
@@ -272,7 +297,45 @@ const ObjectDetails = () => {
                     </div>
 
                     <p className="address">📍 {object.city}, {object.address}</p>
-                    <h2 className="price">{formatPrice(displayBasePrice)}</h2>
+
+                    {/* --- ИЗМЕНЕННЫЙ БЛОК: ЦЕНА И КНОПКА СВЯЗАТЬСЯ --- */}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', marginTop: '10px' }}>
+                        <h2 className="price" style={{ margin: 0 }}>{formatPrice(displayBasePrice)}</h2>
+
+                        {user?.role === 'INVESTOR' && (
+                            <button
+                                onClick={async () => {
+                                    try {
+                                        const res = await api.post(`/chats/init?objectId=${object.id}`);
+                                        navigate(`/chats/${res.data}`);
+                                    } catch (e) { console.error("Ошибка при создании чата", e); }
+                                }}
+                                style={{
+                                    padding: '12px 20px',
+                                    background: '#007aff',
+                                    color: 'white',
+                                    border: 'none',
+                                    borderRadius: '12px',
+                                    fontSize: '15px',
+                                    fontWeight: 'bold',
+                                    cursor: 'pointer',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '8px',
+                                    boxShadow: '0 4px 12px rgba(0, 122, 255, 0.25)',
+                                    transition: 'all 0.2s ease'
+                                }}
+                                onMouseOver={(e) => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 6px 16px rgba(0, 122, 255, 0.4)'; }}
+                                onMouseOut={(e) => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 4px 12px rgba(0, 122, 255, 0.25)'; }}
+                            >
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+                                </svg>
+                                Связаться с продавцом
+                            </button>
+                        )}
+                    </div>
+                    {/* --- КОНЕЦ БЛОКА --- */}
 
                     <div className="specs-grid">
                         <div className="spec-item">

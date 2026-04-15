@@ -4,7 +4,8 @@ import Login from './pages/Login';
 import Register from './pages/Register';
 import ObjectDetails from './pages/ObjectDetails';
 import AddObject from './pages/AddObject';
-import Admin from './pages/Admin'; // <-- Импортируем нашу будущую страницу админки
+import Admin from './pages/Admin';
+import Chats from './pages/Chats';
 
 // Защищает обычные приватные страницы (если НЕТ токена -> на логин)
 const ProtectedRoute = ({ children }) => {
@@ -63,7 +64,7 @@ function App() {
           }
         />
 
-        {/* НОВЫЙ РОУТ ДЛЯ АДМИНА */}
+
         <Route
           path="/admin"
           element={
@@ -72,6 +73,8 @@ function App() {
             </AdminRoute>
           }
         />
+        <Route path="/chats" element={<Chats />} />
+        <Route path="/chats/:chatId" element={<Chats />} />
       </Routes>
     </BrowserRouter>
   );

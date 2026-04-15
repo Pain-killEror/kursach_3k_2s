@@ -44,7 +44,10 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                 .requestMatchers("/api/auth/**", "/uploads/**").permitAll()
                 
-                // Защита админки (ровно так же, как ты хотел изначально)
+                // РАЗРЕШАЕМ ПОДКЛЮЧЕНИЕ К WEBSOCKETS ДЛЯ ЧАТА
+                .requestMatchers("/ws/**").permitAll()
+                
+                // Защита админки
                 .requestMatchers("/api/admin/**").hasAnyAuthority("ADMIN", "ROLE_ADMIN")
                 
                 // Все остальные пути требуют просто авторизации

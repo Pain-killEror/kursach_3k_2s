@@ -37,7 +37,7 @@ const CATEGORY_CONFIG = {
   ],
   'КОММЕРЦИЯ': [
     { name: 'retail_type', label: 'Формат', type: 'select', options: ['Стрит-ритейл', 'ТЦ'] },
-    { name: 'power_kw', label: 'Мощность (кВт)', type: 'range' } // ДОБАВЛЕН ФИЛЬТР МОЩНОСТИ
+    { name: 'power_kw', label: 'Мощность (кВт)', type: 'range' }
   ]
 };
 
@@ -46,7 +46,7 @@ const Home = () => {
   const [allObjects, setAllObjects] = useState([]);
   const [displayedObjects, setDisplayedObjects] = useState([]);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
-  // Инициализируем состояния из sessionStorage, если они там есть
+
   const [showAdvanced, setShowAdvanced] = useState(() => {
     const saved = sessionStorage.getItem('homeShowAdvanced');
     return saved ? JSON.parse(saved) : false;
@@ -65,8 +65,18 @@ const Home = () => {
     return saved ? saved : 'default';
   });
 
-  // Состояние для отображения кнопки "Наверх"
   const [showScrollTop, setShowScrollTop] = useState(false);
+
+  const [totalUnread, setTotalUnread] = useState(0);
+
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    if (token) {
+      api.get('/chats/unread-count')
+        .then(res => setTotalUnread(res.data))
+        .catch(err => console.error("Ошибка загрузки счетчика:", err));
+    }
+  }, []);
 
   const user = useMemo(() => {
     try {
@@ -75,18 +85,15 @@ const Home = () => {
     } catch (e) { return null; }
   }, []);
 
-  // 1. Сохраняем фильтры и настройки при их изменении
   useEffect(() => {
     sessionStorage.setItem('homeFilters', JSON.stringify(filters));
     sessionStorage.setItem('homeSortOption', sortOption);
     sessionStorage.setItem('homeShowAdvanced', JSON.stringify(showAdvanced));
   }, [filters, sortOption, showAdvanced]);
 
-  // 2. Отслеживаем скролл (для кнопки "Наверх" и сохранения позиции)
   useEffect(() => {
     let timeoutId;
     const handleScroll = () => {
-      // Игнорируем фантомные события скролла при первоначальной отрисовке макета!
       if (!hasRestoredScroll.current) return;
 
       if (window.scrollY > 400) setShowScrollTop(true);
@@ -105,25 +112,20 @@ const Home = () => {
     };
   }, []);
 
-  // 3. Восстанавливаем позицию скролла, когда объекты загрузились и отрендерились
   useEffect(() => {
     if (hasRestoredScroll.current) return;
 
     const savedScroll = sessionStorage.getItem('homeScrollPosition');
     if (savedScroll && displayedObjects.length > 0) {
-      // Даем 150мс на то, чтобы открытая панель фильтров полностью увеличила высоту страницы
       setTimeout(() => {
         window.scrollTo({ top: parseInt(savedScroll, 10), behavior: 'instant' });
-        // Разрешаем сохранять скролл только после успешного прыжка
         setTimeout(() => { hasRestoredScroll.current = true; }, 50);
       }, 150);
     } else if (displayedObjects.length > 0) {
-      // Если скролла нет (первый заход), просто разрешаем сохранение
       hasRestoredScroll.current = true;
     }
   }, [displayedObjects]);
 
-  // Функция для кнопки "Наверх"
   const scrollToTop = () => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -157,7 +159,6 @@ const Home = () => {
 
     const attrList = [];
     Object.keys(CATEGORY_CONFIG).forEach(cat => {
-      // Игнорируем атрибуты категорий, которые не выбраны (если выбрана хоть одна)
       if (filters.categories.length > 0 && !filters.categories.includes(cat)) return;
 
       CATEGORY_CONFIG[cat].forEach(f => {
@@ -181,7 +182,6 @@ const Home = () => {
       });
     });
 
-    // Убираем дубликаты (если один атрибут есть в разных категориях)
     const uniqueAttrs = [...new Set(attrList)];
     list.push(...uniqueAttrs);
 
@@ -276,15 +276,12 @@ const Home = () => {
     setFilters(prev => {
       const isRemoving = prev.categories.includes(cat);
 
-      // Обновляем список категорий
       const newCategories = isRemoving
         ? prev.categories.filter(c => c !== cat)
         : [...prev.categories, cat];
 
-      // Копируем текущие атрибуты
       const newAttributes = { ...prev.attributes };
 
-      // Если мы ОТКЛЮЧАЕМ категорию, то удаляем все её внутренние параметры
       if (isRemoving && CATEGORY_CONFIG[cat]) {
         CATEGORY_CONFIG[cat].forEach(f => {
           delete newAttributes[f.name];
@@ -345,7 +342,6 @@ const Home = () => {
           </select>
         </div>
 
-        {/* Кнопка продавца */}
         {user?.role === 'SELLER' && (
           <button
             className="sell-property-btn"
@@ -376,15 +372,14 @@ const Home = () => {
           </button>
         )}
 
-        {/* НОВАЯ КНОПКА АДМИНА */}
         {user?.role === 'ADMIN' && (
           <button
             className="admin-panel-btn"
-            onClick={() => navigate('/admin')} // Путь на будущую страницу админки
+            onClick={() => navigate('/admin')}
             style={{
               marginRight: '15px',
               padding: '8px 18px',
-              backgroundColor: '#8e44ad', // Фиолетовый цвет для админки
+              backgroundColor: '#8e44ad',
               color: 'white',
               border: 'none',
               borderRadius: '8px',
@@ -408,13 +403,16 @@ const Home = () => {
         )}
 
         <div className="user-profile-container" ref={dropdownRef}>
-          <div className="avatar-wrapper" onClick={() => setIsMenuOpen(!isMenuOpen)}>
+          {/* Добавили style={{ position: 'relative' }} для позиционирования точки */}
+          <div className="avatar-wrapper" onClick={() => setIsMenuOpen(!isMenuOpen)} style={{ position: 'relative' }}>
             <span className="user-nickname">{user?.name || 'Гость'}</span>
             <div className="avatar-circle">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle>
               </svg>
             </div>
+            {/* --- КРАСНАЯ ТОЧКА УВЕДОМЛЕНИЯ --- */}
+            {totalUnread > 0 && <span className="unread-dot"></span>}
           </div>
           {isMenuOpen && (
             <div className="user-dropdown-menu">
@@ -424,7 +422,18 @@ const Home = () => {
                 <p className="d-role" style={{ fontSize: '10px', color: '#888', textTransform: 'uppercase' }}>{user?.role}</p>
               </div>
               <button className="dropdown-item">Мой профиль</button>
-              <button onClick={() => { localStorage.clear(); sessionStorage.clear(); window.location.reload(); }} className="dropdown-item logout">Выйти</button>
+
+              {/* --- КНОПКА ЧАТОВ СО СЧЕТЧИКОМ --- */}
+              <button
+                className="dropdown-item"
+                onClick={() => navigate('/chats')}
+                style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}
+              >
+                Чаты
+                {totalUnread > 0 && <span className="menu-badge">{totalUnread}</span>}
+              </button>
+
+              <button onClick={() => { localStorage.clear(); sessionStorage.clear(); window.location.reload(); navigate('/login'); }} className="dropdown-item logout">Выйти</button>
             </div>
           )}
         </div>

@@ -1,0 +1,352 @@
+.chats-layout {
+    height: 100vh;
+    /* Жестко фиксируем высоту по размеру экрана */
+    max-height: 100vh;
+    overflow: hidden;
+    /* Полностью отключаем прокрутку самой страницы */
+    background-color: #0c0c0e;
+    color: #ffffff;
+    font-family: 'Inter', sans-serif;
+    display: flex;
+    flex-direction: column;
+}
+
+.chats-container {
+    flex: 1;
+    max-width: 1440px;
+    margin: 0 auto;
+    width: 100%;
+    padding: 10px 60px 40px 60px;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    /* Ограничиваем контейнер, чтобы он не растягивал страницу */
+    box-sizing: border-box;
+}
+
+/* --- СПИСОК ЧАТОВ --- */
+.chat-list-title {
+    font-size: 28px;
+    margin-bottom: 25px;
+    color: #fff;
+}
+
+.chat-list {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    overflow-y: auto;
+}
+
+.chat-list-item {
+    background: #1c1c1e;
+    border: 1px solid #3a3a3c;
+    border-radius: 16px;
+    padding: 20px;
+    display: flex;
+    gap: 20px;
+    cursor: pointer;
+    transition: all 0.2s;
+    position: relative;
+}
+
+.chat-list-item:hover {
+    border-color: #555;
+    background: #2c2c2e;
+}
+
+.chat-item-image {
+    width: 70px;
+    height: 70px;
+    border-radius: 12px;
+    object-fit: cover;
+    background: #000;
+}
+
+.chat-item-details {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    flex: 1;
+}
+
+.chat-opponent-name {
+    font-size: 18px;
+    font-weight: 600;
+    margin: 0 0 4px 0;
+}
+
+.chat-object-info {
+    font-size: 12px;
+    color: #8e8e93;
+    margin: 0 0 10px 0;
+}
+
+.chat-last-message {
+    font-size: 14px;
+    color: #c7c7cc;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 600px;
+}
+
+.chat-unread-badge {
+    position: absolute;
+    right: 20px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: #ff453a;
+    color: white;
+    font-size: 12px;
+    font-weight: 700;
+    padding: 4px 10px;
+    border-radius: 20px;
+}
+
+/* --- ПОЛНОЭКРАННЫЙ ЧАТ --- */
+.chat-room-container {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    /* Окно чата растягивается на все доступное по высоте место */
+    background: #1c1c1e;
+    border: 1px solid #3a3a3c;
+    border-radius: 20px;
+    overflow: hidden;
+}
+
+.chat-room-header {
+    /* Добавить эти 3 строчки: */
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    flex-shrink: 0;
+
+    /* То что было: */
+    display: flex;
+    align-items: center;
+    padding: 15px 25px;
+    background: #2c2c2e;
+    border-bottom: 1px solid #3a3a3c;
+    gap: 20px;
+}
+
+/* Индикатор на аватарке (красная точка) */
+.unread-dot {
+    position: absolute;
+    top: -2px;
+    right: -2px;
+    width: 12px;
+    height: 12px;
+    background-color: #ff453a;
+    border-radius: 50%;
+    border: 2px solid #0c0c0e;
+    /* Цвет фона шапки */
+}
+
+/* Бейдж с цифрой в выпадающем меню */
+.menu-badge {
+    background-color: #ff453a;
+    color: white;
+    font-size: 11px;
+    font-weight: bold;
+    padding: 2px 7px;
+    border-radius: 10px;
+    margin-left: 10px;
+}
+
+.btn-back {
+    background: none;
+    border: none;
+    color: #007aff;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    padding: 0;
+}
+
+.btn-back:hover {
+    color: #0056b3;
+}
+
+.chat-header-object {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    flex: 1;
+    cursor: pointer;
+}
+
+.chat-header-object:hover .cho-title {
+    color: #007aff;
+    text-decoration: underline;
+}
+
+.cho-img {
+    width: 45px;
+    height: 45px;
+    border-radius: 8px;
+    object-fit: cover;
+}
+
+.cho-title {
+    font-size: 14px;
+    font-weight: 600;
+    margin: 0 0 2px 0;
+    color: #fff;
+    transition: 0.2s;
+}
+
+.cho-opponent {
+    font-size: 12px;
+    color: #8e8e93;
+    margin: 0;
+}
+
+/* Область сообщений */
+.chat-messages-area {
+    flex: 1;
+    padding: 25px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    background: #151516;
+}
+
+.message-wrapper {
+    display: flex;
+    flex-direction: column;
+    max-width: 70%;
+}
+
+.message-wrapper.mine {
+    align-self: flex-end;
+}
+
+.message-wrapper.theirs {
+    align-self: flex-start;
+}
+
+.message-sender-name {
+    font-size: 11px;
+    color: #8e8e93;
+    margin-bottom: 4px;
+    margin-left: 10px;
+}
+
+.message-wrapper.mine .message-sender-name {
+    text-align: right;
+    margin-right: 10px;
+}
+
+.message-bubble {
+    padding: 8px 14px;
+    /* Уменьшили отступы сверху/снизу и по бокам */
+    border-radius: 16px;
+    /* Чуть скруглили под новый размер */
+    font-size: 14px;
+    /* Уменьшили шрифт самого текста сообщения (было 15px) */
+    line-height: 1.4;
+    /* Сделали межстрочный интервал чуть плотнее */
+    position: relative;
+    word-wrap: break-word;
+}
+
+.message-wrapper.mine .message-bubble {
+    background: #007aff;
+    color: #fff;
+    border-bottom-right-radius: 4px;
+}
+
+.message-wrapper.theirs .message-bubble {
+    background: #2c2c2e;
+    color: #fff;
+    border-bottom-left-radius: 4px;
+}
+
+.message-time {
+    font-size: 10px;
+    /* Размер времени остался как был */
+    color: rgba(255, 255, 255, 0.6);
+    margin-top: 4px;
+    /* Слегка подтянули время ближе к тексту */
+    text-align: right;
+    display: block;
+}
+
+/* Ввод текста */
+.chat-input-area {
+    display: flex;
+    padding: 20px 25px;
+    background: #1c1c1e;
+    border-top: 1px solid #3a3a3c;
+    gap: 15px;
+}
+
+.chat-input-area input {
+    flex: 1;
+    background: #2c2c2e;
+    border: 1px solid #3a3a3c;
+    color: #fff;
+    border-radius: 25px;
+    padding: 14px 20px;
+    font-size: 15px;
+    outline: none;
+    transition: 0.2s;
+}
+
+.chat-input-area input:focus {
+    border-color: #007aff;
+}
+
+.btn-send {
+    background: #007aff;
+    color: #fff;
+    border: none;
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: 0.2s;
+}
+
+.btn-send:hover {
+    background: #0056b3;
+    transform: scale(1.05);
+}
+
+.btn-send svg {
+    width: 20px;
+    height: 20px;
+    margin-left: 3px;
+}
+
+.chats-layout .home-header {
+    position: sticky;
+    top: 0;
+    z-index: 1000;
+    background-color: #0c0c0e;
+    /* Чтобы текст, заезжающий под шапку, не просвечивал */
+}
+
+.chat-date-separator {
+    align-self: center;
+    background: rgba(255, 255, 255, 0.08);
+    /* Полупрозрачный фон */
+    color: #8e8e93;
+    font-size: 12px;
+    font-weight: 500;
+    padding: 4px 12px;
+    border-radius: 12px;
+    margin: 10px 0;
+    text-transform: capitalize;
+    /* Делает первую букву дня недели заглавной */
+}
