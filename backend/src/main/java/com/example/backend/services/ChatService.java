@@ -91,12 +91,26 @@ public class ChatService {
             // Информация об объекте
             RealEstateObject obj = chat.getRealEstateObject();
             dto.setObjectId(obj.getId());
+            
+            // ---- ИСПРАВЛЕННОЕ ПОЛУЧЕНИЕ СТОИМОСТИ ----
+            // Берем priceTotal из RealEstateObject и конвертируем в Double
+            if (obj.getPriceTotal() != null) {
+                dto.setPriceUsd(obj.getPriceTotal().doubleValue());
+            } else {
+                dto.setPriceUsd(null);
+            }
+            
+            // Поле для BYN оставляем пустым, так как мы умножаем на курс прямо в React (Chats.jsx)
+            dto.setPriceByn(null); 
+            // ------------------------------------------
+
             String rawCategory = obj.getCategory() != null ? obj.getCategory() : obj.getType();
             String formattedCategory = rawCategory;
             if (rawCategory != null && !rawCategory.isEmpty()) {
                 formattedCategory = rawCategory.substring(0, 1).toUpperCase() + rawCategory.substring(1).toLowerCase();
             }
             dto.setObjectTitle(formattedCategory + " • " + (obj.getCity() != null ? obj.getCity() + ", " : "") + obj.getAddress());            
+            
             // Парсим первую картинку из JSON массива
             try {
                 String urls = obj.getImagesUrls();

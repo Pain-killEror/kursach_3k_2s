@@ -6,35 +6,71 @@ import SockJS from 'sockjs-client/dist/sockjs';
 import './Chats.css';
 
 const API_BASE_URL = "http://localhost:8080";
+const EXCHANGE_RATE = 3.25; // Укажите актуальный курс перевода из USD в BYN
 
 // ==========================================
-// 1. ХУК ДЛЯ ДОЛГОГО НАЖАТИЯ (УДЕРЖАНИЯ)
+// 1. КОМПОНЕНТ КНОПКИ С УДЕРЖАНИЕМ И ПРОГРЕСС-БАРОМ
 // ==========================================
-const useLongPress = (onLongPress, onClick, ms = 2000) => {
+const ProgressButton = ({ onLongPress, onClick, className, style, children, defaultBg = '#2c2c2e', progressColor = '#34c759' }) => {
+    const [progress, setProgress] = useState(0);
+    const intervalRef = useRef(null);
     const timerRef = useRef(null);
+    const isLongPressTriggered = useRef(false);
+    const isPressing = useRef(false);
 
-    const start = useCallback((e) => {
+    const start = (e) => {
+        isPressing.current = true;
+        isLongPressTriggered.current = false;
+        setProgress(0);
+
+        intervalRef.current = setInterval(() => {
+            setProgress(prev => (prev >= 100 ? 100 : prev + 2.5));
+        }, 50);
+
         timerRef.current = setTimeout(() => {
-            onLongPress(e);
-            timerRef.current = null;
-        }, ms);
-    }, [onLongPress, ms]);
-
-    const clear = useCallback((e) => {
-        if (timerRef.current) {
-            clearTimeout(timerRef.current);
-            timerRef.current = null;
-            if (onClick) onClick(e); // Если таймер не успел истечь, значит это был короткий клик
-        }
-    }, [onClick]);
-
-    return {
-        onMouseDown: start,
-        onMouseUp: clear,
-        onMouseLeave: () => { if (timerRef.current) clearTimeout(timerRef.current); },
-        onTouchStart: start,
-        onTouchEnd: clear,
+            isLongPressTriggered.current = true;
+            onLongPress();
+            clearInterval(intervalRef.current);
+            setTimeout(() => setProgress(0), 200);
+        }, 2000);
     };
+
+    const clear = (e) => {
+        if (!isPressing.current) return;
+        isPressing.current = false;
+
+        clearInterval(intervalRef.current);
+        clearTimeout(timerRef.current);
+
+        if (!isLongPressTriggered.current) {
+            if (onClick) onClick(e);
+        }
+
+        setProgress(0);
+    };
+
+    return (
+        <button
+            className={className}
+            onMouseDown={start}
+            onMouseUp={clear}
+            onMouseLeave={() => { if (isPressing.current) clear(); }}
+            onTouchStart={start}
+            onTouchEnd={clear}
+            style={{
+                ...style,
+                background: progress > 0
+                    ? `linear-gradient(to right, ${progressColor} ${progress}%, ${defaultBg} ${progress}%)`
+                    : defaultBg,
+                transition: 'background 0.1s linear',
+                position: 'relative',
+                overflow: 'hidden',
+                userSelect: 'none'
+            }}
+        >
+            {children}
+        </button>
+    );
 };
 
 // ==========================================
@@ -43,29 +79,6 @@ const useLongPress = (onLongPress, onClick, ms = 2000) => {
 const OfferCard = ({ msg, isMine, currentChatInfo, user, stompClient, showToast }) => {
     const isActive = msg.offerStatus === 'ACTIVE';
 
-    // Удержание "Принять"
-    const acceptLongPress = useLongPress(
-        () => {
-            stompClient.current.publish({
-                destination: `/app/chat/${currentChatInfo.id}/acceptOffer`,
-                body: JSON.stringify({ id: msg.id, senderId: user.id })
-            });
-        },
-        () => showToast("Удерживайте кнопку 'Принять' пару секунд для подтверждения сделки ⏱️")
-    );
-
-    // Удержание "Деактивировать" (для отправителя)
-    const cancelLongPress = useLongPress(
-        () => {
-            stompClient.current.publish({
-                destination: `/app/chat/${currentChatInfo.id}/cancelOffer`,
-                body: JSON.stringify({ id: msg.id, senderId: user.id })
-            });
-        },
-        () => showToast("Удерживайте 'Деактивировать' пару секунд для отмены ⏱️")
-    );
-
-    // Обычный клик "Отклонить" (без удержания)
     const handleReject = () => {
         stompClient.current.publish({
             destination: `/app/chat/${currentChatInfo.id}/rejectOffer`,
@@ -84,43 +97,82 @@ const OfferCard = ({ msg, isMine, currentChatInfo, user, stompClient, showToast 
     };
 
     return (
-        <div className={`message-wrapper ${isMine ? 'mine' : 'theirs'}`} style={{ width: '100%', display: 'flex', justifyContent: isMine ? 'flex-end' : 'flex-start', margin: '10px 0' }}>
+        <div style={{ width: '100%', display: 'flex', justifyContent: 'center', margin: '25px 0', clear: 'both' }}>
             <div style={{
-                background: isActive ? '#ffffff' : '#f2f2f7',
-                border: `2px solid ${isActive ? '#007aff' : '#d1d1d6'}`,
+                background: isActive ? '#1c1c1e' : '#2c2c2e',
+                border: `2px solid ${isActive ? '#0a84ff' : '#48484a'}`,
                 borderRadius: '16px',
-                padding: '16px',
-                width: '320px',
-                color: isActive ? '#000' : '#8e8e93',
-                opacity: isActive ? 1 : 0.8,
-                boxShadow: isActive ? '0 4px 12px rgba(0,122,255,0.1)' : 'none',
-                position: 'relative'
+                padding: '20px',
+                width: '350px',
+                color: '#fff',
+                opacity: isActive ? 1 : 0.6,
+                boxShadow: isActive ? '0 8px 24px rgba(10, 132, 255, 0.15)' : 'none',
+                position: 'relative',
+                textAlign: 'center'
             }}>
-                <h4 style={{ margin: '0 0 12px 0', color: isActive ? '#007aff' : '#8e8e93', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    📄 Договор о сделке
+                <div style={{ fontSize: '2.5rem', marginBottom: '10px' }}>🤝</div>
+                <h4 style={{ margin: '0 0 12px 0', color: isActive ? '#0a84ff' : '#8e8e93' }}>
+                    Договор о сделке
                 </h4>
-                <div style={{ fontSize: '14px', lineHeight: '1.6' }}>
+                <div style={{ fontSize: '15px', lineHeight: '1.6', color: '#d1d1d6' }}>
+                    <p style={{ margin: '4px 0' }}><strong>Категория:</strong> {currentChatInfo?.category || 'Недвижимость'}</p>
                     <p style={{ margin: '4px 0' }}><strong>Объект:</strong> {currentChatInfo?.objectTitle}</p>
-                    <p style={{ margin: '4px 0' }}><strong>Сумма:</strong> <span style={{ fontSize: '16px', fontWeight: 'bold' }}>{msg.offerAmount}</span></p>
-                    <p style={{ margin: '4px 0', color: msg.offerStatus === 'ACCEPTED' ? '#34c759' : (msg.offerStatus === 'REJECTED' ? '#ff3b30' : 'inherit') }}>
-                        <strong>Статус:</strong> {translateStatus(msg.offerStatus)}
+                    <p style={{ margin: '10px 0', fontSize: '18px', color: '#fff' }}>
+                        {/* Добавлено красивое форматирование цены */}
+                        <strong>Сумма: {Number(msg.offerAmount).toLocaleString('ru-RU')} {msg.currency || '$'}</strong>
+                    </p>
+                    <p style={{
+                        margin: '8px 0 0 0',
+                        fontWeight: 'bold',
+                        color: msg.offerStatus === 'ACCEPTED' ? '#30d158' : (msg.offerStatus === 'REJECTED' ? '#ff453a' : 'inherit')
+                    }}>
+                        {translateStatus(msg.offerStatus)}
                     </p>
                 </div>
 
                 {isActive && (
-                    <div style={{ display: 'flex', gap: '8px', marginTop: '16px' }}>
+                    <div style={{ display: 'flex', gap: '10px', marginTop: '20px' }}>
                         {isMine ? (
-                            <button {...cancelLongPress} style={{ flex: 1, padding: '10px', borderRadius: '8px', border: 'none', background: '#ff3b30', color: '#fff', cursor: 'pointer', fontWeight: 'bold' }}>
+                            <ProgressButton
+                                defaultBg="#ff453a"
+                                progressColor="#ff6961"
+                                style={{ flex: 1, padding: '12px', borderRadius: '8px', border: 'none', color: '#fff', cursor: 'pointer', fontWeight: 'bold' }}
+                                onLongPress={() => {
+                                    stompClient.current.publish({
+                                        destination: `/app/chat/${currentChatInfo.id}/cancelOffer`,
+                                        body: JSON.stringify({ id: msg.id, senderId: user.id })
+                                    });
+                                }}
+                                onClick={() => showToast("Удерживайте 'Деактивировать' пару секунд для отмены ⏱️")}
+                            >
                                 Деактивировать
-                            </button>
+                            </ProgressButton>
                         ) : (
                             <>
-                                <button {...acceptLongPress} style={{ flex: 1, padding: '10px', borderRadius: '8px', border: 'none', background: '#34c759', color: '#fff', cursor: 'pointer', fontWeight: 'bold' }}>
+                                <ProgressButton
+                                    defaultBg="#30d158"
+                                    progressColor="#32d74b"
+                                    style={{ flex: 1, padding: '12px', borderRadius: '8px', border: 'none', color: '#fff', cursor: 'pointer', fontWeight: 'bold' }}
+                                    onLongPress={() => {
+                                        stompClient.current.publish({
+                                            destination: `/app/chat/${currentChatInfo.id}/acceptOffer`,
+                                            body: JSON.stringify({ id: msg.id, senderId: user.id })
+                                        });
+                                    }}
+                                    onClick={() => showToast("Удерживайте 'Принять' пару секунд для подтверждения сделки ⏱️")}
+                                >
                                     Принять
-                                </button>
-                                <button onClick={handleReject} style={{ flex: 1, padding: '10px', borderRadius: '8px', border: '1px solid #ff3b30', background: 'transparent', color: '#ff3b30', cursor: 'pointer', fontWeight: 'bold' }}>
+                                </ProgressButton>
+
+                                <ProgressButton
+                                    defaultBg="transparent"
+                                    progressColor="rgba(255, 69, 58, 0.2)"
+                                    style={{ flex: 1, padding: '12px', borderRadius: '8px', border: '1px solid #ff453a', color: '#ff453a', cursor: 'pointer', fontWeight: 'bold' }}
+                                    onLongPress={handleReject}
+                                    onClick={() => showToast("Удерживайте 'Отклонить' для отказа от сделки ⏱️")}
+                                >
                                     Отклонить
-                                </button>
+                                </ProgressButton>
                             </>
                         )}
                     </div>
@@ -129,7 +181,6 @@ const OfferCard = ({ msg, isMine, currentChatInfo, user, stompClient, showToast 
         </div>
     );
 };
-
 
 // ==========================================
 // 3. ОСНОВНОЙ КОМПОНЕНТ CHATS
@@ -149,7 +200,11 @@ const Chats = () => {
     const stompClient = useRef(null);
 
     const [totalUnread, setTotalUnread] = useState(0);
-    const [toastMsg, setToastMsg] = useState(null); // Состояние для уведомлений
+    const [toastMsg, setToastMsg] = useState(null);
+
+    const [isDealModalOpen, setIsDealModalOpen] = useState(false);
+    const [dealAmount, setDealAmount] = useState('');
+    const [dealCurrency, setDealCurrency] = useState('USD');
 
     const user = useMemo(() => {
         try {
@@ -158,29 +213,39 @@ const Chats = () => {
         } catch (e) { return null; }
     }, []);
 
-    // Функция показа уведомлений (Toast)
     const showToast = useCallback((msg) => {
         setToastMsg(msg);
         setTimeout(() => setToastMsg(null), 3500);
     }, []);
 
-    // Удержание кнопки отправки нового договора
-    const sendOfferLongPress = useLongPress(
-        () => {
-            const amount = window.prompt("Введите предлагаемую сумму сделки (только число):");
-            if (amount && !isNaN(amount) && Number(amount) > 0) {
-                if (stompClient.current && stompClient.current.connected) {
-                    stompClient.current.publish({
-                        destination: `/app/chat/${chatId}/sendOffer`,
-                        body: JSON.stringify({ senderId: user.id, offerAmount: amount })
-                    });
-                }
-            } else if (amount) {
-                showToast("Пожалуйста, введите корректное положительное число.");
-            }
-        },
-        () => showToast("Удерживайте кнопку 🤝 пару секунд для отправки договора ⏱️")
-    );
+    const handleAmountChange = (e) => {
+        let val = e.target.value.replace(/\D/g, '');
+        if (val.length > 1 && val.startsWith('0')) {
+            val = val.replace(/^0+/, '');
+        }
+        setDealAmount(val);
+    };
+
+    const submitDealOffer = () => {
+        if (!dealAmount || parseInt(dealAmount) <= 0) {
+            showToast("Введите корректную сумму больше нуля.");
+            return;
+        }
+
+        if (stompClient.current && stompClient.current.connected) {
+            stompClient.current.publish({
+                destination: `/app/chat/${chatId}/sendOffer`,
+                body: JSON.stringify({
+                    senderId: user.id,
+                    offerAmount: dealAmount,
+                    currency: dealCurrency
+                })
+            });
+            setIsDealModalOpen(false);
+            setDealAmount('');
+            showToast("Договор успешно отправлен!");
+        }
+    };
 
     useEffect(() => {
         const token = localStorage.getItem('token');
@@ -249,11 +314,9 @@ const Chats = () => {
                     const newMsg = JSON.parse(message.body);
 
                     setMessages(prev => {
-                        // Если это сообщение-договор, проверяем, есть ли оно уже в списке
                         if (newMsg.messageType === 'OFFER') {
                             const existingIdx = prev.findIndex(m => m.id === newMsg.id);
 
-                            // Если статус изменился (сообщение уже было в стейте)
                             if (existingIdx !== -1) {
                                 const oldMsg = prev[existingIdx];
                                 if (oldMsg.offerStatus === 'ACTIVE' && newMsg.offerStatus === 'CANCELED') {
@@ -268,7 +331,6 @@ const Chats = () => {
                                 newArr[existingIdx] = newMsg;
                                 return newArr;
                             } else {
-                                // Если пришел НОВЫЙ договор, все старые делаем неактивными (CANCELED) визуально
                                 let newArr = [...prev];
                                 if (newMsg.offerStatus === 'ACTIVE') {
                                     newArr = newArr.map(m => (m.messageType === 'OFFER' && m.offerStatus === 'ACTIVE') ? { ...m, offerStatus: 'CANCELED' } : m);
@@ -276,8 +338,6 @@ const Chats = () => {
                                 return [...newArr, newMsg];
                             }
                         }
-
-                        // Обычное текстовое сообщение
                         return [...prev, newMsg];
                     });
                 });
@@ -288,9 +348,7 @@ const Chats = () => {
         stompClient.current = client;
 
         return () => {
-            if (stompClient.current) {
-                stompClient.current.deactivate();
-            }
+            if (stompClient.current) stompClient.current.deactivate();
         };
     }, [chatId, showToast]);
 
@@ -316,9 +374,7 @@ const Chats = () => {
     };
 
     const handleLogout = () => {
-        if (stompClient.current) {
-            stompClient.current.deactivate();
-        }
+        if (stompClient.current) stompClient.current.deactivate();
         localStorage.clear();
         sessionStorage.clear();
         navigate('/login');
@@ -337,24 +393,33 @@ const Chats = () => {
         return d.toLocaleDateString('ru-RU', { weekday: 'short', month: 'long', day: 'numeric' });
     };
 
+    // === ЛОГИКА КОНВЕРТАЦИИ ЦЕНЫ ===
+    const rawPriceUsd = currentChatInfo?.priceUsd;
+
+    // Форматируем цены (например: 150000 превратится в 150 000)
+    const formattedPriceUsd = rawPriceUsd ? Number(rawPriceUsd).toLocaleString('ru-RU') + ' $' : 'Не указана';
+
+    // Умножаем на курс и округляем до целых для BYN
+    const formattedPriceByn = rawPriceUsd ? Math.round(Number(rawPriceUsd) * EXCHANGE_RATE).toLocaleString('ru-RU') + ' BYN' : 'Не указана';
+
     return (
         <div className="chats-layout">
-            {/* Стили для Toast уведомлений */}
             <style>{`
                 .toast-notification {
                     position: fixed;
                     top: 20px;
                     left: 50%;
                     transform: translateX(-50%);
-                    background: rgba(0, 0, 0, 0.85);
+                    background: rgba(44, 44, 46, 0.95);
                     color: white;
-                    padding: 12px 24px;
+                    padding: 14px 28px;
                     border-radius: 30px;
-                    z-index: 1000;
-                    font-size: 14px;
-                    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+                    z-index: 2000;
+                    font-size: 15px;
+                    box-shadow: 0 8px 24px rgba(0,0,0,0.3);
                     animation: fadeInOut 3.5s ease forwards;
                     pointer-events: none;
+                    border: 1px solid #48484a;
                 }
                 @keyframes fadeInOut {
                     0% { opacity: 0; top: 0px; }
@@ -362,6 +427,37 @@ const Chats = () => {
                     90% { opacity: 1; top: 20px; }
                     100% { opacity: 0; top: 0px; }
                 }
+                .deal-modal-overlay {
+                    position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+                    background: rgba(0, 0, 0, 0.7);
+                    display: flex; align-items: center; justify-content: center;
+                    z-index: 1500; backdrop-filter: blur(5px);
+                }
+                .deal-modal {
+                    background: #1c1c1e; border: 1px solid #3a3a3c;
+                    border-radius: 20px; width: 400px; padding: 30px;
+                    box-shadow: 0 15px 40px rgba(0,0,0,0.5); color: #fff;
+                }
+                .deal-modal h3 { margin-top: 0; color: #0a84ff; text-align: center; }
+                .deal-modal-input-group { display: flex; gap: 10px; margin: 25px 0; }
+                .deal-modal-input-group input {
+                    flex: 1; padding: 12px 15px; border-radius: 10px;
+                    border: 1px solid #3a3a3c; background: #2c2c2e; color: #fff;
+                    font-size: 16px; outline: none;
+                }
+                .deal-modal-input-group input:focus { border-color: #0a84ff; }
+                .deal-modal-input-group select {
+                    width: 80px; padding: 12px; border-radius: 10px;
+                    border: 1px solid #3a3a3c; background: #2c2c2e; color: #fff;
+                    font-size: 16px; outline: none; cursor: pointer;
+                }
+                .deal-modal-actions { display: flex; gap: 15px; }
+                .deal-modal-actions button {
+                    flex: 1; padding: 12px; border-radius: 10px; border: none;
+                    font-size: 16px; font-weight: bold; cursor: pointer;
+                }
+                .btn-cancel-deal { background: #3a3a3c; color: #fff; }
+                .btn-submit-deal { background: #0a84ff; color: #fff; }
             `}</style>
 
             {toastMsg && <div className="toast-notification">{toastMsg}</div>}
@@ -444,16 +540,28 @@ const Chats = () => {
                     </>
                 ) : (
                     <div className="chat-room-container">
-                        <div className="chat-room-header">
-                            <button className="btn-back" onClick={() => navigate('/chats')}>
-                                ← Назад
-                            </button>
-                            {currentChatInfo && (
-                                <div className="chat-header-object" onClick={() => navigate(`/object/${currentChatInfo.objectId}`)}>
-                                    <div>
-                                        <h4 className="cho-title">{currentChatInfo.objectTitle}</h4>
-                                        <p className="cho-opponent">Собеседник: {currentChatInfo.opponentName}</p>
+                        <div className="chat-room-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+                                <button className="btn-back" onClick={() => navigate('/chats')}>
+                                    ← Назад
+                                </button>
+                                {currentChatInfo && (
+                                    <div className="chat-header-object" onClick={() => navigate(`/object/${currentChatInfo.objectId}`)} style={{ cursor: 'pointer' }}>
+                                        <h4 className="cho-title" style={{ margin: 0 }}>{currentChatInfo.objectTitle}</h4>
+                                        <p className="cho-opponent" style={{ margin: '4px 0 0 0', fontSize: '13px', color: '#8e8e93' }}>
+                                            Собеседник: {currentChatInfo.opponentName}
+                                        </p>
                                     </div>
+                                )}
+                            </div>
+
+                            {/* Вывод стоимости */}
+                            {currentChatInfo && (
+                                <div style={{ textAlign: 'right', background: '#2c2c2e', padding: '8px 16px', borderRadius: '12px' }}>
+                                    <span style={{ fontSize: '12px', color: '#8e8e93', display: 'block', marginBottom: '2px' }}>Стоимость объекта:</span>
+                                    <span style={{ fontWeight: 'bold', color: '#30d158', fontSize: '15px' }}>
+                                        {formattedPriceUsd} / {formattedPriceByn}
+                                    </span>
                                 </div>
                             )}
                         </div>
@@ -478,7 +586,6 @@ const Chats = () => {
                                                 </div>
                                             )}
 
-                                            {/* ЕСЛИ ЭТО ДОГОВОР - РЕНДЕРИМ КАРТОЧКУ */}
                                             {msg.messageType === 'OFFER' ? (
                                                 <OfferCard
                                                     msg={msg}
@@ -489,7 +596,6 @@ const Chats = () => {
                                                     showToast={showToast}
                                                 />
                                             ) : (
-                                                /* ИНАЧЕ - ОБЫЧНОЕ СООБЩЕНИЕ */
                                                 <div className={`message-wrapper ${isMine && !isSystem ? 'mine' : 'theirs'}`} style={isSystem ? { alignSelf: 'center', maxWidth: '90%' } : {}}>
                                                     {!isMine && !isSystem && <span className="message-sender-name">{msg.senderName}</span>}
                                                     <div className="message-bubble" style={isSystem ? { background: 'rgba(255, 149, 0, 0.15)', color: '#ff9500', border: '1px solid #ff9500', fontSize: '13px', textAlign: 'center' } : {}}>
@@ -506,16 +612,16 @@ const Chats = () => {
                         </div>
 
                         <form className="chat-input-area" onSubmit={handleSendMessage}>
-                            {/* НОВАЯ КНОПКА "ПРЕДЛОЖИТЬ ДОГОВОР" */}
-                            <button
-                                type="button"
+                            <ProgressButton
                                 className="btn-send"
-                                style={{ background: '#f2f2f7', color: '#000', marginRight: '10px' }}
-                                title="Удерживайте для создания договора"
-                                {...sendOfferLongPress}
+                                defaultBg="#2c2c2e"
+                                progressColor="#0a84ff"
+                                style={{ color: '#fff', marginRight: '10px', fontSize: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                                onLongPress={() => setIsDealModalOpen(true)}
+                                onClick={() => showToast("Удерживайте кнопку 📄 пару секунд для создания договора ⏱️")}
                             >
-                                🤝
-                            </button>
+                                📄
+                            </ProgressButton>
 
                             <input
                                 type="text"
@@ -533,6 +639,42 @@ const Chats = () => {
                     </div>
                 )}
             </div>
+
+            {isDealModalOpen && (
+                <div className="deal-modal-overlay">
+                    <div className="deal-modal">
+                        <h3>Создать предложение</h3>
+                        <p style={{ color: '#8e8e93', fontSize: '14px', textAlign: 'center', marginBottom: '20px' }}>
+                            Объект: {currentChatInfo?.objectTitle}
+                        </p>
+
+                        <label style={{ fontSize: '14px', color: '#d1d1d6' }}>Предлагаемая стоимость:</label>
+                        <div className="deal-modal-input-group">
+                            <input
+                                type="text"
+                                placeholder="Например: 150000"
+                                value={dealAmount}
+                                onChange={handleAmountChange}
+                                autoFocus
+                            />
+                            <select value={dealCurrency} onChange={(e) => setDealCurrency(e.target.value)}>
+                                <option value="$">$</option>
+                                <option value="BYN">BYN</option>
+                                <option value="RUB">RUB</option>
+                            </select>
+                        </div>
+
+                        <div className="deal-modal-actions">
+                            <button type="button" className="btn-cancel-deal" onClick={() => setIsDealModalOpen(false)}>
+                                Отмена
+                            </button>
+                            <button type="button" className="btn-submit-deal" onClick={submitDealOffer}>
+                                Отправить
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

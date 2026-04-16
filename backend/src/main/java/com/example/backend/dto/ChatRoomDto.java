@@ -13,6 +13,10 @@ public class ChatRoomDto {
     private String lastMessage;
     private LocalDateTime lastMessageAt;
     private long unreadCount;
+    
+    // ДОБАВЛЕННЫЕ ПОЛЯ ДЛЯ СТОИМОСТИ
+    private Double priceUsd;
+    private Double priceByn;
 
     // Пустой конструктор
     public ChatRoomDto() {}
@@ -44,4 +48,11 @@ public class ChatRoomDto {
 
     public long getUnreadCount() { return unreadCount; }
     public void setUnreadCount(long unreadCount) { this.unreadCount = unreadCount; }
+
+    // ГЕТТЕРЫ И СЕТТЕРЫ ДЛЯ СТОИМОСТИ
+    public Double getPriceUsd() { return priceUsd; }
+    public void setPriceUsd(Double priceUsd) { this.priceUsd = priceUsd; }
+
+    public Double getPriceByn() { return priceByn; }
+    public void setPriceByn(Double priceByn) { this.priceByn = priceByn; }
 }
