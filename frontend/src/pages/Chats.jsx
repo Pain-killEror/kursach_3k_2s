@@ -79,6 +79,7 @@ const ProgressButton = ({ onLongPress, onClick, className, style, children, defa
 // 2. КОМПОНЕНТ КАРТОЧКИ ДОГОВОРА (ОФФЕРА)
 // ==========================================
 const OfferCard = ({ msg, isMine, currentChatInfo, user, stompClient, showToast }) => {
+    const { convertPrice, formatPrice } = useCurrency();
     const isActive = msg.offerStatus === 'ACTIVE';
 
     const handleReject = () => {
@@ -121,7 +122,7 @@ const OfferCard = ({ msg, isMine, currentChatInfo, user, stompClient, showToast 
                     <p style={{ margin: '4px 0' }}><strong>Объект:</strong> {currentChatInfo?.objectTitle}</p>
                     <p style={{ margin: '10px 0', fontSize: '18px', color: '#fff' }}>
                         {/* Добавлено красивое форматирование цены */}
-                        <strong>Сумма: {Number(msg.offerAmount).toLocaleString('ru-RU')} {msg.currency || '$'}</strong>
+                        <strong>Сумма: {formatPrice(convertPrice(msg.offerAmount, msg.currency || 'USD'))}</strong>
                     </p>
                     <p style={{
                         margin: '8px 0 0 0',
@@ -195,7 +196,7 @@ const Chats = () => {
     const [newMessage, setNewMessage] = useState('');
     const [currentChatInfo, setCurrentChatInfo] = useState(null);
     const [loading, setLoading] = useState(true);
-    const { formatPrice, currency } = useCurrency();
+    const { formatPrice, currency, setCurrency, convertPrice } = useCurrency();
 
     const [isMenuOpen, setIsMenuOpen] = useState(false);
     const dropdownRef = useRef(null);
@@ -207,7 +208,7 @@ const Chats = () => {
 
     const [isDealModalOpen, setIsDealModalOpen] = useState(false);
     const [dealAmount, setDealAmount] = useState('');
-    const [dealCurrency, setDealCurrency] = useState('USD');
+    //const [dealCurrency, setDealCurrency] = useState('USD');
 
     const user = useMemo(() => {
         try {
@@ -241,7 +242,7 @@ const Chats = () => {
                 body: JSON.stringify({
                     senderId: user.id,
                     offerAmount: dealAmount,
-                    currency: dealCurrency
+                    currency: currency
                 })
             });
             setIsDealModalOpen(false);
@@ -398,10 +399,7 @@ const Chats = () => {
 
     // === ЛОГИКА КОНВЕРТАЦИИ ЦЕНЫ ===
     const rawPriceUsd = currentChatInfo?.priceUsd;
-
-    // Используем вашу глобальную функцию из CurrencyContext
-    // Если formatPrice уже возвращает строку с символом валюты (например "150 000 BYN"), то просто вызываем ее:
-    const displayPrice = rawPriceUsd ? formatPrice(rawPriceUsd) : 'Не указана';
+    const displayPrice = rawPriceUsd ? formatPrice(convertPrice(rawPriceUsd, 'USD')) : 'Не указана';
 
     return (
         <div className="chats-layout">
@@ -436,7 +434,9 @@ const Chats = () => {
                 }
                 .deal-modal {
                     background: #1c1c1e; border: 1px solid #3a3a3c;
-                    border-radius: 20px; width: 400px; padding: 30px;
+                    border-radius: 20px; 
+                    width: 460px; /* Было 400px, сделали чуть шире */
+                    padding: 30px;
                     box-shadow: 0 15px 40px rgba(0,0,0,0.5); color: #fff;
                 }
                 .deal-modal h3 { margin-top: 0; color: #0a84ff; text-align: center; }
@@ -448,7 +448,8 @@ const Chats = () => {
                 }
                 .deal-modal-input-group input:focus { border-color: #0a84ff; }
                 .deal-modal-input-group select {
-                    width: 80px; padding: 12px; border-radius: 10px;
+                    width: 100px; /* Было 80px, увеличили, чтобы влезло BYN/RUB */
+                    padding: 12px; border-radius: 10px;
                     border: 1px solid #3a3a3c; background: #2c2c2e; color: #fff;
                     font-size: 16px; outline: none; cursor: pointer;
                 }
@@ -466,6 +467,27 @@ const Chats = () => {
             <header className="home-header" style={{ padding: '20px 60px', margin: '0 auto', maxWidth: '1440px', width: '100%', boxSizing: 'border-box' }}>
                 <div className="brand" onClick={() => navigate('/')} style={{ cursor: 'pointer' }}>
                     💎 InvestHub
+                </div>
+
+                <div className="currency-selector" style={{ marginLeft: 'auto', marginRight: '15px' }}>
+                    <select
+                        value={currency}
+                        onChange={(e) => setCurrency(e.target.value)}
+                        style={{
+                            padding: '8px 14px',
+                            borderRadius: '8px',
+                            border: '1px solid #444',
+                            cursor: 'pointer',
+                            outline: 'none',
+                            background: '#1a1a1a',
+                            color: 'white',
+                            fontWeight: '600',
+                            fontSize: '14px'
+                        }}
+                    >
+                        <option value="USD">USD ($)</option>
+                        <option value="BYN">BYN (Br)</option>
+                    </select>
                 </div>
 
                 <div className="user-profile-container" ref={dropdownRef}>
@@ -500,6 +522,9 @@ const Chats = () => {
                         </div>
                     )}
                 </div>
+
+
+
             </header>
 
             <div className="chats-container">
@@ -552,6 +577,7 @@ const Chats = () => {
                                         <p className="cho-opponent" style={{ margin: '4px 0 0 0', fontSize: '13px', color: '#8e8e93' }}>
                                             Собеседник: {currentChatInfo.opponentName}
                                         </p>
+
                                     </div>
                                 )}
                             </div>
@@ -658,10 +684,9 @@ const Chats = () => {
                                 onChange={handleAmountChange}
                                 autoFocus
                             />
-                            <select value={dealCurrency} onChange={(e) => setDealCurrency(e.target.value)}>
-                                <option value="$">$</option>
-                                <option value="BYN">BYN</option>
-                                <option value="RUB">RUB</option>
+                            <select value={currency} onChange={(e) => setCurrency(e.target.value)}>
+                                <option value="USD">USD ($)</option>
+                                <option value="BYN">BYN (Br)</option>
                             </select>
                         </div>
 
