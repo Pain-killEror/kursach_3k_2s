@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import api from '../api/axios';
 import { Client } from '@stomp/stompjs';
@@ -7,6 +7,133 @@ import './Chats.css';
 
 const API_BASE_URL = "http://localhost:8080";
 
+// ==========================================
+// 1. ХУК ДЛЯ ДОЛГОГО НАЖАТИЯ (УДЕРЖАНИЯ)
+// ==========================================
+const useLongPress = (onLongPress, onClick, ms = 2000) => {
+    const timerRef = useRef(null);
+
+    const start = useCallback((e) => {
+        timerRef.current = setTimeout(() => {
+            onLongPress(e);
+            timerRef.current = null;
+        }, ms);
+    }, [onLongPress, ms]);
+
+    const clear = useCallback((e) => {
+        if (timerRef.current) {
+            clearTimeout(timerRef.current);
+            timerRef.current = null;
+            if (onClick) onClick(e); // Если таймер не успел истечь, значит это был короткий клик
+        }
+    }, [onClick]);
+
+    return {
+        onMouseDown: start,
+        onMouseUp: clear,
+        onMouseLeave: () => { if (timerRef.current) clearTimeout(timerRef.current); },
+        onTouchStart: start,
+        onTouchEnd: clear,
+    };
+};
+
+// ==========================================
+// 2. КОМПОНЕНТ КАРТОЧКИ ДОГОВОРА (ОФФЕРА)
+// ==========================================
+const OfferCard = ({ msg, isMine, currentChatInfo, user, stompClient, showToast }) => {
+    const isActive = msg.offerStatus === 'ACTIVE';
+
+    // Удержание "Принять"
+    const acceptLongPress = useLongPress(
+        () => {
+            stompClient.current.publish({
+                destination: `/app/chat/${currentChatInfo.id}/acceptOffer`,
+                body: JSON.stringify({ id: msg.id, senderId: user.id })
+            });
+        },
+        () => showToast("Удерживайте кнопку 'Принять' пару секунд для подтверждения сделки ⏱️")
+    );
+
+    // Удержание "Деактивировать" (для отправителя)
+    const cancelLongPress = useLongPress(
+        () => {
+            stompClient.current.publish({
+                destination: `/app/chat/${currentChatInfo.id}/cancelOffer`,
+                body: JSON.stringify({ id: msg.id, senderId: user.id })
+            });
+        },
+        () => showToast("Удерживайте 'Деактивировать' пару секунд для отмены ⏱️")
+    );
+
+    // Обычный клик "Отклонить" (без удержания)
+    const handleReject = () => {
+        stompClient.current.publish({
+            destination: `/app/chat/${currentChatInfo.id}/rejectOffer`,
+            body: JSON.stringify({ id: msg.id, senderId: user.id })
+        });
+    };
+
+    const translateStatus = (status) => {
+        switch (status) {
+            case 'ACTIVE': return 'Активен (Ожидает ответа)';
+            case 'REJECTED': return 'Отклонен';
+            case 'CANCELED': return 'Неактивен (Отменен)';
+            case 'ACCEPTED': return 'Сделка заключена!';
+            default: return status;
+        }
+    };
+
+    return (
+        <div className={`message-wrapper ${isMine ? 'mine' : 'theirs'}`} style={{ width: '100%', display: 'flex', justifyContent: isMine ? 'flex-end' : 'flex-start', margin: '10px 0' }}>
+            <div style={{
+                background: isActive ? '#ffffff' : '#f2f2f7',
+                border: `2px solid ${isActive ? '#007aff' : '#d1d1d6'}`,
+                borderRadius: '16px',
+                padding: '16px',
+                width: '320px',
+                color: isActive ? '#000' : '#8e8e93',
+                opacity: isActive ? 1 : 0.8,
+                boxShadow: isActive ? '0 4px 12px rgba(0,122,255,0.1)' : 'none',
+                position: 'relative'
+            }}>
+                <h4 style={{ margin: '0 0 12px 0', color: isActive ? '#007aff' : '#8e8e93', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    📄 Договор о сделке
+                </h4>
+                <div style={{ fontSize: '14px', lineHeight: '1.6' }}>
+                    <p style={{ margin: '4px 0' }}><strong>Объект:</strong> {currentChatInfo?.objectTitle}</p>
+                    <p style={{ margin: '4px 0' }}><strong>Сумма:</strong> <span style={{ fontSize: '16px', fontWeight: 'bold' }}>{msg.offerAmount}</span></p>
+                    <p style={{ margin: '4px 0', color: msg.offerStatus === 'ACCEPTED' ? '#34c759' : (msg.offerStatus === 'REJECTED' ? '#ff3b30' : 'inherit') }}>
+                        <strong>Статус:</strong> {translateStatus(msg.offerStatus)}
+                    </p>
+                </div>
+
+                {isActive && (
+                    <div style={{ display: 'flex', gap: '8px', marginTop: '16px' }}>
+                        {isMine ? (
+                            <button {...cancelLongPress} style={{ flex: 1, padding: '10px', borderRadius: '8px', border: 'none', background: '#ff3b30', color: '#fff', cursor: 'pointer', fontWeight: 'bold' }}>
+                                Деактивировать
+                            </button>
+                        ) : (
+                            <>
+                                <button {...acceptLongPress} style={{ flex: 1, padding: '10px', borderRadius: '8px', border: 'none', background: '#34c759', color: '#fff', cursor: 'pointer', fontWeight: 'bold' }}>
+                                    Принять
+                                </button>
+                                <button onClick={handleReject} style={{ flex: 1, padding: '10px', borderRadius: '8px', border: '1px solid #ff3b30', background: 'transparent', color: '#ff3b30', cursor: 'pointer', fontWeight: 'bold' }}>
+                                    Отклонить
+                                </button>
+                            </>
+                        )}
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+};
+
+
+// ==========================================
+// 3. ОСНОВНОЙ КОМПОНЕНТ CHATS
+// ==========================================
 const Chats = () => {
     const { chatId } = useParams();
     const navigate = useNavigate();
@@ -21,6 +148,9 @@ const Chats = () => {
     const messagesEndRef = useRef(null);
     const stompClient = useRef(null);
 
+    const [totalUnread, setTotalUnread] = useState(0);
+    const [toastMsg, setToastMsg] = useState(null); // Состояние для уведомлений
+
     const user = useMemo(() => {
         try {
             const u = localStorage.getItem('user');
@@ -28,9 +158,30 @@ const Chats = () => {
         } catch (e) { return null; }
     }, []);
 
-    const [totalUnread, setTotalUnread] = useState(0);
+    // Функция показа уведомлений (Toast)
+    const showToast = useCallback((msg) => {
+        setToastMsg(msg);
+        setTimeout(() => setToastMsg(null), 3500);
+    }, []);
 
-    // Запрашиваем количество непрочитанных при загрузке
+    // Удержание кнопки отправки нового договора
+    const sendOfferLongPress = useLongPress(
+        () => {
+            const amount = window.prompt("Введите предлагаемую сумму сделки (только число):");
+            if (amount && !isNaN(amount) && Number(amount) > 0) {
+                if (stompClient.current && stompClient.current.connected) {
+                    stompClient.current.publish({
+                        destination: `/app/chat/${chatId}/sendOffer`,
+                        body: JSON.stringify({ senderId: user.id, offerAmount: amount })
+                    });
+                }
+            } else if (amount) {
+                showToast("Пожалуйста, введите корректное положительное число.");
+            }
+        },
+        () => showToast("Удерживайте кнопку 🤝 пару секунд для отправки договора ⏱️")
+    );
+
     useEffect(() => {
         const token = localStorage.getItem('token');
         if (token) {
@@ -83,6 +234,7 @@ const Chats = () => {
             })
             .catch(err => console.error(err))
             .finally(() => setLoading(false));
+
         api.get('/chats').then(res => {
             const chat = res.data.find(c => c.id === chatId);
             if (chat) setCurrentChatInfo(chat);
@@ -95,7 +247,39 @@ const Chats = () => {
             onConnect: () => {
                 client.subscribe(`/topic/chat/${chatId}`, (message) => {
                     const newMsg = JSON.parse(message.body);
-                    setMessages(prev => [...prev, newMsg]);
+
+                    setMessages(prev => {
+                        // Если это сообщение-договор, проверяем, есть ли оно уже в списке
+                        if (newMsg.messageType === 'OFFER') {
+                            const existingIdx = prev.findIndex(m => m.id === newMsg.id);
+
+                            // Если статус изменился (сообщение уже было в стейте)
+                            if (existingIdx !== -1) {
+                                const oldMsg = prev[existingIdx];
+                                if (oldMsg.offerStatus === 'ACTIVE' && newMsg.offerStatus === 'CANCELED') {
+                                    showToast("⚠️ Участник отозвал свое предложение.");
+                                } else if (oldMsg.offerStatus === 'ACTIVE' && newMsg.offerStatus === 'ACCEPTED') {
+                                    showToast("🎉 Сделка успешно заключена! Объект скрыт из поиска.");
+                                } else if (oldMsg.offerStatus === 'ACTIVE' && newMsg.offerStatus === 'REJECTED') {
+                                    showToast("❌ Предложение было отклонено.");
+                                }
+
+                                const newArr = [...prev];
+                                newArr[existingIdx] = newMsg;
+                                return newArr;
+                            } else {
+                                // Если пришел НОВЫЙ договор, все старые делаем неактивными (CANCELED) визуально
+                                let newArr = [...prev];
+                                if (newMsg.offerStatus === 'ACTIVE') {
+                                    newArr = newArr.map(m => (m.messageType === 'OFFER' && m.offerStatus === 'ACTIVE') ? { ...m, offerStatus: 'CANCELED' } : m);
+                                }
+                                return [...newArr, newMsg];
+                            }
+                        }
+
+                        // Обычное текстовое сообщение
+                        return [...prev, newMsg];
+                    });
                 });
             }
         });
@@ -108,7 +292,7 @@ const Chats = () => {
                 stompClient.current.deactivate();
             }
         };
-    }, [chatId]);
+    }, [chatId, showToast]);
 
     useEffect(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -135,12 +319,9 @@ const Chats = () => {
         if (stompClient.current) {
             stompClient.current.deactivate();
         }
-
         localStorage.clear();
         sessionStorage.clear();
-
         navigate('/login');
-
         window.location.reload();
     };
 
@@ -153,12 +334,38 @@ const Chats = () => {
     const formatDateSeparator = (dateString) => {
         if (!dateString) return '';
         const d = new Date(dateString);
-        // Выдаст формат вроде "пн, 15 апреля"
         return d.toLocaleDateString('ru-RU', { weekday: 'short', month: 'long', day: 'numeric' });
     };
 
     return (
         <div className="chats-layout">
+            {/* Стили для Toast уведомлений */}
+            <style>{`
+                .toast-notification {
+                    position: fixed;
+                    top: 20px;
+                    left: 50%;
+                    transform: translateX(-50%);
+                    background: rgba(0, 0, 0, 0.85);
+                    color: white;
+                    padding: 12px 24px;
+                    border-radius: 30px;
+                    z-index: 1000;
+                    font-size: 14px;
+                    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+                    animation: fadeInOut 3.5s ease forwards;
+                    pointer-events: none;
+                }
+                @keyframes fadeInOut {
+                    0% { opacity: 0; top: 0px; }
+                    10% { opacity: 1; top: 20px; }
+                    90% { opacity: 1; top: 20px; }
+                    100% { opacity: 0; top: 0px; }
+                }
+            `}</style>
+
+            {toastMsg && <div className="toast-notification">{toastMsg}</div>}
+
             <header className="home-header" style={{ padding: '20px 60px', margin: '0 auto', maxWidth: '1440px', width: '100%', boxSizing: 'border-box' }}>
                 <div className="brand" onClick={() => navigate('/')} style={{ cursor: 'pointer' }}>
                     💎 InvestHub
@@ -172,7 +379,6 @@ const Chats = () => {
                                 <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle>
                             </svg>
                         </div>
-                        {/* КРАСНАЯ ТОЧКА УВЕДОМЛЕНИЯ */}
                         {totalUnread > 0 && <span className="unread-dot"></span>}
                     </div>
                     {isMenuOpen && (
@@ -184,7 +390,6 @@ const Chats = () => {
                             </div>
                             <button className="dropdown-item">Мой профиль</button>
 
-                            {/* КНОПКА ЧАТОВ СО СЧЕТЧИКОМ */}
                             <button
                                 className="dropdown-item"
                                 onClick={() => navigate('/chats')}
@@ -205,7 +410,6 @@ const Chats = () => {
                     <div style={{ textAlign: 'center', marginTop: '50px' }}>Загрузка...</div>
                 ) : !chatId ? (
                     <>
-                        {/* ДОБАВЛЕННЫЙ БЛОК: Кнопка На главную + Заголовок */}
                         <div style={{ display: 'flex', alignItems: 'center', gap: '20px', marginBottom: '25px' }}>
                             <button
                                 className="btn-back"
@@ -245,8 +449,6 @@ const Chats = () => {
                                 ← Назад
                             </button>
                             {currentChatInfo && (
-                                /* ВАЖНО: Если страница не грузится, проверьте в App.jsx, как называется роут: /object/:id или /objects/:id.
-                                   Если /objects/:id, измените ниже '/object/' на '/objects/' */
                                 <div className="chat-header-object" onClick={() => navigate(`/object/${currentChatInfo.objectId}`)}>
                                     <div>
                                         <h4 className="cho-title">{currentChatInfo.objectTitle}</h4>
@@ -258,34 +460,44 @@ const Chats = () => {
 
                         <div className="chat-messages-area">
                             {(() => {
-                                let lastDateStr = null; // Переменная для хранения даты предыдущего сообщения
+                                let lastDateStr = null;
 
                                 return messages.map((msg) => {
                                     const isMine = msg.senderId === user.id;
-                                    const isSystem = msg.content.startsWith("🤖 Система:");
+                                    const isSystem = msg.content && msg.content.startsWith("🤖 Система:");
 
-                                    // Проверяем, изменился ли день
                                     const msgDateStr = new Date(msg.createdAt).toDateString();
                                     const showDateSeparator = lastDateStr !== msgDateStr;
-                                    lastDateStr = msgDateStr; // Обновляем для следующей итерации
+                                    lastDateStr = msgDateStr;
 
                                     return (
                                         <React.Fragment key={msg.id}>
-                                            {/* ЕСЛИ НОВЫЙ ДЕНЬ - ПОКАЗЫВАЕМ ПУЗЫРЕК С ДАТОЙ */}
                                             {showDateSeparator && (
                                                 <div className="chat-date-separator">
                                                     {formatDateSeparator(msg.createdAt)}
                                                 </div>
                                             )}
 
-                                            {/* САМО СООБЩЕНИЕ */}
-                                            <div className={`message-wrapper ${isMine && !isSystem ? 'mine' : 'theirs'}`} style={isSystem ? { alignSelf: 'center', maxWidth: '90%' } : {}}>
-                                                {!isMine && !isSystem && <span className="message-sender-name">{msg.senderName}</span>}
-                                                <div className="message-bubble" style={isSystem ? { background: 'rgba(255, 149, 0, 0.15)', color: '#ff9500', border: '1px solid #ff9500', fontSize: '13px', textAlign: 'center' } : {}}>
-                                                    {msg.content}
-                                                    <span className="message-time">{formatTime(msg.createdAt)}</span>
+                                            {/* ЕСЛИ ЭТО ДОГОВОР - РЕНДЕРИМ КАРТОЧКУ */}
+                                            {msg.messageType === 'OFFER' ? (
+                                                <OfferCard
+                                                    msg={msg}
+                                                    isMine={isMine}
+                                                    currentChatInfo={currentChatInfo}
+                                                    user={user}
+                                                    stompClient={stompClient}
+                                                    showToast={showToast}
+                                                />
+                                            ) : (
+                                                /* ИНАЧЕ - ОБЫЧНОЕ СООБЩЕНИЕ */
+                                                <div className={`message-wrapper ${isMine && !isSystem ? 'mine' : 'theirs'}`} style={isSystem ? { alignSelf: 'center', maxWidth: '90%' } : {}}>
+                                                    {!isMine && !isSystem && <span className="message-sender-name">{msg.senderName}</span>}
+                                                    <div className="message-bubble" style={isSystem ? { background: 'rgba(255, 149, 0, 0.15)', color: '#ff9500', border: '1px solid #ff9500', fontSize: '13px', textAlign: 'center' } : {}}>
+                                                        {msg.content}
+                                                        <span className="message-time">{formatTime(msg.createdAt)}</span>
+                                                    </div>
                                                 </div>
-                                            </div>
+                                            )}
                                         </React.Fragment>
                                     );
                                 });
@@ -294,6 +506,17 @@ const Chats = () => {
                         </div>
 
                         <form className="chat-input-area" onSubmit={handleSendMessage}>
+                            {/* НОВАЯ КНОПКА "ПРЕДЛОЖИТЬ ДОГОВОР" */}
+                            <button
+                                type="button"
+                                className="btn-send"
+                                style={{ background: '#f2f2f7', color: '#000', marginRight: '10px' }}
+                                title="Удерживайте для создания договора"
+                                {...sendOfferLongPress}
+                            >
+                                🤝
+                            </button>
+
                             <input
                                 type="text"
                                 placeholder="Напишите сообщение..."

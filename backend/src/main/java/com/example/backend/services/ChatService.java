@@ -13,6 +13,7 @@ import com.example.backend.repositories.UserRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -110,7 +111,12 @@ public class ChatService {
             List<Message> msgs = messageRepository.findByChatRoomIdOrderByCreatedAtAsc(chat.getId());
             if (!msgs.isEmpty()) {
                 Message last = msgs.get(msgs.size() - 1);
-                dto.setLastMessage(last.getContent());
+                // Если последнее сообщение — это оффер, пишем системный текст
+                if (last.getMessageType() == Message.MessageType.OFFER) {
+                    dto.setLastMessage("Предложение о сделке: " + last.getOfferAmount());
+                } else {
+                    dto.setLastMessage(last.getContent());
+                }
                 dto.setLastMessageAt(last.getCreatedAt());
             }
 
@@ -125,18 +131,9 @@ public class ChatService {
         messageRepository.markMessagesAsRead(chatId, userId);
 
         List<Message> messages = messageRepository.findByChatRoomIdOrderByCreatedAtAsc(chatId);
-        return messages.stream().map(m -> {
-            MessageDto dto = new MessageDto();
-            dto.setId(m.getId());
-            dto.setChatRoomId(chatId);
-            dto.setSenderId(m.getSender().getId());
-            dto.setSenderName(m.getSender().getName());
-            dto.setContent(m.getContent());
-            dto.setCreatedAt(m.getCreatedAt());
-            dto.setRead(m.isRead());
-            return dto;
-        }).collect(Collectors.toList());
+        return messages.stream().map(this::mapToMessageDto).collect(Collectors.toList());
     }
+
     @Transactional(readOnly = true)
     public long getTotalUnreadCount(UUID userId) {
         List<ChatRoom> chats = chatRoomRepository.findAllByUserId(userId);
@@ -145,5 +142,114 @@ public class ChatService {
             total += messageRepository.countUnreadMessages(chat.getId(), userId);
         }
         return total;
+    }
+
+    // ==========================================
+    // НОВАЯ ЛОГИКА ДЛЯ ДОГОВОРОВ (ОФФЕРОВ)
+    // ==========================================
+
+    @Transactional
+    public MessageDto sendOffer(UUID chatId, UUID senderId, BigDecimal amount) {
+        ChatRoom chat = chatRoomRepository.findById(chatId)
+                .orElseThrow(() -> new RuntimeException("Чат не найден"));
+        User sender = userRepository.findById(senderId)
+                .orElseThrow(() -> new RuntimeException("Пользователь не найден"));
+
+        // 1. Находим все текущие активные предложения в этом чате и отменяем их
+        List<Message> existingMessages = messageRepository.findByChatRoomIdOrderByCreatedAtAsc(chatId);
+        for (Message msg : existingMessages) {
+            if (msg.getMessageType() == Message.MessageType.OFFER && msg.getOfferStatus() == Message.OfferStatus.ACTIVE) {
+                msg.setOfferStatus(Message.OfferStatus.CANCELED);
+                messageRepository.save(msg);
+            }
+        }
+
+        // 2. Создаем новое предложение
+        Message offer = new Message();
+        offer.setChatRoom(chat);
+        offer.setSender(sender);
+        offer.setMessageType(Message.MessageType.OFFER);
+        offer.setOfferAmount(amount);
+        offer.setOfferStatus(Message.OfferStatus.ACTIVE);
+        offer.setContent("Системное сообщение: Договор на сумму " + amount); 
+        
+        offer = messageRepository.save(offer);
+        return mapToMessageDto(offer);
+    }
+
+    @Transactional
+    public MessageDto cancelOffer(UUID messageId, UUID userId) {
+        Message msg = messageRepository.findById(messageId).orElseThrow();
+        if (!msg.getSender().getId().equals(userId)) {
+            throw new RuntimeException("Только отправитель может отозвать предложение");
+        }
+        if (msg.getOfferStatus() == Message.OfferStatus.ACTIVE) {
+            msg.setOfferStatus(Message.OfferStatus.CANCELED);
+            msg = messageRepository.save(msg);
+        }
+        return mapToMessageDto(msg);
+    }
+
+    @Transactional
+    public MessageDto rejectOffer(UUID messageId, UUID userId) {
+        Message msg = messageRepository.findById(messageId).orElseThrow();
+        if (msg.getSender().getId().equals(userId)) {
+            throw new RuntimeException("Отправитель не может отклонить свое же предложение");
+        }
+        if (msg.getOfferStatus() == Message.OfferStatus.ACTIVE) {
+            msg.setOfferStatus(Message.OfferStatus.REJECTED);
+            msg = messageRepository.save(msg);
+        }
+        return mapToMessageDto(msg);
+    }
+
+    @Transactional
+    public MessageDto acceptOffer(UUID messageId, UUID userId) {
+        Message msg = messageRepository.findById(messageId).orElseThrow();
+        if (msg.getSender().getId().equals(userId)) {
+            throw new RuntimeException("Отправитель не может принять свое же предложение");
+        }
+        if (msg.getOfferStatus() != Message.OfferStatus.ACTIVE) {
+            throw new RuntimeException("Это предложение уже неактивно");
+        }
+
+        // 1. Меняем статус сообщения на ПРИНЯТО
+        msg.setOfferStatus(Message.OfferStatus.ACCEPTED);
+        msg = messageRepository.save(msg);
+
+        // 2. Меняем владельца объекта на инвестора и скрываем объект из поиска
+        ChatRoom chat = msg.getChatRoom();
+        RealEstateObject object = chat.getRealEstateObject();
+        
+        // Владельцем всегда становится инвестор из этого чата
+        object.setUser(chat.getInvestor()); 
+        object.setIsVisible(false);// Делаем объявление неактивным для остальных
+        
+        objectRepository.save(object);
+
+        return mapToMessageDto(msg);
+    }
+
+    // Вспомогательный метод маппинга
+    private MessageDto mapToMessageDto(Message m) {
+        MessageDto dto = new MessageDto();
+        dto.setId(m.getId());
+        dto.setChatRoomId(m.getChatRoom().getId());
+        dto.setSenderId(m.getSender().getId());
+        dto.setSenderName(m.getSender().getName());
+        dto.setContent(m.getContent());
+        dto.setCreatedAt(m.getCreatedAt());
+        dto.setRead(m.isRead());
+        
+        // Маппим новые поля оффера
+        if (m.getMessageType() != null) {
+            dto.setMessageType(m.getMessageType().name());
+        }
+        dto.setOfferAmount(m.getOfferAmount());
+        if (m.getOfferStatus() != null) {
+            dto.setOfferStatus(m.getOfferStatus().name());
+        }
+        
+        return dto;
     }
 }

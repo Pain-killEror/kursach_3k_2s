@@ -2,6 +2,7 @@ package com.example.backend.dto;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
+import java.math.BigDecimal;
 
 public class MessageDto {
     private UUID id;
@@ -12,9 +13,13 @@ public class MessageDto {
     private LocalDateTime createdAt;
     private boolean isRead;
 
+    private String messageType;
+    private BigDecimal offerAmount;
+    private String offerStatus;
+
     public MessageDto() {}
 
-    // Геттеры и сеттеры
+
     public UUID getId() { return id; }
     public void setId(UUID id) { this.id = id; }
 
@@ -35,4 +40,14 @@ public class MessageDto {
 
     public boolean isRead() { return isRead; }
     public void setRead(boolean read) { isRead = read; }
+
+
+    public String getMessageType() { return messageType; }
+    public void setMessageType(String messageType) { this.messageType = messageType; }
+
+    public BigDecimal getOfferAmount() { return offerAmount; }
+    public void setOfferAmount(BigDecimal offerAmount) { this.offerAmount = offerAmount; }
+
+    public String getOfferStatus() { return offerStatus; }
+    public void setOfferStatus(String offerStatus) { this.offerStatus = offerStatus; }
 }
