@@ -4,9 +4,10 @@ import api from '../api/axios';
 import { Client } from '@stomp/stompjs';
 import SockJS from 'sockjs-client/dist/sockjs';
 import './Chats.css';
+import { useCurrency } from '../context/CurrencyContext';
 
 const API_BASE_URL = "http://localhost:8080";
-const EXCHANGE_RATE = 3.25; // Укажите актуальный курс перевода из USD в BYN
+
 
 // ==========================================
 // 1. КОМПОНЕНТ КНОПКИ С УДЕРЖАНИЕМ И ПРОГРЕСС-БАРОМ
@@ -17,6 +18,7 @@ const ProgressButton = ({ onLongPress, onClick, className, style, children, defa
     const timerRef = useRef(null);
     const isLongPressTriggered = useRef(false);
     const isPressing = useRef(false);
+
 
     const start = (e) => {
         isPressing.current = true;
@@ -193,6 +195,7 @@ const Chats = () => {
     const [newMessage, setNewMessage] = useState('');
     const [currentChatInfo, setCurrentChatInfo] = useState(null);
     const [loading, setLoading] = useState(true);
+    const { formatPrice, currency } = useCurrency();
 
     const [isMenuOpen, setIsMenuOpen] = useState(false);
     const dropdownRef = useRef(null);
@@ -396,11 +399,9 @@ const Chats = () => {
     // === ЛОГИКА КОНВЕРТАЦИИ ЦЕНЫ ===
     const rawPriceUsd = currentChatInfo?.priceUsd;
 
-    // Форматируем цены (например: 150000 превратится в 150 000)
-    const formattedPriceUsd = rawPriceUsd ? Number(rawPriceUsd).toLocaleString('ru-RU') + ' $' : 'Не указана';
-
-    // Умножаем на курс и округляем до целых для BYN
-    const formattedPriceByn = rawPriceUsd ? Math.round(Number(rawPriceUsd) * EXCHANGE_RATE).toLocaleString('ru-RU') + ' BYN' : 'Не указана';
+    // Используем вашу глобальную функцию из CurrencyContext
+    // Если formatPrice уже возвращает строку с символом валюты (например "150 000 BYN"), то просто вызываем ее:
+    const displayPrice = rawPriceUsd ? formatPrice(rawPriceUsd) : 'Не указана';
 
     return (
         <div className="chats-layout">
@@ -560,7 +561,7 @@ const Chats = () => {
                                 <div style={{ textAlign: 'right', background: '#2c2c2e', padding: '8px 16px', borderRadius: '12px' }}>
                                     <span style={{ fontSize: '12px', color: '#8e8e93', display: 'block', marginBottom: '2px' }}>Стоимость объекта:</span>
                                     <span style={{ fontWeight: 'bold', color: '#30d158', fontSize: '15px' }}>
-                                        {formattedPriceUsd} / {formattedPriceByn}
+                                        {displayPrice}
                                     </span>
                                 </div>
                             )}
