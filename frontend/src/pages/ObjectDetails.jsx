@@ -186,6 +186,8 @@ const ObjectDetails = () => {
 
     const fullAddress = object.city && object.address ? `${object.city}, ${object.address}` : object.address || object.city || 'Минск';
 
+    console.log("Текущий юзер ID:", user?.id, "Владелец ID:", object?.user?.id);
+
     return (
         <div className="object-details-layout">
             <header className="home-header" style={{ padding: '20px 60px', margin: '0 auto', maxWidth: '1440px' }}>
@@ -207,7 +209,7 @@ const ObjectDetails = () => {
                     </select>
                 </div>
 
-                {user?.role === 'SELLER' && (
+                {user?.role === 'USER' && (
                     <button
                         className="sell-property-btn"
                         onClick={() => navigate('/add-object')}
@@ -302,36 +304,21 @@ const ObjectDetails = () => {
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', marginTop: '10px' }}>
                         <h2 className="price" style={{ margin: 0 }}>{formatPrice(displayBasePrice)}</h2>
 
-                        {user?.role === 'INVESTOR' && (
+                        {/* Кнопку видят все, кроме самого владельца */}
+                        {user && object?.user?.id && String(user.id).toLowerCase() !== String(object.user.id).toLowerCase() && (
                             <button
+                                className="contact-seller-btn"
                                 onClick={async () => {
                                     try {
                                         const res = await api.post(`/chats/init?objectId=${object.id}`);
                                         navigate(`/chats/${res.data}`);
                                     } catch (e) { console.error("Ошибка при создании чата", e); }
                                 }}
-                                style={{
-                                    padding: '12px 20px',
-                                    background: '#007aff',
-                                    color: 'white',
-                                    border: 'none',
-                                    borderRadius: '12px',
-                                    fontSize: '15px',
-                                    fontWeight: 'bold',
-                                    cursor: 'pointer',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    gap: '8px',
-                                    boxShadow: '0 4px 12px rgba(0, 122, 255, 0.25)',
-                                    transition: 'all 0.2s ease'
-                                }}
-                                onMouseOver={(e) => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 6px 16px rgba(0, 122, 255, 0.4)'; }}
-                                onMouseOut={(e) => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 4px 12px rgba(0, 122, 255, 0.25)'; }}
                             >
-                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                                     <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
                                 </svg>
-                                Связаться с продавцом
+                                Написать владельцу
                             </button>
                         )}
                     </div>
@@ -383,7 +370,7 @@ const ObjectDetails = () => {
                 </section>
 
                 {/* Секция профессионального инвестиционного анализа: Скрыта для продавцов */}
-                {user?.role !== 'SELLER' && taxRates && (
+                {taxRates && (
                     <InvestmentAnalyzer
                         object={object}
                         taxRates={taxRates}

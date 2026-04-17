@@ -9,7 +9,7 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import com.example.backend.entities.enums.EntityType; // Импорт нового перечисления
+import com.example.backend.entities.enums.EntityType;
 
 import java.time.LocalDateTime;
 import java.util.UUID;
@@ -27,7 +27,6 @@ public class User {
 
     private String email;
 
-    // Поле для номера телефона
     @Column(name = "phone_number", length = 20)
     private String phoneNumber;
 
@@ -36,12 +35,11 @@ public class User {
     private String passwordHash;
 
     @Enumerated(EnumType.STRING)
-    private Role role;
+    private Role role = Role.USER;
 
     @Enumerated(EnumType.STRING)
-    private Status status;
+    private Status status = Status.ACTIVE;
 
-    // Новое поле: тип налогоплательщика (физлицо, ИП, юрлицо)
     @Enumerated(EnumType.STRING)
     @Column(name = "entity_type")
     private EntityType entityType;
@@ -52,15 +50,14 @@ public class User {
     public User() {
     }
 
-    // Обновленный конструктор со всеми полями, включая entityType
     public User(UUID id, String name, String email, String phoneNumber, String passwordHash, Role role, Status status, EntityType entityType, LocalDateTime createdAt) {
         this.id = id;
         this.name = name;
         this.email = email;
         this.phoneNumber = phoneNumber;
         this.passwordHash = passwordHash;
-        this.role = role;
-        this.status = status;
+        this.role = (role != null) ? role : Role.USER;
+        this.status = (status != null) ? status : Status.ACTIVE;
         this.entityType = entityType;
         this.createdAt = createdAt;
     }
@@ -89,7 +86,6 @@ public class User {
         this.email = email;
     }
 
-    // Геттер и сеттер для phoneNumber
     public String getPhoneNumber() {
         return phoneNumber;
     }
@@ -122,7 +118,6 @@ public class User {
         this.status = status;
     }
 
-    // Геттер и сеттер для entityType
     public EntityType getEntityType() {
         return entityType;
     }

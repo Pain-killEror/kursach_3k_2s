@@ -1,10 +1,10 @@
 package com.example.backend.services;
 
+import com.example.backend.entities.ObjectStatus;
 import com.example.backend.entities.RealEstateObject;
 import com.example.backend.entities.User;
 import com.example.backend.repositories.RealEstateObjectRepository;
 import com.example.backend.repositories.UserRepository;
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -14,6 +14,7 @@ import java.io.IOException;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Service
 public class RealEstateObjectService {
@@ -23,7 +24,6 @@ public class RealEstateObjectService {
     private final FileService fileService;
     private final ObjectMapper objectMapper;
 
-    // Используем конструктор для внедрения всех необходимых зависимостей
     public RealEstateObjectService(RealEstateObjectRepository repository, 
                                    UserRepository userRepository, 
                                    FileService fileService, 
@@ -38,7 +38,7 @@ public class RealEstateObjectService {
         return repository.findAll().stream()
                 .filter(obj -> obj.getUser() == null || obj.getUser().getStatus() != com.example.backend.entities.Status.BLOCKED)
                 .filter(obj -> obj.getIsVisible() == null || obj.getIsVisible())
-                .collect(java.util.stream.Collectors.toList());
+                .collect(Collectors.toList());
     }
 
     public RealEstateObject getObjectById(UUID id) {
@@ -46,44 +46,32 @@ public class RealEstateObjectService {
                 .orElseThrow(() -> new RuntimeException("Объект не найден с ID: " + id));
     }
 
-    /**
-     * Создание нового объекта недвижимости с привязкой к владельцу и сохранением фото
-     */
-    @Transactional // Аннотация гарантирует, что если что-то пойдет не так, изменения не запишутся в БД частично
+    @Transactional
     public RealEstateObject createObject(RealEstateObject obj, UUID userId, MultipartFile[] images) throws IOException {
-        
-        // 1. Проверяем существование пользователя (продавца)
         User owner = userRepository.findById(userId)
-                .orElseThrow(() -> new RuntimeException("Пользователь (продавец) не найден"));
+                .orElseThrow(() -> new RuntimeException("Пользователь (владелец) не найден"));
         
-        // Нормализуем поле города
         if (obj.getCity() != null) {
             obj.setCity(normalizeCity(obj.getCity()));
         }
 
-        // 2. Устанавливаем обязательные системные поля
+        if (obj.getObjectStatus() == null) {
+            obj.setObjectStatus(ObjectStatus.FOR_SALE);
+        }
+
         obj.setUser(owner);
         obj.setCreatedAt(LocalDateTime.now());
         obj.setUpdatedAt(LocalDateTime.now());
         
-        // 3. Первое сохранение: получаем сгенерированный базой UUID (id)
         RealEstateObject savedObject = repository.save(obj);
 
-        // 4. Если пользователь прикрепил изображения — занимаемся ими
         if (images != null && images.length > 0) {
             try {
-                // Вызываем наш FileService для сохранения файлов в папку uploads/{id}
                 List<String> imageUrls = fileService.saveImages(savedObject.getId(), images);
-                
-                // Сериализуем список ссылок в JSON строку для записи в LONGTEXT колонку
                 String jsonUrls = objectMapper.writeValueAsString(imageUrls);
                 savedObject.setImagesUrls(jsonUrls);
-                
-                // Второе сохранение: обновляем объект уже со ссылками на фото
                 return repository.save(savedObject);
             } catch (IOException e) {
-                // Если возникла проблема с сохранением файлов — можно добавить логику удаления записи из БД
-                // или просто пробросить ошибку выше
                 throw new IOException("Ошибка при физическом сохранении файлов: " + e.getMessage());
             }
         }
@@ -91,23 +79,17 @@ public class RealEstateObjectService {
         return savedObject;
     }
 
-    /**
-     * Нормализация названия города: убирает префиксы г., г, город и лишние пробелы,
-     * а затем возвращает в формате "г. Название"
-     */
     private String normalizeCity(String city) {
         if (city == null || city.trim().isEmpty()) {
             return city;
         }
 
-        // Удаляем префиксы "г.", "г ", "город " в любом регистре и пробелы после них
         String cleaned = city.trim().replaceFirst("^(?i)(г\\.|г\\s+|город\\s+)\\s*", "");
 
         if (cleaned.isEmpty()) {
             return city;
         }
 
-        // Возводим первую букву в верхний регистр
         cleaned = cleaned.substring(0, 1).toUpperCase() + cleaned.substring(1);
 
         return "г. " + cleaned;

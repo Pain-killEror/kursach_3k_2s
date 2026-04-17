@@ -6,6 +6,8 @@ import java.time.LocalDateTime;
 import java.util.UUID;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import jakarta.persistence.*;
 
 @Entity
 @Table(name = "real_estate_objects")
@@ -20,6 +22,10 @@ public class RealEstateObject {
     private String externalId;
 
     private String type;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "object_status")
+    private ObjectStatus objectStatus = ObjectStatus.FOR_SALE;
 
     private String category;
 
@@ -73,9 +79,9 @@ public class RealEstateObject {
     @Column(columnDefinition = "json")
     private String attributes;
 
-    @JsonIgnore
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "user_id", referencedColumnName = "id")
+    @ManyToOne
+    @JoinColumn(name = "user_id")
+    @JsonIgnoreProperties({"realEstateObjects", "passwordHash", "status", "role", "password"}) 
     private User user;
 
     @Column(name = "is_visible")
@@ -84,7 +90,7 @@ public class RealEstateObject {
     public RealEstateObject() {
     }
 
-    public RealEstateObject(UUID id, String externalId, String type, String category, String title, 
+    public RealEstateObject(UUID id, String externalId, String type, ObjectStatus objectStatus, String category, String title, 
                             String description, String city, String address, BigDecimal areaTotal, 
                             BigDecimal areaLiving, Integer floor, Integer floorsTotal, String wallMaterial, 
                             Integer yearBuilt, BigDecimal priceTotal, BigDecimal pricePerM2, String currency, 
@@ -93,6 +99,7 @@ public class RealEstateObject {
         this.id = id;
         this.externalId = externalId;
         this.type = type;
+        this.objectStatus = objectStatus;
         this.category = category;
         this.title = title;
         this.description = description;
@@ -116,8 +123,6 @@ public class RealEstateObject {
         this.isVisible = isVisible;
     }
 
-    // --- GETTERS & SETTERS ---
-
     public UUID getId() { return id; }
     public void setId(UUID id) { this.id = id; }
 
@@ -126,6 +131,9 @@ public class RealEstateObject {
 
     public String getType() { return type; }
     public void setType(String type) { this.type = type; }
+
+    public ObjectStatus getObjectStatus() { return objectStatus; }
+    public void setObjectStatus(ObjectStatus objectStatus) { this.objectStatus = objectStatus; }
 
     public String getCategory() { return category; }
     public void setCategory(String category) { this.category = category; }

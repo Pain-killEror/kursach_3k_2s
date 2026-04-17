@@ -27,44 +27,35 @@ public class AuthService {
     public JwtResponse login(String email, String password) {
         User user = userRepository.findByEmail(email).orElse(null);
         
-        // 1. Если пользователя вообще нет в базе -> ругаемся на ПОЧТУ
         if (user == null) {
             throw new RuntimeException("Пользователь с таким email не найден");
         }
 
-        // 2. Проверка на GOOGLE АККАУНТ -> ругаемся ОБЩЕЙ ошибкой сверху
         if (user.getPasswordHash() == null || user.getPasswordHash().isEmpty()) {
             throw new RuntimeException("Этот аккаунт привязан к Google. Пожалуйста, используйте кнопку 'Вход через Google' ниже.");
         }
 
-        // 3. Обычная проверка пароля
         if (!passwordEncoder.matches(password, user.getPasswordHash())) {
-            // 4. Если пароль не подошел -> ругаемся на ПАРОЛЬ
             throw new RuntimeException("Неверный пароль");
         }
 
-        // 5. --- БЛОКИРОВКА ВХОДА ДЛЯ ЗАБЛОКИРОВАННЫХ ПОЛЬЗОВАТЕЛЕЙ ---
         if (user.getStatus() == Status.BLOCKED) {
             throw new RuntimeException("Ваш аккаунт заблокирован администратором");
         }
 
-        // 6. Если все отлично, генерируем токен
         String token = jwtUtils.generateToken(user.getEmail(), user.getRole().name());
         return new JwtResponse(token, user);
     }
 
     public User register(User user) {
-        // Защита от дублей
         if (userRepository.findByEmail(user.getEmail()).isPresent()) {
             throw new RuntimeException("Пользователь с таким email уже существует");
         }
 
-        // Если роль не передали с фронтенда, ставим инвестора по умолчанию (страховка)
         if (user.getRole() == null) {
-            user.setRole(Role.INVESTOR);
+            user.setRole(Role.USER);
         }
         
-        // НОВОЕ: Если тип налогоплательщика не передали, ставим Физлицо по умолчанию
         if (user.getEntityType() == null) {
             user.setEntityType(com.example.backend.entities.enums.EntityType.INDIVIDUAL);
         }
@@ -72,11 +63,11 @@ public class AuthService {
         if (user.getStatus() == null) {
             user.setStatus(Status.ACTIVE);
         }
+
         if (user.getCreatedAt() == null) {
             user.setCreatedAt(LocalDateTime.now());
         }
         
-        // Хешируем пароль, если он не пустой. Для Google регистрации он будет пустой строкой ""
         if (user.getPasswordHash() != null && !user.getPasswordHash().isEmpty()) {
             user.setPasswordHash(passwordEncoder.encode(user.getPasswordHash()));
         }

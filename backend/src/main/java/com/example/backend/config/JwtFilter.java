@@ -4,7 +4,6 @@ import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -20,14 +19,16 @@ import java.util.List;
 @Component
 public class JwtFilter extends OncePerRequestFilter {
 
-    @Autowired
-    private JwtUtils jwtUtils;
+    private final JwtUtils jwtUtils;
+
+    public JwtFilter(JwtUtils jwtUtils) {
+        this.jwtUtils = jwtUtils;
+    }
 
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
             throws ServletException, IOException {
 
-        // ПРОПУСКАЕМ CORS PREFLIGHT ЗАПРОСЫ
         if ("OPTIONS".equalsIgnoreCase(request.getMethod())) {
             filterChain.doFilter(request, response);
             return;
@@ -36,19 +37,17 @@ public class JwtFilter extends OncePerRequestFilter {
         try {
             String jwt = parseJwt(request);
             if (jwt != null && jwtUtils.validateToken(jwt)) {
-                // Достаем email и РОЛЬ
                 String email = jwtUtils.getEmailFromToken(jwt);
                 String role = jwtUtils.getRoleFromToken(jwt);
 
                 if (email != null && SecurityContextHolder.getContext().getAuthentication() == null) {
                     
-                    // Превращаем строку роли в объект прав Spring Security
                     List<SimpleGrantedAuthority> authorities = Collections.emptyList();
                     if (role != null) {
-                        authorities = Collections.singletonList(new SimpleGrantedAuthority(role));
+                        String formattedRole = role.startsWith("ROLE_") ? role : "ROLE_" + role;
+                        authorities = Collections.singletonList(new SimpleGrantedAuthority(formattedRole));
                     }
 
-                    // Передаем права в токен аутентификации
                     UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
                             email, null, authorities);
                     

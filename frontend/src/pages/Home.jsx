@@ -214,21 +214,34 @@ const Home = () => {
   useEffect(() => {
     let result = [...allObjects];
 
+    // 1. Фильтрация по статусу: показываем только те, что в поиске (Продажа или Аренда)
+    // Объекты со статусом SOLD или RENTED будут скрыты из общей ленты
+    result = result.filter(obj =>
+      obj.objectStatus === 'FOR_SALE' || obj.objectStatus === 'FOR_RENT'
+    );
+
+    // 2. Фильтрация по основным параметрам (Город, Цена, Площадь)
     if (filters.city) result = result.filter(obj => obj.city === filters.city);
+
     if (filters.minPrice) {
       result = result.filter(obj => convertPrice(Number(obj.priceTotal), obj.currency) >= Number(filters.minPrice));
     }
     if (filters.maxPrice) {
       result = result.filter(obj => convertPrice(Number(obj.priceTotal), obj.currency) <= Number(filters.maxPrice));
     }
+
     if (filters.minArea) result = result.filter(obj => Number(obj.areaTotal) >= Number(filters.minArea));
     if (filters.maxArea) result = result.filter(obj => Number(obj.areaTotal) <= Number(filters.maxArea));
 
+    // 3. Фильтрация по категориям (Квартира, Дом и т.д.)
     if (filters.categories.length > 0) {
       result = result.filter(obj => filters.categories.includes(obj.category));
     }
 
-    const hasActiveAttrFilters = Object.entries(filters.attributes).some(([k, v]) => v !== '' && v !== null && v !== undefined && v !== false);
+    // 4. Фильтрация по динамическим атрибутам из JSON
+    const hasActiveAttrFilters = Object.entries(filters.attributes).some(([k, v]) =>
+      v !== '' && v !== null && v !== undefined && v !== false
+    );
 
     if (hasActiveAttrFilters) {
       result = result.filter(obj => {
@@ -263,6 +276,7 @@ const Home = () => {
       });
     }
 
+    // 5. Сортировка (Дешевле / Дороже)
     if (sortOption === 'price_asc') {
       result.sort((a, b) => convertPrice(Number(a.priceTotal), a.currency) - convertPrice(Number(b.priceTotal), b.currency));
     } else if (sortOption === 'price_desc') {
@@ -342,7 +356,7 @@ const Home = () => {
           </select>
         </div>
 
-        {user?.role === 'SELLER' && (
+        {user?.role === 'USER' && (
           <button
             className="sell-property-btn"
             onClick={() => navigate('/add-object')}

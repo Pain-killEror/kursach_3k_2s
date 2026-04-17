@@ -32,31 +32,29 @@ public class SecurityConfig {
     }
 
     @Bean
-    public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
-        http
-            // Включаем стандартный CORS
-            .cors(cors -> cors.configurationSource(corsConfigurationSource()))
-            .csrf(csrf -> csrf.disable())
-            .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-            
-            .authorizeHttpRequests(auth -> auth
-                // Открытые пути
-                .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
-                .requestMatchers("/api/auth/**", "/uploads/**").permitAll()
-                
-                // РАЗРЕШАЕМ ПОДКЛЮЧЕНИЕ К WEBSOCKETS ДЛЯ ЧАТА
-                .requestMatchers("/ws/**").permitAll()
-                
-                // Защита админки
-                .requestMatchers("/api/admin/**").hasAnyAuthority("ADMIN", "ROLE_ADMIN")
-                
-                // Все остальные пути требуют просто авторизации
-                .anyRequest().authenticated()
-            )
-            .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);
+public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+    http
+        .cors(cors -> cors.configurationSource(corsConfigurationSource()))
+        .csrf(csrf -> csrf.disable())
+        .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+        
+        .authorizeHttpRequests(auth -> auth
+    .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+    .requestMatchers("/api/auth/**", "/uploads/**", "/ws/**").permitAll()
+    
+    // Явно разрешаем GET запросы для всех версий пути
+    .requestMatchers(HttpMethod.GET, "/api/objects", "/api/objects/**").permitAll() 
+    
+    // Админка
+    .requestMatchers("/api/admin/**").hasRole("ADMIN")
+    
+    // Все остальные действия (POST, DELETE и т.д.) — только для залогиненных
+    .anyRequest().authenticated()
+)
+        .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);
 
-        return http.build();
-    }
+    return http.build();
+}
 
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
