@@ -41,12 +41,24 @@ const CATEGORY_CONFIG = {
   ]
 };
 
+// Словарь для склонения названий категорий (родительный падеж)
+const CAT_NAMES_GENITIVE = {
+  'КВАРТИРА': 'квартиры',
+  'ДОМ': 'дома',
+  'СКЛАД': 'склада',
+  'ОФИС': 'офиса',
+  'УЧАСТОК': 'участка',
+  'ГАРАЖ': 'гаража',
+  'КОММЕРЦИЯ': 'коммерции'
+};
+
 const Home = () => {
   const navigate = useNavigate();
   const [allObjects, setAllObjects] = useState([]);
   const [displayedObjects, setDisplayedObjects] = useState([]);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
-
+  const [transactionType, setTransactionType] = useState('ALL');
+  const [rentType, setRentType] = useState('ALL');
   const [showAdvanced, setShowAdvanced] = useState(() => {
     const saved = sessionStorage.getItem('homeShowAdvanced');
     return saved ? JSON.parse(saved) : false;
@@ -66,8 +78,27 @@ const Home = () => {
   });
 
   const [showScrollTop, setShowScrollTop] = useState(false);
-
   const [totalUnread, setTotalUnread] = useState(0);
+
+  // Следим за изменениями выбранных категорий
+  useEffect(() => {
+    const cats = filters.categories;
+
+    // Если выбран ТОЛЬКО СКЛАД, жестко ставим аренду
+    if (cats.length === 1 && cats[0] === 'СКЛАД') {
+      setTransactionType('FOR_RENT');
+    }
+
+    // Если выбран ТОЛЬКО УЧАСТОК, сбрасываем тип сделки (у них его нет)
+    if (cats.length === 1 && cats[0] === 'УЧАСТОК') {
+      setTransactionType('ALL');
+    }
+
+    // Если в выбранных категориях нет ни ДОМА, ни КВАРТИРЫ, сбрасываем тип аренды
+    if (cats.length > 0 && !cats.includes('КВАРТИРА') && !cats.includes('ДОМ')) {
+      setRentType('ALL');
+    }
+  }, [filters.categories]);
 
   useEffect(() => {
     const token = localStorage.getItem('token');
@@ -157,6 +188,15 @@ const Home = () => {
       list.push(`Тип: ${filters.categories.map(c => c.replace('_', ' ')).join(', ')}`);
     }
 
+    const isOnlyPlot = filters.categories.length === 1 && filters.categories[0] === 'УЧАСТОК';
+    if (!isOnlyPlot) {
+      if (transactionType === 'FOR_SALE') list.push('Сделка: Покупка');
+      if (transactionType === 'FOR_RENT') list.push('Сделка: Аренда');
+    }
+
+    if (rentType === 'LONG_TERM') list.push('Срок: Долгосрочная');
+    if (rentType === 'SHORT_TERM') list.push('Срок: Посуточная');
+
     const attrList = [];
     Object.keys(CATEGORY_CONFIG).forEach(cat => {
       if (filters.categories.length > 0 && !filters.categories.includes(cat)) return;
@@ -186,7 +226,7 @@ const Home = () => {
     list.push(...uniqueAttrs);
 
     return list.length > 0 ? list.join(' • ') : null;
-  }, [filters, currency]);
+  }, [filters, currency, transactionType, rentType]);
 
   const toBool = (val) => {
     if (val === true || val === 'true' || val === 'True' || val === 1) return true;
@@ -214,13 +254,38 @@ const Home = () => {
   useEffect(() => {
     let result = [...allObjects];
 
-    // 1. Фильтрация по статусу: показываем только те, что в поиске (Продажа или Аренда)
-    // Объекты со статусом SOLD или RENTED будут скрыты из общей ленты
+    // 1. Фильтрация по статусу (в поиске)
     result = result.filter(obj =>
-      obj.objectStatus === 'FOR_SALE' || obj.objectStatus === 'FOR_RENT'
+      obj.category === 'УЧАСТОК' || obj.objectStatus === 'FOR_SALE' || obj.objectStatus === 'FOR_RENT'
     );
 
-    // 2. Фильтрация по основным параметрам (Город, Цена, Площадь)
+    // 2. Фильтрация по типу сделки
+    if (transactionType !== 'ALL') {
+      result = result.filter(obj => obj.category === 'УЧАСТОК' || obj.objectStatus === transactionType);
+    }
+
+    // 3. Фильтрация по сроку аренды (только если Аренда и жилье)
+    if (transactionType === 'FOR_RENT' && rentType !== 'ALL') {
+      result = result.filter(obj => {
+        // Если это не жилье, пропускаем проверку срока аренды
+        if (obj.category !== 'КВАРТИРА' && obj.category !== 'ДОМ') return true;
+
+        let objAttrs = {};
+        try {
+          objAttrs = typeof obj.attributes === 'string' ? JSON.parse(obj.attributes) : (obj.attributes || {});
+        } catch (e) { objAttrs = {}; }
+
+        const actualRentType = objAttrs.type_rent;
+        if (rentType === 'SHORT_TERM') {
+          return actualRentType === 'краткосрочная аренда';
+        } else if (rentType === 'LONG_TERM') {
+          return actualRentType === 'долгосрочная аренда';
+        }
+        return true;
+      });
+    }
+
+    // 4. Основные параметры
     if (filters.city) result = result.filter(obj => obj.city === filters.city);
 
     if (filters.minPrice) {
@@ -233,12 +298,12 @@ const Home = () => {
     if (filters.minArea) result = result.filter(obj => Number(obj.areaTotal) >= Number(filters.minArea));
     if (filters.maxArea) result = result.filter(obj => Number(obj.areaTotal) <= Number(filters.maxArea));
 
-    // 3. Фильтрация по категориям (Квартира, Дом и т.д.)
+    // 5. Категории
     if (filters.categories.length > 0) {
       result = result.filter(obj => filters.categories.includes(obj.category));
     }
 
-    // 4. Фильтрация по динамическим атрибутам из JSON
+    // 6. Динамические атрибуты
     const hasActiveAttrFilters = Object.entries(filters.attributes).some(([k, v]) =>
       v !== '' && v !== null && v !== undefined && v !== false
     );
@@ -276,7 +341,7 @@ const Home = () => {
       });
     }
 
-    // 5. Сортировка (Дешевле / Дороже)
+    // 7. Сортировка
     if (sortOption === 'price_asc') {
       result.sort((a, b) => convertPrice(Number(a.priceTotal), a.currency) - convertPrice(Number(b.priceTotal), b.currency));
     } else if (sortOption === 'price_desc') {
@@ -284,7 +349,7 @@ const Home = () => {
     }
 
     setDisplayedObjects(result);
-  }, [allObjects, filters, sortOption, convertPrice]);
+  }, [allObjects, filters, sortOption, transactionType, rentType, convertPrice]);
 
   const toggleCategory = (cat) => {
     setFilters(prev => {
@@ -323,12 +388,46 @@ const Home = () => {
 
   const resetFilters = () => {
     setFilters({ city: '', minPrice: '', maxPrice: '', minArea: '', maxArea: '', categories: [], attributes: {} });
+    setTransactionType('ALL');
+    setRentType('ALL');
     setShowAdvanced(false);
   };
 
   const uniqueCities = useMemo(() =>
     [...new Set(allObjects.map(obj => obj.city).filter(Boolean))].sort()
     , [allObjects]);
+
+  const isHousingSelected = filters.categories.length === 0 || filters.categories.includes('КВАРТИРА') || filters.categories.includes('ДОМ');
+  const isOnlyPlotSelected = filters.categories.length === 1 && filters.categories[0] === 'УЧАСТОК';
+
+  // --- ДИНАМИЧЕСКИЕ ПОДПИСИ ---
+  const getTransactionLabel = () => {
+    const cats = filters.categories;
+    if (cats.length === 0) return "Тип сделки";
+
+    // Тип сделки применяется ко всем, кроме участков
+    const applicable = cats.filter(c => c !== 'УЧАСТОК');
+
+    // Если применимо ко всем выбранным, оставляем общую надпись
+    if (applicable.length === cats.length) return "Тип сделки";
+
+    // Если есть исключения, перечисляем для кого работает фильтр
+    return `Тип сделки (для ${applicable.map(c => CAT_NAMES_GENITIVE[c] || c.toLowerCase()).join(', ')})`;
+  };
+
+  const getRentTermLabel = () => {
+    const cats = filters.categories;
+    if (cats.length === 0) return "Срок аренды";
+
+    // Срок аренды применяется только к жилью (квартиры и дома)
+    const applicable = cats.filter(c => c === 'КВАРТИРА' || c === 'ДОМ');
+
+    // Если применимо ко всем выбранным категориям
+    if (applicable.length === cats.length) return "Срок аренды";
+
+    // Уточняем, что срок работает только для этих категорий
+    return `Срок аренды (для ${applicable.map(c => CAT_NAMES_GENITIVE[c] || c.toLowerCase()).join(', ')})`;
+  };
 
   return (
     <div className="home-container">
@@ -417,7 +516,6 @@ const Home = () => {
         )}
 
         <div className="user-profile-container" ref={dropdownRef}>
-          {/* Добавили style={{ position: 'relative' }} для позиционирования точки */}
           <div className="avatar-wrapper" onClick={() => setIsMenuOpen(!isMenuOpen)} style={{ position: 'relative' }}>
             <span className="user-nickname">{user?.name || 'Гость'}</span>
             <div className="avatar-circle">
@@ -425,7 +523,6 @@ const Home = () => {
                 <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle>
               </svg>
             </div>
-            {/* --- КРАСНАЯ ТОЧКА УВЕДОМЛЕНИЯ --- */}
             {totalUnread > 0 && <span className="unread-dot"></span>}
           </div>
           {isMenuOpen && (
@@ -437,7 +534,6 @@ const Home = () => {
               </div>
               <button className="dropdown-item">Мой профиль</button>
 
-              {/* --- КНОПКА ЧАТОВ СО СЧЕТЧИКОМ --- */}
               <button
                 className="dropdown-item"
                 onClick={() => navigate('/chats')}
@@ -455,7 +551,7 @@ const Home = () => {
 
       <div className="filter-wrapper">
         <div className="main-filter-row">
-          <div className="f-box">
+          <div className="f-box" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
             <label>Город</label>
             <select value={filters.city} onChange={(e) => setFilters({ ...filters, city: e.target.value })}>
               <option value="">Все города</option>
@@ -463,7 +559,7 @@ const Home = () => {
             </select>
           </div>
 
-          <div className="f-box">
+          <div className="f-box" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
             <label>Бюджет ({currency === 'BYN' ? 'BYN' : '$'})</label>
             <div className="dual-inputs">
               <input type="number" placeholder="От" value={filters.minPrice} onChange={(e) => setFilters({ ...filters, minPrice: e.target.value })} onWheel={(e) => e.target.blur()} />
@@ -471,12 +567,21 @@ const Home = () => {
             </div>
           </div>
 
-          <div className="f-box">
+          <div className="f-box" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
             <label>Площадь (м²)</label>
             <div className="dual-inputs">
               <input type="number" placeholder="От" value={filters.minArea} onChange={(e) => setFilters({ ...filters, minArea: e.target.value })} onWheel={(e) => e.target.blur()} />
               <input type="number" placeholder="До" value={filters.maxArea} onChange={(e) => setFilters({ ...filters, maxArea: e.target.value })} onWheel={(e) => e.target.blur()} />
             </div>
+          </div>
+
+          <div className="f-box" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
+            <label>Сортировка</label>
+            <select value={sortOption} onChange={(e) => setSortOption(e.target.value)}>
+              <option value="default">По умолчанию</option>
+              <option value="price_asc">Дешевле</option>
+              <option value="price_desc">Дороже</option>
+            </select>
           </div>
 
           <button
@@ -485,15 +590,6 @@ const Home = () => {
           >
             {showAdvanced ? 'Закрыть фильтры ⚙️' : 'Все фильтры ⚙️'}
           </button>
-
-          <div className="f-box">
-            <label>Сортировка</label>
-            <select value={sortOption} onChange={(e) => setSortOption(e.target.value)}>
-              <option value="default">По умолчанию</option>
-              <option value="price_asc">Дешевле</option>
-              <option value="price_desc">Дороже</option>
-            </select>
-          </div>
 
           <button className="reset-all-btn" onClick={resetFilters} title="Сбросить фильтры">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
@@ -517,44 +613,67 @@ const Home = () => {
               ))}
             </div>
 
-            {filters.categories.length > 0 && (
-              <div className="dynamic-grid">
-                {filters.categories.map(cat => (
-                  CATEGORY_CONFIG[cat].map(f => (
-                    <div key={f.name} className="attr-item">
-                      <label className="attr-label">{f.label} <small>({cat})</small></label>
-                      {f.type === 'select' ? (
-                        <select className="attr-select" value={filters.attributes[f.name] || ''} onChange={(e) => handleAttrChange(f.name, e.target.value)}>
-                          <option value="">Любой</option>
-                          {f.options.map(o => <option key={o} value={o}>{o}</option>)}
-                        </select>
-                      ) : f.type === 'boolean' ? (
-                        <select
-                          className="attr-select"
-                          value={filters.attributes[f.name] !== undefined && filters.attributes[f.name] !== '' ? filters.attributes[f.name].toString() : ''}
-                          onChange={(e) => {
-                            const val = e.target.value;
-                            if (val === '') handleAttrChange(f.name, '');
-                            else handleAttrChange(f.name, val === 'true');
-                          }}
-                        >
-                          <option value="">Любой</option>
-                          <option value="true">Да</option>
-                          <option value="false">Нет</option>
-                        </select>
-                      ) : f.type === 'range' ? (
-                        <div className="dual-inputs attr-range">
-                          <input className="attr-input" type="number" placeholder="От" value={filters.attributes[`${f.name}_min`] || ''} onChange={(e) => handleAttrChange(`${f.name}_min`, e.target.value)} onWheel={(e) => e.target.blur()} />
-                          <input className="attr-input" type="number" placeholder="До" value={filters.attributes[`${f.name}_max`] || ''} onChange={(e) => handleAttrChange(`${f.name}_max`, e.target.value)} onWheel={(e) => e.target.blur()} />
-                        </div>
-                      ) : (
-                        <input className="attr-input" type="number" placeholder="Значение" value={filters.attributes[f.name] || ''} onChange={(e) => handleAttrChange(f.name, e.target.value)} onWheel={(e) => e.target.blur()} />
-                      )}
-                    </div>
-                  ))
-                ))}
-              </div>
-            )}
+            <div className="dynamic-grid" style={{ marginTop: '20px' }}>
+
+              {/* Тип сделки (скрываем полностью, если выбран только участок) */}
+              {!isOnlyPlotSelected && (
+                <div className="attr-item" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
+                  <label className="attr-label" style={{ color: filters.categories.includes('УЧАСТОК') && filters.categories.length > 1 ? '#e67e22' : 'inherit' }}>
+                    {getTransactionLabel()}
+                  </label>
+                  <select
+                    className="attr-select"
+                    value={transactionType}
+                    onChange={(e) => setTransactionType(e.target.value)}
+                    disabled={filters.categories.length === 1 && filters.categories[0] === 'СКЛАД'}
+                  >
+                    {!(filters.categories.length === 1 && filters.categories[0] === 'СКЛАД') && (
+                      <option value="ALL">Любая</option>
+                    )}
+                    {!(filters.categories.length === 1 && filters.categories[0] === 'СКЛАД') && (
+                      <option value="FOR_SALE">Купить</option>
+                    )}
+                    <option value="FOR_RENT">Арендовать</option>
+                  </select>
+                </div>
+              )}
+
+              {transactionType === 'FOR_RENT' && isHousingSelected && (
+                <div className="attr-item" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
+                  <label className="attr-label" style={{ color: filters.categories.some(c => !['КВАРТИРА', 'ДОМ'].includes(c)) && filters.categories.length > 1 ? '#e67e22' : 'inherit' }}>
+                    {getRentTermLabel()}
+                  </label>
+                  <select className="attr-select" value={rentType} onChange={(e) => setRentType(e.target.value)}>
+                    <option value="ALL">Любой срок</option>
+                    <option value="LONG_TERM">Долгосрочная</option>
+                    <option value="SHORT_TERM">Посуточная</option>
+                  </select>
+                </div>
+              )}
+
+              {/* Динамические фильтры для выбранных категорий */}
+              {filters.categories.length > 0 && filters.categories.map(cat => (
+                CATEGORY_CONFIG[cat].map(f => (
+                  <div key={f.name} className="attr-item" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
+                    <label className="attr-label">{f.label} <small>({cat})</small></label>
+                    {f.type === 'select' ? (
+                      <select className="attr-select" value={filters.attributes[f.name] || ''} onChange={(e) => handleAttrChange(f.name, e.target.value)}>
+                        <option value="">Любой</option>
+                        <option value="true">Да</option>
+                        <option value="false">Нет</option>
+                      </select>
+                    ) : f.type === 'range' ? (
+                      <div className="dual-inputs attr-range">
+                        <input className="attr-input" type="number" placeholder="От" value={filters.attributes[`${f.name}_min`] || ''} onChange={(e) => handleAttrChange(`${f.name}_min`, e.target.value)} onWheel={(e) => e.target.blur()} />
+                        <input className="attr-input" type="number" placeholder="До" value={filters.attributes[`${f.name}_max`] || ''} onChange={(e) => handleAttrChange(`${f.name}_max`, e.target.value)} onWheel={(e) => e.target.blur()} />
+                      </div>
+                    ) : (
+                      <input className="attr-input" type="number" placeholder="Значение" value={filters.attributes[f.name] || ''} onChange={(e) => handleAttrChange(f.name, e.target.value)} onWheel={(e) => e.target.blur()} />
+                    )}
+                  </div>
+                ))
+              ))}
+            </div>
           </div>
         )}
       </div>
