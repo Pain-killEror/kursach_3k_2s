@@ -61,6 +61,38 @@ const ObjectDetails = () => {
 
     const [totalUnread, setTotalUnread] = useState(0);
 
+    // --- НОВАЯ ЛОГИКА ОПРЕДЕЛЕНИЯ ТИПА СДЕЛКИ ---
+
+    // 1. Парсим атрибуты
+    const parsedAttributes = useMemo(() => {
+        if (!object?.attributes) return {};
+        try {
+            return typeof object.attributes === 'string'
+                ? JSON.parse(object.attributes)
+                : object.attributes;
+        } catch (e) {
+            console.error("Ошибка парсинга атрибутов", e);
+            return {};
+        }
+    }, [object]);
+
+    // 2. Флаг аренды
+    const isRent = useMemo(() => {
+        return object?.objectStatus === 'FOR_RENT';
+    }, [object]);
+
+    // 3. Динамический суффикс цены
+    const priceSuffix = useMemo(() => {
+        if (!isRent) return '';
+        const rentType = (parsedAttributes.type_rent || '').toLowerCase();
+        if (rentType.includes('сут') || rentType.includes('краткос')) {
+            return ' / сут.';
+        }
+        return ' / мес.';
+    }, [isRent, parsedAttributes]);
+
+    // --- КОНЕЦ НОВОЙ ЛОГИКИ ---
+
     useEffect(() => {
         const token = localStorage.getItem('token');
         if (token) {
@@ -73,14 +105,12 @@ const ObjectDetails = () => {
     const [currentImageIndex, setCurrentImageIndex] = useState(0);
     const [isModalOpen, setIsModalOpen] = useState(false);
 
-    // Состояние для налоговых ставок (инвестиционный анализатор)
     const [taxRates, setTaxRates] = useState(null);
 
     useEffect(() => {
         window.scrollTo(0, 0);
     }, [id]);
 
-    // Загрузка налоговых ставок для текущего пользователя
     useEffect(() => {
         const fetchTaxRates = async () => {
             try {
@@ -88,7 +118,6 @@ const ObjectDetails = () => {
                 setTaxRates(response.data);
             } catch (err) {
                 console.error('Ошибка загрузки налоговых ставок:', err);
-                // Дефолтные значения физлица при ошибке
                 setTaxRates({ entityType: 'INDIVIDUAL', incomeTaxRate: 13, propertyTaxRate: 0.1 });
             }
         };
@@ -125,7 +154,6 @@ const ObjectDetails = () => {
         navigate('/login');
     };
 
-    // --- Обработка изображений ---
     const images = useMemo(() => {
         let res = ['/no-photo.png'];
         if (object?.imagesUrls) {
@@ -180,13 +208,9 @@ const ObjectDetails = () => {
     if (error) return <div className="error-message">{error}</div>;
     if (!object) return null;
 
-    // Расчеты цен
     const displayBasePrice = convertPrice(object.priceTotal || 0, object.currency);
     const displayPriceM2 = convertPrice(object.pricePerM2 || 0, object.currency);
-
     const fullAddress = object.city && object.address ? `${object.city}, ${object.address}` : object.address || object.city || 'Минск';
-
-    console.log("Текущий юзер ID:", user?.id, "Владелец ID:", object?.user?.id);
 
     return (
         <div className="object-details-layout">
@@ -224,7 +248,6 @@ const ObjectDetails = () => {
                 )}
 
                 <div className="user-profile-container" ref={dropdownRef}>
-                    {/* Добавили position: 'relative' для красной точки */}
                     <div className="avatar-wrapper" onClick={() => setIsMenuOpen(!isMenuOpen)} style={{ position: 'relative' }}>
                         <div className="user-nickname">{user?.name || 'Гость'}</div>
                         <div className="avatar-circle">
@@ -232,7 +255,6 @@ const ObjectDetails = () => {
                                 <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle>
                             </svg>
                         </div>
-                        {/* --- КРАСНАЯ ТОЧКА УВЕДОМЛЕНИЯ --- */}
                         {totalUnread > 0 && <span className="unread-dot"></span>}
                     </div>
                     {isMenuOpen && (
@@ -243,8 +265,6 @@ const ObjectDetails = () => {
                                 <p className="d-role" style={{ fontSize: '10px', color: '#888', textTransform: 'uppercase' }}>{user?.role}</p>
                             </div>
                             <button className="dropdown-item">Профиль</button>
-
-                            {/* --- КНОПКА ЧАТОВ СО СЧЕТЧИКОМ --- */}
                             <button
                                 className="dropdown-item"
                                 onClick={() => navigate('/chats')}
@@ -253,7 +273,6 @@ const ObjectDetails = () => {
                                 Чаты
                                 {totalUnread > 0 && <span className="menu-badge">{totalUnread}</span>}
                             </button>
-
                             <button className="dropdown-item logout" onClick={handleLogout}>Выйти</button>
                         </div>
                     )}
@@ -291,7 +310,8 @@ const ObjectDetails = () => {
                     </div>
 
                     <div className="info-header">
-                        <h1>{object.title}</h1>
+                        {/* ТУТ ИСПРАВЛЕНО: Префикс заголовка */}
+                        <h1>{isRent ? 'Аренда: ' : 'Продается: '}{object.title}</h1>
                         <div className="tags">
                             <span className="tag category">{object.category}</span>
                             <span className="tag type">{object.type}</span>
@@ -300,11 +320,10 @@ const ObjectDetails = () => {
 
                     <p className="address">📍 {object.city}, {object.address}</p>
 
-                    {/* --- ИЗМЕНЕННЫЙ БЛОК: ЦЕНА И КНОПКА СВЯЗАТЬСЯ --- */}
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', marginTop: '10px' }}>
-                        <h2 className="price" style={{ margin: 0 }}>{formatPrice(displayBasePrice)}</h2>
+                        {/* ТУТ ИСПРАВЛЕНО: Суффикс цены */}
+                        <h2 className="price" style={{ margin: 0 }}>{formatPrice(displayBasePrice)}{priceSuffix}</h2>
 
-                        {/* Кнопку видят все, кроме самого владельца */}
                         {user && object?.user?.id && String(user.id).toLowerCase() !== String(object.user.id).toLowerCase() && (
                             <button
                                 className="contact-seller-btn"
@@ -322,7 +341,6 @@ const ObjectDetails = () => {
                             </button>
                         )}
                     </div>
-                    {/* --- КОНЕЦ БЛОКА --- */}
 
                     <div className="specs-grid">
                         <div className="spec-item">
@@ -330,7 +348,6 @@ const ObjectDetails = () => {
                             <span className="spec-value">{object.areaTotal} м²</span>
                         </div>
 
-                        {/* ЛОГИКА ЭТАЖЕЙ: Скрываем для участков, выводим прочерк для домов */}
                         {object.type !== 'Участок' && (
                             <div className="spec-item">
                                 <span className="spec-label">Этаж</span>
@@ -347,11 +364,11 @@ const ObjectDetails = () => {
                             <span className="spec-value">{object.yearBuilt || 'Не указан'}</span>
                         </div>
 
-                        {/* ЛОГИКА ЦЕНЫ ЗА М2: Оставляем до 2 знаков после запятой, чтобы не пропадали дробные значения */}
                         <div className="spec-item">
                             <span className="spec-label">Цена за м²</span>
                             <span className="spec-value">
-                                {Number(displayPriceM2).toLocaleString('ru-RU', { maximumFractionDigits: 2 })} {currency === 'BYN' ? 'Br' : '$'}
+                                {/* ТУТ ИСПРАВЛЕНО: Суффикс для м2 */}
+                                {Number(displayPriceM2).toLocaleString('ru-RU', { maximumFractionDigits: 2 })} {currency === 'BYN' ? 'Br' : '$'}{priceSuffix}
                             </span>
                         </div>
                     </div>
@@ -369,8 +386,8 @@ const ObjectDetails = () => {
                     </div>
                 </section>
 
-                {/* Секция профессионального инвестиционного анализа: Скрыта для продавцов */}
-                {taxRates && (
+                {/* ТУТ ИСПРАВЛЕНО: Блок анализа скрывается для аренды (!isRent) */}
+                {taxRates && !isRent && (
                     <InvestmentAnalyzer
                         object={object}
                         taxRates={taxRates}
@@ -381,7 +398,6 @@ const ObjectDetails = () => {
                 )}
             </main>
 
-            {/* Модальное окно (fullscreen просмотр) */}
             {isModalOpen && (
                 <div className="image-modal-overlay" onClick={closeModal}>
                     <div className="image-modal-content" onClick={(e) => e.stopPropagation()}>
