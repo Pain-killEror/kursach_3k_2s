@@ -79,22 +79,52 @@ const ObjectCard = ({ object }) => {
       has_pit: 'Яма',
       has_electricity: 'Свет',
       has_gas: 'Газ',
-      material: 'Материал'
+      material: 'Материал',
+      type_rent: 'Тип аренды' // <-- Добавили перевод ключа
     };
     return dictionary[key] || key;
   };
 
-  // 4. Форматирование булевых значений
-  const formatAttributeValue = (value) => {
+  // 4. Форматирование значений атрибутов (принимает key для специфичных проверок)
+  const formatAttributeValue = (key, value) => {
     if (value === true || value === 'true' || value === 'True') return 'Да';
     if (value === false || value === 'false' || value === 'False') return 'Нет';
+
+    // Сокращаем длинные названия типа аренды
+    if (key === 'type_rent' && typeof value === 'string') {
+      const lowerVal = value.toLowerCase();
+      if (lowerVal.includes('долгосрочная')) return 'Долгосрочная';
+      if (lowerVal.includes('краткосрочная')) return 'Краткосрочная';
+    }
+
     return value;
   };
 
+  // Форматирование цены в зависимости от типа сделки
   const getDisplayPrice = () => {
     if (!object.priceTotal) return 'Цена не указана';
+
     const convertedPrice = convertPrice(Number(object.priceTotal), object.currency);
-    return formatCurrency(convertedPrice);
+    const formattedPrice = formatCurrency(convertedPrice);
+
+    if (object.objectStatus === 'FOR_RENT') {
+      const rentType = parsedAttributes?.type_rent || '';
+      const isShortTerm = typeof rentType === 'string' && rentType.toLowerCase().includes('краткосрочная');
+
+      return isShortTerm ? `${formattedPrice} / сут.` : `${formattedPrice} / мес.`;
+    }
+
+    // Обычная цена для продажи
+    return formattedPrice;
+  };
+
+  // Умный заголовок с префиксами
+  const getDisplayTitle = () => {
+    const baseTitle = object.title || 'Без названия';
+    if (object.objectStatus === 'FOR_SALE') return `Продается: ${baseTitle}`;
+    // Слово "Аренда:" звучит более универсально для складов и офисов, чем "Сдается:"
+    if (object.objectStatus === 'FOR_RENT') return `Аренда: ${baseTitle}`;
+    return baseTitle;
   };
 
   const renderFloorInfo = () => {
@@ -129,7 +159,9 @@ const ObjectCard = ({ object }) => {
 
       <div className="object-card-content">
         <div className="object-card-header-info">
-          <h3 className="object-card-title">{object.title || 'Без названия'}</h3>
+          {/* Используем наш новый метод для заголовка */}
+          <h3 className="object-card-title">{getDisplayTitle()}</h3>
+          {/* Используем наш новый метод для цены */}
           <p className="object-card-price">{getDisplayPrice()}</p>
           <p className="object-card-address">
             {object.city ? `${object.city}, ` : ''}{object.address || 'Адрес не указан'}
@@ -151,7 +183,8 @@ const ObjectCard = ({ object }) => {
               {Object.entries(parsedAttributes).map(([key, value]) => (
                 <div key={key} className="attribute-item">
                   <span className="attribute-key">{translateKey(key)}:</span>
-                  <span className="attribute-value">{formatAttributeValue(value)}</span>
+                  {/* Передаем ключ в функцию форматирования */}
+                  <span className="attribute-value">{formatAttributeValue(key, value)}</span>
                 </div>
               ))}
             </div>
