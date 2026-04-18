@@ -1,74 +1,99 @@
 .portfolio-page {
-    padding: 20px;
+    padding: 20px 20px 40px 20px;
+    /* Вернули 20px сверху */
     max-width: 1200px;
     margin: 0 auto;
+    background-color: #121212;
+    min-height: 100vh;
 }
 
-.portfolio-header {
-    background: #fff;
-    padding: 30px;
+/* Темный баннер для заголовка */
+.portfolio-summary-banner {
+    background: #1a1a1a;
+    padding: 40px;
     border-radius: 12px;
-    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
-    margin-bottom: 30px;
+    margin: 20px 0 30px 0;
+    border: 1px solid #333;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+}
+
+.summary-content h1 {
+    color: #ffffff;
+    margin: 0 0 10px 0;
+    font-size: 2.2rem;
+}
+
+.total-stats .label {
+    color: #aaa;
+    font-size: 1.1rem;
 }
 
 .total-stats .value {
-    font-size: 2rem;
-    font-weight: bold;
-    margin-left: 15px;
+    font-size: 2.5rem;
+    font-weight: 800;
+    margin-left: 20px;
 }
 
 .positive {
-    color: #27ae60;
+    color: #2ecc71;
 }
 
 .negative {
     color: #e74c3c;
 }
 
+/* Сетка и темные карточки */
 .portfolio-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-    gap: 20px;
+    grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+    gap: 25px;
 }
 
-.portfolio-card {
-    background: white;
-    padding: 20px;
-    border-radius: 12px;
-    border: 1px solid #eee;
+.portfolio-card.dark-card {
+    background: #1e1e1e;
+    padding: 24px;
+    border-radius: 14px;
+    border: 1px solid #333;
+    color: white;
     cursor: pointer;
-    transition: transform 0.2s, shadow 0.2s;
+    transition: all 0.3s ease;
 }
 
-.portfolio-card:hover {
+.portfolio-card.dark-card:hover {
     transform: translateY(-5px);
-    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
+    background: #252525;
+    border-color: #444;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
 }
 
 .strategy-tag {
-    color: #666;
-    font-size: 0.9rem;
-    margin: 10px 0;
+    color: #888;
+    font-size: 0.95rem;
+    margin: 12px 0;
 }
 
 .card-footer {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-top: 15px;
+    margin-top: 20px;
+    padding-top: 15px;
+    border-top: 1px solid #333;
 }
 
 .status-badge {
-    background: #f0f2f5;
-    padding: 4px 10px;
-    border-radius: 20px;
-    font-size: 0.8rem;
-    text-transform: uppercase;
+    background: #2c3e50;
+    color: #bdc3c7;
+    padding: 5px 12px;
+    border-radius: 6px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.5px;
 }
 
 .item-balance {
-    font-weight: bold;
+    font-weight: 700;
+    font-size: 1.1rem;
 }
 
 .plus {
@@ -77,4 +102,11 @@
 
 .minus {
     color: #e74c3c;
+}
+
+.empty-portfolio {
+    grid-column: 1 / -1;
+    text-align: center;
+    padding: 60px;
+    color: #666;
 }
