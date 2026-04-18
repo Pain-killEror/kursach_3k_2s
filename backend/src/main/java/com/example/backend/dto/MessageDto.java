@@ -1,10 +1,12 @@
 package com.example.backend.dto;
 
+import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.UUID;
-import java.math.BigDecimal;
 
 public class MessageDto {
+
     private UUID id;
     private UUID chatRoomId;
     private UUID senderId;
@@ -12,13 +14,18 @@ public class MessageDto {
     private String content;
     private LocalDateTime createdAt;
     private boolean isRead;
-
+    
     private String messageType;
     private BigDecimal offerAmount;
     private String offerStatus;
 
-    public MessageDto() {}
+    // --- НОВЫЕ ПОЛЯ ДЛЯ ДОГОВОРОВ ---
+    private String offerCurrency;
+    private String offerContractType;
+    private LocalDate offerStartDate;
+    private LocalDate offerEndDate;
 
+    // Геттеры и сеттеры
 
     public UUID getId() { return id; }
     public void setId(UUID id) { this.id = id; }
@@ -39,8 +46,7 @@ public class MessageDto {
     public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
 
     public boolean isRead() { return isRead; }
-    public void setRead(boolean read) { isRead = read; }
-
+    public void setRead(boolean read) { this.isRead = read; }
 
     public String getMessageType() { return messageType; }
     public void setMessageType(String messageType) { this.messageType = messageType; }
@@ -50,4 +56,16 @@ public class MessageDto {
 
     public String getOfferStatus() { return offerStatus; }
     public void setOfferStatus(String offerStatus) { this.offerStatus = offerStatus; }
+
+    public String getOfferCurrency() { return offerCurrency; }
+    public void setOfferCurrency(String offerCurrency) { this.offerCurrency = offerCurrency; }
+
+    public String getOfferContractType() { return offerContractType; }
+    public void setOfferContractType(String offerContractType) { this.offerContractType = offerContractType; }
+
+    public LocalDate getOfferStartDate() { return offerStartDate; }
+    public void setOfferStartDate(LocalDate offerStartDate) { this.offerStartDate = offerStartDate; }
+
+    public LocalDate getOfferEndDate() { return offerEndDate; }
+    public void setOfferEndDate(LocalDate offerEndDate) { this.offerEndDate = offerEndDate; }
 }

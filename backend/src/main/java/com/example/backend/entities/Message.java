@@ -2,6 +2,7 @@ package com.example.backend.entities;
 
 import jakarta.persistence.*;
 import java.time.LocalDateTime;
+import java.time.LocalDate;
 import java.util.UUID;
 import java.math.BigDecimal;
 
@@ -45,6 +46,21 @@ public class Message {
     @Column(name = "offer_status")
     private OfferStatus offerStatus;
 
+    // --- НОВЫЕ ПОЛЯ ДЛЯ ДОГОВОРОВ АРЕНДЫ И ПРОДАЖИ ---
+
+    @Column(name = "offer_currency", length = 3)
+    private String offerCurrency;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "offer_contract_type")
+    private OfferContractType offerContractType;
+
+    @Column(name = "offer_start_date")
+    private LocalDate offerStartDate;
+
+    @Column(name = "offer_end_date")
+    private LocalDate offerEndDate;
+
     @PrePersist
     protected void onCreate() {
         this.createdAt = LocalDateTime.now();
@@ -70,7 +86,6 @@ public class Message {
     public boolean isRead() { return isRead; }
     public void setRead(boolean read) { this.isRead = read; }
 
-    // НОВЫЕ ГЕТТЕРЫ И СЕТТЕРЫ ДЛЯ ОФФЕРА
     public MessageType getMessageType() { return messageType; }
     public void setMessageType(MessageType messageType) { this.messageType = messageType; }
 
@@ -80,6 +95,18 @@ public class Message {
     public OfferStatus getOfferStatus() { return offerStatus; }
     public void setOfferStatus(OfferStatus offerStatus) { this.offerStatus = offerStatus; }
 
+    public String getOfferCurrency() { return offerCurrency; }
+    public void setOfferCurrency(String offerCurrency) { this.offerCurrency = offerCurrency; }
+
+    public OfferContractType getOfferContractType() { return offerContractType; }
+    public void setOfferContractType(OfferContractType offerContractType) { this.offerContractType = offerContractType; }
+
+    public LocalDate getOfferStartDate() { return offerStartDate; }
+    public void setOfferStartDate(LocalDate offerStartDate) { this.offerStartDate = offerStartDate; }
+
+    public LocalDate getOfferEndDate() { return offerEndDate; }
+    public void setOfferEndDate(LocalDate offerEndDate) { this.offerEndDate = offerEndDate; }
+
     // --- ENUM ---
 
     public enum MessageType {
@@ -88,5 +115,10 @@ public class Message {
 
     public enum OfferStatus {
         ACTIVE, REJECTED, CANCELED, ACCEPTED
+    }
+
+    // Новый enum для определения типа предлагаемого договора
+    public enum OfferContractType {
+        SALE, LONG_RENT, SHORT_RENT, TERMINATION
     }
 }

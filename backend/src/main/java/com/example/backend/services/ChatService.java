@@ -5,15 +5,19 @@ import com.example.backend.dto.MessageDto;
 import com.example.backend.entities.ChatRoom;
 import com.example.backend.entities.Message;
 import com.example.backend.entities.RealEstateObject;
+import com.example.backend.entities.RentBooking;
 import com.example.backend.entities.User;
 import com.example.backend.repositories.ChatRoomRepository;
 import com.example.backend.repositories.MessageRepository;
 import com.example.backend.repositories.RealEstateObjectRepository;
+import com.example.backend.repositories.RentBookingRepository;
 import com.example.backend.repositories.UserRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -26,13 +30,18 @@ public class ChatService {
     private final MessageRepository messageRepository;
     private final UserRepository userRepository;
     private final RealEstateObjectRepository objectRepository;
+    private final RentBookingRepository rentBookingRepository;
 
-    public ChatService(ChatRoomRepository chatRoomRepository, MessageRepository messageRepository, 
-                       UserRepository userRepository, RealEstateObjectRepository objectRepository) {
+    public ChatService(ChatRoomRepository chatRoomRepository, 
+                       MessageRepository messageRepository, 
+                       UserRepository userRepository, 
+                       RealEstateObjectRepository objectRepository,
+                       RentBookingRepository rentBookingRepository) {
         this.chatRoomRepository = chatRoomRepository;
         this.messageRepository = messageRepository;
         this.userRepository = userRepository;
         this.objectRepository = objectRepository;
+        this.rentBookingRepository = rentBookingRepository;
     }
 
     @Transactional
@@ -66,7 +75,7 @@ public class ChatService {
         // Отправляем автоматическое первое сообщение
         Message autoMessage = new Message();
         autoMessage.setChatRoom(newChat);
-        autoMessage.setSender(investor); // От лица инвестора
+        autoMessage.setSender(investor);
         autoMessage.setContent("Здравствуйте! Меня заинтересовал ваш объект: " + object.getType() + ", " + object.getAddress() + ". Актуально?");
         messageRepository.save(autoMessage);
 
@@ -81,28 +90,22 @@ public class ChatService {
             ChatRoomDto dto = new ChatRoomDto();
             dto.setId(chat.getId());
             
-            // Определяем собеседника
             boolean isInvestor = chat.getInvestor().getId().equals(userId);
             User opponent = isInvestor ? chat.getSeller() : chat.getInvestor();
             
             dto.setOpponentId(opponent.getId());
             dto.setOpponentName(opponent.getName());
             
-            // Информация об объекте
             RealEstateObject obj = chat.getRealEstateObject();
             dto.setObjectId(obj.getId());
             
-            // ---- ИСПРАВЛЕННОЕ ПОЛУЧЕНИЕ СТОИМОСТИ ----
-            // Берем priceTotal из RealEstateObject и конвертируем в Double
             if (obj.getPriceTotal() != null) {
                 dto.setPriceUsd(obj.getPriceTotal().doubleValue());
             } else {
                 dto.setPriceUsd(null);
             }
             
-            // Поле для BYN оставляем пустым, так как мы умножаем на курс прямо в React (Chats.jsx)
             dto.setPriceByn(null); 
-            // ------------------------------------------
 
             String rawCategory = obj.getCategory() != null ? obj.getCategory() : obj.getType();
             String formattedCategory = rawCategory;
@@ -111,7 +114,6 @@ public class ChatService {
             }
             dto.setObjectTitle(formattedCategory + " • " + (obj.getCity() != null ? obj.getCity() + ", " : "") + obj.getAddress());            
             
-            // Парсим первую картинку из JSON массива
             try {
                 String urls = obj.getImagesUrls();
                 if (urls != null && !urls.isEmpty() && !urls.equals("[]")) {
@@ -121,13 +123,11 @@ public class ChatService {
                 }
             } catch (Exception e) { dto.setObjectImageUrl(null); }
 
-            // Данные о последнем сообщении
             List<Message> msgs = messageRepository.findByChatRoomIdOrderByCreatedAtAsc(chat.getId());
             if (!msgs.isEmpty()) {
                 Message last = msgs.get(msgs.size() - 1);
-                // Если последнее сообщение — это оффер, пишем системный текст
                 if (last.getMessageType() == Message.MessageType.OFFER) {
-                    dto.setLastMessage("Предложение о сделке: " + last.getOfferAmount());
+                    dto.setLastMessage("Предложение о сделке: " + last.getOfferAmount() + " " + (last.getOfferCurrency() != null ? last.getOfferCurrency() : ""));
                 } else {
                     dto.setLastMessage(last.getContent());
                 }
@@ -141,9 +141,7 @@ public class ChatService {
 
     @Transactional
     public List<MessageDto> getChatMessages(UUID chatId, UUID userId) {
-        // Помечаем чужие сообщения как прочитанные, так как юзер открыл чат
         messageRepository.markMessagesAsRead(chatId, userId);
-
         List<Message> messages = messageRepository.findByChatRoomIdOrderByCreatedAtAsc(chatId);
         return messages.stream().map(this::mapToMessageDto).collect(Collectors.toList());
     }
@@ -159,17 +157,19 @@ public class ChatService {
     }
 
     // ==========================================
-    // НОВАЯ ЛОГИКА ДЛЯ ДОГОВОРОВ (ОФФЕРОВ)
+    // ЛОГИКА ДЛЯ ДОГОВОРОВ (ОФФЕРОВ) С НОВЫМИ ПОЛЯМИ
     // ==========================================
 
     @Transactional
-    public MessageDto sendOffer(UUID chatId, UUID senderId, BigDecimal amount) {
+    public MessageDto sendOffer(UUID chatId, UUID senderId, BigDecimal amount, 
+                                String currency, String contractTypeStr, 
+                                LocalDate startDate, LocalDate endDate) {
         ChatRoom chat = chatRoomRepository.findById(chatId)
                 .orElseThrow(() -> new RuntimeException("Чат не найден"));
         User sender = userRepository.findById(senderId)
                 .orElseThrow(() -> new RuntimeException("Пользователь не найден"));
 
-        // 1. Находим все текущие активные предложения в этом чате и отменяем их
+        // 1. Отменяем старые предложения
         List<Message> existingMessages = messageRepository.findByChatRoomIdOrderByCreatedAtAsc(chatId);
         for (Message msg : existingMessages) {
             if (msg.getMessageType() == Message.MessageType.OFFER && msg.getOfferStatus() == Message.OfferStatus.ACTIVE) {
@@ -178,14 +178,30 @@ public class ChatService {
             }
         }
 
-        // 2. Создаем новое предложение
+        // 2. Создаем новое предложение с новыми полями
         Message offer = new Message();
         offer.setChatRoom(chat);
         offer.setSender(sender);
         offer.setMessageType(Message.MessageType.OFFER);
         offer.setOfferAmount(amount);
+        offer.setOfferCurrency(currency);
+        
+        try {
+            if (contractTypeStr != null) {
+                offer.setOfferContractType(Message.OfferContractType.valueOf(contractTypeStr.toUpperCase()));
+            } else {
+                offer.setOfferContractType(Message.OfferContractType.SALE); // Дефолт, если фронтенд не прислал
+            }
+        } catch (IllegalArgumentException e) {
+            offer.setOfferContractType(Message.OfferContractType.SALE);
+        }
+
+        offer.setOfferStartDate(startDate);
+        offer.setOfferEndDate(endDate);
         offer.setOfferStatus(Message.OfferStatus.ACTIVE);
-        offer.setContent("Системное сообщение: Договор на сумму " + amount); 
+        
+        String typeLabel = offer.getOfferContractType() == Message.OfferContractType.TERMINATION ? "Расторжение договора" : "Договор";
+        offer.setContent("Системное сообщение: " + typeLabel + " (" + amount + " " + currency + ")"); 
         
         offer = messageRepository.save(offer);
         return mapToMessageDto(offer);
@@ -227,19 +243,59 @@ public class ChatService {
             throw new RuntimeException("Это предложение уже неактивно");
         }
 
-        // 1. Меняем статус сообщения на ПРИНЯТО
-        msg.setOfferStatus(Message.OfferStatus.ACCEPTED);
-        msg = messageRepository.save(msg);
-
-        // 2. Меняем владельца объекта на инвестора и скрываем объект из поиска
         ChatRoom chat = msg.getChatRoom();
         RealEstateObject object = chat.getRealEstateObject();
-        
-        // Владельцем всегда становится инвестор из этого чата
-        object.setUser(chat.getInvestor()); 
-        object.setIsVisible(false);// Делаем объявление неактивным для остальных
-        
-        objectRepository.save(object);
+        User tenantOrBuyer = chat.getInvestor(); // Покупатель/Арендатор - это всегда тот, кто начал чат
+
+        // Проверяем тип контракта
+        Message.OfferContractType contractType = msg.getOfferContractType() != null 
+                ? msg.getOfferContractType() 
+                : Message.OfferContractType.SALE; // Фоллбэк для старых записей
+
+        switch (contractType) {
+            case SHORT_RENT:
+                // Проверяем занятость дат
+                if (rentBookingRepository.hasOverlappingBookings(object.getId(), msg.getOfferStartDate(), msg.getOfferEndDate())) {
+                    throw new RuntimeException("Выбранные даты уже забронированы другим пользователем");
+                }
+                // Создаем запись бронирования
+                RentBooking booking = new RentBooking();
+                booking.setRealEstateObject(object);
+                booking.setTenant(tenantOrBuyer);
+                booking.setStartDate(msg.getOfferStartDate());
+                booking.setEndDate(msg.getOfferEndDate());
+                rentBookingRepository.save(booking);
+                // Объект остается видимым
+                break;
+
+            case LONG_RENT:
+                object.setCurrentOccupant(tenantOrBuyer);
+                object.setIsVisible(false); // Прячем с главной
+                objectRepository.save(object);
+                break;
+
+            case SALE:
+                // При продаже можно полностью сменить владельца (getUser) или записать в currentOccupant.
+                // Запишем в currentOccupant для гибкости (чтобы у прошлого владельца осталась история объекта)
+                object.setCurrentOccupant(tenantOrBuyer);
+                object.setObjectStatus(com.example.backend.entities.ObjectStatus.SOLD);
+                object.setIsVisible(false);
+                objectRepository.save(object);
+                break;
+
+            case TERMINATION:
+                // Расторжение долгосрока
+                object.setCurrentOccupant(null);
+                // Объект появится на главной только через 30 дней
+                object.setAvailableFrom(LocalDateTime.now().plusDays(30));
+                // isVisible остается false, пока фоновая задача не включит его обратно
+                objectRepository.save(object);
+                break;
+        }
+
+        // Меняем статус сообщения на ПРИНЯТО
+        msg.setOfferStatus(Message.OfferStatus.ACCEPTED);
+        msg = messageRepository.save(msg);
 
         return mapToMessageDto(msg);
     }
@@ -255,11 +311,20 @@ public class ChatService {
         dto.setCreatedAt(m.getCreatedAt());
         dto.setRead(m.isRead());
         
-        // Маппим новые поля оффера
         if (m.getMessageType() != null) {
             dto.setMessageType(m.getMessageType().name());
         }
+        
         dto.setOfferAmount(m.getOfferAmount());
+        dto.setOfferCurrency(m.getOfferCurrency());
+        
+        if (m.getOfferContractType() != null) {
+            dto.setOfferContractType(m.getOfferContractType().name());
+        }
+        
+        dto.setOfferStartDate(m.getOfferStartDate());
+        dto.setOfferEndDate(m.getOfferEndDate());
+        
         if (m.getOfferStatus() != null) {
             dto.setOfferStatus(m.getOfferStatus().name());
         }

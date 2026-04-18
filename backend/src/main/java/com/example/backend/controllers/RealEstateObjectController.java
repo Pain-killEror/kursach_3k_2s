@@ -3,9 +3,11 @@ package com.example.backend.controllers;
 import com.example.backend.entities.RealEstateObject;
 import com.example.backend.services.RealEstateObjectService;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
 import java.util.UUID;
@@ -28,10 +30,15 @@ public class RealEstateObjectController {
         return ResponseEntity.ok(service.getAllObjects());
     }
 
+    // НОВЫЙ ВАРИАНТ С ПРОВЕРКОЙ ПРАВ
     @GetMapping("/{id}")
-    public ResponseEntity<RealEstateObject> getObjectById(@PathVariable UUID id) {
-        return ResponseEntity.ok(service.getObjectById(id));
-    }
+public ResponseEntity<RealEstateObject> getObjectById(
+        @PathVariable UUID id,
+        @RequestParam(required = false) UUID userId) { // Добавили прием параметра
+    
+    // Передаем этот userId в сервис
+    return ResponseEntity.ok(service.getObjectByIdWithAccessCheck(id, userId));
+}
 
     @PostMapping(consumes = {"multipart/form-data"})
     public ResponseEntity<?> createObject(

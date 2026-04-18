@@ -7,7 +7,6 @@ import java.util.UUID;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
-import jakarta.persistence.*;
 
 @Entity
 @Table(name = "real_estate_objects")
@@ -86,6 +85,18 @@ public class RealEstateObject {
 
     @Column(name = "is_visible")
     private Boolean isVisible = true;
+
+    // --- НОВЫЕ ПОЛЯ ДЛЯ ЛОГИКИ АРЕНДЫ/ПРОДАЖИ ---
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "current_occupant_id")
+    @JsonIgnoreProperties({"realEstateObjects", "passwordHash", "status", "role", "password"})
+    private User currentOccupant;
+
+    @Column(name = "available_from")
+    private LocalDateTime availableFrom;
+
+    // --------------------------------------------
 
     public RealEstateObject() {
     }
@@ -197,6 +208,12 @@ public class RealEstateObject {
 
     public Boolean getIsVisible() { return isVisible; }
     public void setIsVisible(Boolean isVisible) { this.isVisible = isVisible; }
+
+    public User getCurrentOccupant() { return currentOccupant; }
+    public void setCurrentOccupant(User currentOccupant) { this.currentOccupant = currentOccupant; }
+
+    public LocalDateTime getAvailableFrom() { return availableFrom; }
+    public void setAvailableFrom(LocalDateTime availableFrom) { this.availableFrom = availableFrom; }
 
     @JsonProperty("ownerRole")
     public String getOwnerRole() {

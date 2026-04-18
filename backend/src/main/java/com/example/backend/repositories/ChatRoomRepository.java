@@ -23,4 +23,6 @@ public interface ChatRoomRepository extends JpaRepository<ChatRoom, UUID> {
 
     // Для автоматического удаления старых чатов
     List<ChatRoom> findByLastMessageAtBefore(LocalDateTime dateTime);
+
+    List<ChatRoom> findByRealEstateObjectId(UUID objectId);
 }
