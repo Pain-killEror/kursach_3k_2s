@@ -1,7 +1,9 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import axios from '../api/axios';
+import api from '../api/axios';
+import { useCurrency } from '../context/CurrencyContext';
 import './PortfolioItemDetails.css';
+import './Home.css'; // Импортируем стили хедера
 
 const PortfolioItemDetails = () => {
     const { itemId } = useParams();
@@ -9,7 +11,37 @@ const PortfolioItemDetails = () => {
     const [summary, setSummary] = useState(null);
     const [loading, setLoading] = useState(true);
 
-    // Состояние для новой транзакции
+    // --- Состояния для хедера ---
+    const { currency, setCurrency } = useCurrency();
+    const [isMenuOpen, setIsMenuOpen] = useState(false);
+    const [totalUnread, setTotalUnread] = useState(0);
+    const dropdownRef = useRef(null);
+
+    const user = useMemo(() => {
+        try {
+            const u = localStorage.getItem('user');
+            return u ? JSON.parse(u) : null;
+        } catch (e) { return null; }
+    }, []);
+
+    useEffect(() => {
+        const token = localStorage.getItem('token');
+        if (token) {
+            api.get('/chats/unread-count')
+                .then(res => setTotalUnread(res.data))
+                .catch(err => console.error("Ошибка загрузки счетчика:", err));
+        }
+    }, []);
+
+    useEffect(() => {
+        const handleClickOutside = (e) => {
+            if (dropdownRef.current && !dropdownRef.current.contains(e.target)) setIsMenuOpen(false);
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
+    // ----------------------------
+
     const [transaction, setTransaction] = useState({
         title: '',
         amount: '',
@@ -18,56 +50,39 @@ const PortfolioItemDetails = () => {
         transactionDate: new Date().toISOString().split('T')[0]
     });
 
-    // Состояние для редактирования настроек объекта
     const [isEditingSettings, setIsEditingSettings] = useState(false);
-    const [settings, setSettings] = useState({
-        strategyName: '',
-        targetAmount: '',
-        exitTaxRate: 13
-    });
+    const [settings, setSettings] = useState({ strategyName: '', targetAmount: '', exitTaxRate: 13 });
 
-    useEffect(() => {
-        loadData();
-    }, [itemId]);
+    useEffect(() => { loadData(); }, [itemId]);
 
     const loadData = async () => {
         try {
-            const res = await axios.get(`/portfolio/items/${itemId}/summary`);
+            const res = await api.get(`/portfolio/items/${itemId}/summary`);
             setSummary(res.data);
             setSettings({
                 strategyName: res.data.strategyName || '',
                 targetAmount: res.data.targetAmount || '',
                 exitTaxRate: res.data.exitTaxRate || 13
             });
-        } catch (err) {
-            console.error("Ошибка загрузки данных", err);
-        } finally {
-            setLoading(false);
-        }
+        } catch (err) { console.error("Ошибка загрузки данных", err); }
+        finally { setLoading(false); }
     };
 
     const handleAddTransaction = async (e) => {
         e.preventDefault();
         try {
-            await axios.post('/portfolio/transactions', {
-                ...transaction,
-                portfolioItemId: itemId
-            });
+            await api.post('/portfolio/transactions', { ...transaction, portfolioItemId: itemId });
             setTransaction({ ...transaction, title: '', amount: '' });
-            loadData(); // Пересчитываем всё
-        } catch (err) {
-            alert("Ошибка при добавлении записи");
-        }
+            loadData();
+        } catch (err) { alert("Ошибка при добавлении записи"); }
     };
 
     const saveSettings = async () => {
         try {
-            await axios.put(`/portfolio/items/${itemId}/settings`, settings);
+            await api.put(`/portfolio/items/${itemId}/settings`, settings);
             setIsEditingSettings(false);
             loadData();
-        } catch (err) {
-            alert("Ошибка при сохранении настроек");
-        }
+        } catch (err) { alert("Ошибка при сохранении настроек"); }
     };
 
     if (loading) return <div className="p-loader">Загрузка аналитики...</div>;
@@ -75,7 +90,72 @@ const PortfolioItemDetails = () => {
 
     return (
         <div className="details-page">
-            <button className="back-btn" onClick={() => navigate('/portfolio')}>← К портфелю</button>
+            {/* ГЛАВНЫЙ ХЕДЕР */}
+            <header className="home-header">
+                <div className="brand" onClick={() => navigate('/')} style={{ cursor: 'pointer' }}>💎 InvestHub</div>
+
+                <button
+                    onClick={() => navigate('/')}
+                    style={{
+                        marginLeft: 'auto', marginRight: '15px', padding: '8px 18px', backgroundColor: '#34495e',
+                        color: 'white', border: 'none', borderRadius: '8px', fontWeight: '600',
+                        cursor: 'pointer', fontSize: '13px', transition: 'all 0.2s ease'
+                    }}
+                >
+                    🏠 На главную
+                </button>
+
+                <div className="currency-selector" style={{ marginRight: '15px' }}>
+                    <select
+                        value={currency}
+                        onChange={(e) => setCurrency(e.target.value)}
+                        style={{
+                            padding: '8px 14px', borderRadius: '8px', border: '1px solid #444',
+                            cursor: 'pointer', outline: 'none', background: '#1a1a1a',
+                            color: 'white', fontWeight: '600', fontSize: '14px'
+                        }}
+                    >
+                        <option value="USD">USD ($)</option>
+                        <option value="BYN">BYN (Br)</option>
+                    </select>
+                </div>
+
+                {user?.role === 'USER' && (
+                    <button className="sell-property-btn" onClick={() => navigate('/add-object')} style={{ marginRight: '15px', padding: '8px 18px', backgroundColor: '#2ecc71', color: 'white', border: 'none', borderRadius: '8px', fontWeight: '600', cursor: 'pointer', fontSize: '13px' }}>
+                        + Продать недвижимость
+                    </button>
+                )}
+
+                {user?.role === 'ADMIN' && (
+                    <button className="admin-panel-btn" onClick={() => navigate('/admin')} style={{ marginRight: '15px', padding: '8px 18px', backgroundColor: '#8e44ad', color: 'white', border: 'none', borderRadius: '8px', fontWeight: '600', cursor: 'pointer', fontSize: '13px' }}>
+                        ⚙️ Администрирование
+                    </button>
+                )}
+
+                <div className="user-profile-container" ref={dropdownRef}>
+                    <div className="avatar-wrapper" onClick={() => setIsMenuOpen(!isMenuOpen)} style={{ position: 'relative' }}>
+                        <span className="user-nickname">{user?.name || 'Гость'}</span>
+                        <div className="avatar-circle">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+                        </div>
+                        {totalUnread > 0 && <span className="unread-dot"></span>}
+                    </div>
+                    {isMenuOpen && (
+                        <div className="user-dropdown-menu">
+                            <div className="dropdown-header">
+                                <p className="d-name">{user?.name}</p><p className="d-email">{user?.email}</p><p className="d-role" style={{ fontSize: '10px', color: '#888', textTransform: 'uppercase' }}>{user?.role}</p>
+                            </div>
+                            <button className="dropdown-item" onClick={() => { setIsMenuOpen(false); navigate('/portfolio'); }}>Мой портфель</button>
+                            <button className="dropdown-item" onClick={() => { setIsMenuOpen(false); navigate('/chats'); }} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                                Чаты {totalUnread > 0 && <span className="menu-badge">{totalUnread}</span>}
+                            </button>
+                            <button onClick={() => { localStorage.clear(); sessionStorage.clear(); window.location.reload(); navigate('/login'); }} className="dropdown-item logout">Выйти</button>
+                        </div>
+                    )}
+                </div>
+            </header>
+
+            <button className="back-btn" onClick={() => navigate('/portfolio')} style={{ marginTop: '20px' }}>← К списку портфеля</button>
 
             <div className="details-grid">
                 {/* ЛЕВАЯ КОЛОНКА: Аналитика */}
@@ -122,23 +202,10 @@ const PortfolioItemDetails = () => {
                         </div>
                         {isEditingSettings ? (
                             <div className="edit-settings">
-                                <input
-                                    value={settings.strategyName}
-                                    onChange={e => setSettings({ ...settings, strategyName: e.target.value })}
-                                    placeholder="Название стратегии"
-                                />
-                                <input
-                                    type="number"
-                                    value={settings.targetAmount}
-                                    onChange={e => setSettings({ ...settings, targetAmount: e.target.value })}
-                                    placeholder="Целевая цена продажи"
-                                />
+                                <input value={settings.strategyName} onChange={e => setSettings({ ...settings, strategyName: e.target.value })} placeholder="Название стратегии" />
+                                <input type="number" value={settings.targetAmount} onChange={e => setSettings({ ...settings, targetAmount: e.target.value })} placeholder="Целевая цена продажи" />
                                 <label>Налог на продажу (%)</label>
-                                <input
-                                    type="number"
-                                    value={settings.exitTaxRate}
-                                    onChange={e => setSettings({ ...settings, exitTaxRate: e.target.value })}
-                                />
+                                <input type="number" value={settings.exitTaxRate} onChange={e => setSettings({ ...settings, exitTaxRate: e.target.value })} />
                             </div>
                         ) : (
                             <div className="view-settings">
@@ -154,20 +221,9 @@ const PortfolioItemDetails = () => {
                     <div className="card add-tx-card">
                         <h3>Добавить операцию</h3>
                         <form onSubmit={handleAddTransaction}>
-                            <input
-                                value={transaction.title}
-                                onChange={e => setTransaction({ ...transaction, title: e.target.value })}
-                                placeholder="Наименование (напр. 'Замена окон')"
-                                required
-                            />
+                            <input value={transaction.title} onChange={e => setTransaction({ ...transaction, title: e.target.value })} placeholder="Наименование (напр. 'Замена окон')" required />
                             <div className="form-row">
-                                <input
-                                    type="number"
-                                    value={transaction.amount}
-                                    onChange={e => setTransaction({ ...transaction, amount: e.target.value })}
-                                    placeholder="Сумма"
-                                    required
-                                />
+                                <input type="number" value={transaction.amount} onChange={e => setTransaction({ ...transaction, amount: e.target.value })} placeholder="Сумма" required />
                                 <select value={transaction.type} onChange={e => setTransaction({ ...transaction, type: e.target.value })}>
                                     <option value="EXPENSE">Расход (-)</option>
                                     <option value="INCOME">Доход (+)</option>
