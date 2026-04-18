@@ -55,6 +55,7 @@ const AddObject = () => {
     const [dropPosition, setDropPosition] = useState(null);
 
     const [formData, setFormData] = useState({
+        deal_type: 'SALE', // Новое поле: тип сделки (SALE, LONG_RENT, SHORT_RENT)
         type: 'Квартира',
         category: 'Средний ремонт',
         title: '',
@@ -153,7 +154,21 @@ const AddObject = () => {
         if (errors[name]) setErrors(prev => ({ ...prev, [name]: null }));
     };
 
-    // === ОБНОВЛЕННАЯ ЗАГРУЗКА И ПРОВЕРКА НА ДУБЛИКАТЫ ===
+    // Изменение типа сделки
+    const handleDealTypeChange = (type) => {
+        setFormData(prev => ({ ...prev, deal_type: type }));
+    };
+
+    // Определение подписи для цены
+    const getPriceLabel = () => {
+        switch (formData.deal_type) {
+            case 'LONG_RENT': return 'Стоимость / месяц';
+            case 'SHORT_RENT': return 'Стоимость / сутки';
+            case 'SALE':
+            default: return 'Стоимость';
+        }
+    };
+
     const handleImageChange = (e) => {
         const files = Array.from(e.target.files);
         if (files.length === 0) return;
@@ -162,7 +177,6 @@ const AddObject = () => {
         let duplicatesFound = false;
 
         files.forEach(file => {
-            // Проверка: есть ли уже файл с таким же именем, размером и датой изменения
             const isDuplicate = photos.some(p =>
                 p.file.name === file.name &&
                 p.file.size === file.size &&
@@ -189,8 +203,6 @@ const AddObject = () => {
         if (newPhotos.length > 0) {
             setPhotos(prev => [...prev, ...newPhotos]);
         }
-
-        // Сбрасываем значение input, чтобы можно было загрузить тот же файл после удаления
         e.target.value = null;
     };
 
@@ -203,7 +215,6 @@ const AddObject = () => {
         });
     };
 
-    // === СТАБИЛИЗИРОВАННЫЙ DRAG & DROP ===
     const handleDragStart = (e, id) => {
         setDraggedId(id);
         e.dataTransfer.effectAllowed = "move";
@@ -218,12 +229,11 @@ const AddObject = () => {
         if (id === 'END') {
             if (dragOverId !== 'END') {
                 setDragOverId('END');
-                setDropPosition('left'); // Для кнопки "+" всегда рисуем линию слева
+                setDropPosition('left');
             }
             return;
         }
 
-        // Вычисляем: курсор на левой или правой половине карточки?
         const rect = e.currentTarget.getBoundingClientRect();
         const x = e.clientX - rect.left;
         const position = x < rect.width / 2 ? 'left' : 'right';
@@ -257,12 +267,8 @@ const AddObject = () => {
                 newPhotos.push(movedItem);
             } else {
                 let targetIdx = prevPhotos.findIndex(p => String(p.id) === String(targetId));
-
-                // Корректируем индекс вставки в зависимости от стороны
                 if (dropPosition === 'right') targetIdx += 1;
-                // Если вырезали элемент, который был раньше по списку, индекс смещается
                 if (sourceIdx < targetIdx) targetIdx -= 1;
-
                 newPhotos.splice(targetIdx, 0, movedItem);
             }
 
@@ -359,7 +365,12 @@ const AddObject = () => {
             return;
         }
 
-        const objectData = { type: 'REALTY', category: formData.type.toUpperCase() };
+        const objectData = {
+            type: 'REALTY',
+            category: formData.type.toUpperCase(),
+            // Фиксируем статус объекта в зависимости от типа сделки
+            objectStatus: formData.deal_type === 'SALE' ? 'FOR_SALE' : 'FOR_RENT'
+        };
 
         if (activeFields.includes('title')) objectData.title = formData.title.trim();
         if (activeFields.includes('description')) objectData.description = formData.description.trim();
@@ -401,6 +412,14 @@ const AddObject = () => {
         }
 
         const attributesObj = {};
+
+        // Записываем rent_type только если выбрана аренда, с нужным текстом
+        if (formData.deal_type === 'LONG_RENT') {
+            attributesObj.type_rent = 'долгосрочная аренда';
+        } else if (formData.deal_type === 'SHORT_RENT') {
+            attributesObj.type_rent = 'краткосрочная аренда';
+        }
+
         if (formData.type === 'Квартира') attributesObj.renovation_state = formData.category;
         if (formData.type === 'Дом') attributesObj.house_type = formData.category;
         if (formData.type === 'Офис') attributesObj.business_center_class = formData.category;
@@ -453,93 +472,52 @@ const AddObject = () => {
         <div className="add-object-container">
             <style>
                 {`
-                .photo-card-wrapper {
-    position: relative;
-    transition: opacity 0.2s, transform 0.2s;
-}
-                .photo-card-wrapper.drag-over-left::before,
-.add-photo-btn-wrapper.drag-over-left::before {
-    content: '';
-    position: absolute;
-    left: 5px; 
-    top: 7.5px;
-    height: 120px; /* Высота строго по картинке */
-    width: 4px;
-    background: #007bff;
-    border-radius: 4px;
-    box-shadow: 0 0 8px rgba(0, 123, 255, 0.6);
-    pointer-events: none;
-    z-index: 10;
-}
-
-.photo-card-wrapper.drag-over-right::after {
-    content: '';
-    position: absolute;
-    right: 5px;
-    top: 7.5px;
-    height: 120px;
-    width: 4px;
-    background: #007bff;
-    border-radius: 4px;
-    box-shadow: 0 0 8px rgba(0, 123, 255, 0.6);
-    pointer-events: none;
-    z-index: 10;
-}
-                /* Визуальный эффект при перетаскивании */
-                .photo-card-wrapper.drag-over {
-                    margin-left: 30px; 
-                }
-                .photo-card-wrapper.drag-over::before {
-                    content: '';
-                    position: absolute;
-                    left: -18px;
-                    top: 0;
-                    height: 120px;
-                    width: 6px;
-                    background: #007bff;
-                    border-radius: 4px;
-                    box-shadow: 0 0 10px rgba(0, 123, 255, 0.5);
-                    pointer-events: none;
-                }
+                .photo-card-wrapper { position: relative; transition: opacity 0.2s, transform 0.2s; }
+                .photo-card-wrapper.drag-over-left::before, .add-photo-btn-wrapper.drag-over-left::before { content: ''; position: absolute; left: 5px; top: 7.5px; height: 120px; width: 4px; background: #007bff; border-radius: 4px; box-shadow: 0 0 8px rgba(0, 123, 255, 0.6); pointer-events: none; z-index: 10; }
+                .photo-card-wrapper.drag-over-right::after { content: ''; position: absolute; right: 5px; top: 7.5px; height: 120px; width: 4px; background: #007bff; border-radius: 4px; box-shadow: 0 0 8px rgba(0, 123, 255, 0.6); pointer-events: none; z-index: 10; }
+                .photo-card-wrapper.drag-over { margin-left: 30px; }
+                .photo-card-wrapper.drag-over::before { content: ''; position: absolute; left: -18px; top: 0; height: 120px; width: 6px; background: #007bff; border-radius: 4px; box-shadow: 0 0 10px rgba(0, 123, 255, 0.5); pointer-events: none; }
+                .add-photo-btn.drag-over { transform: scale(1.05); border-color: #007bff !important; background: #e6f2ff !important; }
+                .photo-card-wrapper .delete-photo-btn { opacity: 0; transition: opacity 0.2s ease, background 0.2s ease; }
+                .photo-card-wrapper:hover .delete-photo-btn { opacity: 1; }
+                .delete-photo-btn:hover { background: #ff3b30 !important; }
+                .end-dropzone { width: 20px; height: 120px; position: relative; }
+                .end-dropzone.drag-over { margin-left: 10px; }
+                .end-dropzone.drag-over::before { content: ''; position: absolute; left: 7px; top: 0; height: 120px; width: 6px; background: #007bff; border-radius: 4px; box-shadow: 0 0 10px rgba(0, 123, 255, 0.5); pointer-events: none; }
                 
-                .add-photo-btn.drag-over {
-                    transform: scale(1.05);
-                    border-color: #007bff !important;
-                    background: #e6f2ff !important;
+                /* Стили для кнопок выбора типа сделки */
+                .deal-type-selector { 
+                    display: flex; 
+                    gap: 10px; 
+                    margin-bottom: 20px; 
                 }
 
-                .photo-card-wrapper .delete-photo-btn {
-    opacity: 0;
-    transition: opacity 0.2s ease, background 0.2s ease;
-}
-                .photo-card-wrapper:hover .delete-photo-btn {
-                    opacity: 1;
+                .deal-type-btn { 
+                    flex: 1; 
+                    padding: 12px; 
+                    border: 1px solid #222; 
+                    background: #333; /* Темный фон */
+                    color: #ffffff;    /* Белый текст */
+                    border-radius: 8px; 
+                    cursor: pointer; 
+                    transition: 0.2s; 
+                    font-weight: 500; 
+                    font-size: 15px; 
                 }
-                .delete-photo-btn:hover {
-                    background: #ff3b30 !important;
+
+                .deal-type-btn.active { 
+                    background: #007bff; /* Синий цвет для активной кнопки (можно заменить на #000 для полностью черного) */
+                    color: white; 
+                    border-color: #007bff; 
+                    box-shadow: 0 4px 10px rgba(0, 123, 255, 0.3); 
                 }
-                    /* Специальная зона для сброса в самый конец списка */
-.end-dropzone {
-    width: 20px;
-    height: 120px;
-    position: relative;
-}
-.end-dropzone.drag-over {
-    margin-left: 10px;
-}
-.end-dropzone.drag-over::before {
-    content: '';
-    position: absolute;
-    left: 7px;
-    top: 0;
-    height: 120px;
-    width: 6px;
-    background: #007bff;
-    border-radius: 4px;
-    box-shadow: 0 0 10px rgba(0, 123, 255, 0.5);
-    pointer-events: none;
-}
-                `}
+
+                .deal-type-btn:hover:not(.active) { 
+                    background: #444; /* Чуть светлее при наведении */
+                    border-color: #555;
+                    color: #ffffff;
+                }
+            `}
             </style>
 
             <div className="add-header">
@@ -561,6 +539,13 @@ const AddObject = () => {
 
             <form onSubmit={handleSubmit}>
                 <div className="form-section">
+                    <h3>Тип сделки</h3>
+                    <div className="deal-type-selector">
+                        <button type="button" className={`deal-type-btn ${formData.deal_type === 'SALE' ? 'active' : ''}`} onClick={() => handleDealTypeChange('SALE')} disabled={isSubmitting}>Продажа</button>
+                        <button type="button" className={`deal-type-btn ${formData.deal_type === 'LONG_RENT' ? 'active' : ''}`} onClick={() => handleDealTypeChange('LONG_RENT')} disabled={isSubmitting}>Долгосрочная аренда</button>
+                        <button type="button" className={`deal-type-btn ${formData.deal_type === 'SHORT_RENT' ? 'active' : ''}`} onClick={() => handleDealTypeChange('SHORT_RENT')} disabled={isSubmitting}>Краткосрочная аренда</button>
+                    </div>
+
                     <h3>Основная информация</h3>
                     <div className="grid-row">
                         <div className="input-field">
@@ -837,7 +822,7 @@ const AddObject = () => {
                     <div className="price-row">
                         {activeFields.includes('price_total') && (
                             <div className="input-field" style={{ flex: 2 }}>
-                                <label>Стоимость</label>
+                                <label>{getPriceLabel()}</label>
                                 <input
                                     type="number" min="0.01" step="0.01" name="price_total"
                                     value={formData.price_total} onChange={handleChange} required
@@ -874,10 +859,8 @@ const AddObject = () => {
                         </div>
                     )}
 
-                    {/* Вместо gap используем отрицательный margin для выравнивания сетки */}
                     <div style={{ display: 'flex', flexWrap: 'wrap', margin: '-7.5px', alignItems: 'flex-start' }}>
 
-                        {/* Плитки с загруженными фото */}
                         {photos.map((photo, index) => {
                             const isDraggingOverThis = dragOverId === photo.id && draggedId !== photo.id;
                             const dropClass = isDraggingOverThis ? (dropPosition === 'left' ? 'drag-over-left' : 'drag-over-right') : '';
@@ -892,7 +875,7 @@ const AddObject = () => {
                                     onDrop={(e) => handleDrop(e, photo.id)}
                                     onDragEnd={handleDragEnd}
                                     style={{
-                                        padding: '7.5px', /* <-- Это покрывает "мёртвую зону" */
+                                        padding: '7.5px',
                                         cursor: 'grab',
                                         opacity: draggedId === photo.id ? 0.4 : 1,
                                         transform: draggedId === photo.id ? 'scale(0.95)' : 'scale(1)'
@@ -926,7 +909,6 @@ const AddObject = () => {
                             );
                         })}
 
-                        {/* Обертка для кнопки добавления, чтобы она тоже перекрывала "мертвую зону" */}
                         <div
                             className={`add-photo-btn-wrapper ${dragOverId === 'END' ? 'drag-over-left' : ''}`}
                             onDragOver={(e) => handleDragOver(e, 'END')}
@@ -952,8 +934,6 @@ const AddObject = () => {
 
                     </div>
                 </div>
-
-
 
                 <button
                     type="submit"
