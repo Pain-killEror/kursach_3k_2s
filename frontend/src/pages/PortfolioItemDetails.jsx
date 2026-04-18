@@ -149,7 +149,17 @@ const PortfolioItemDetails = () => {
                             <button className="dropdown-item" onClick={() => { setIsMenuOpen(false); navigate('/chats'); }} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                                 Чаты {totalUnread > 0 && <span className="menu-badge">{totalUnread}</span>}
                             </button>
-                            <button onClick={() => { localStorage.clear(); sessionStorage.clear(); window.location.reload(); navigate('/login'); }} className="dropdown-item logout">Выйти</button>
+                            <button
+                                onClick={() => {
+                                    localStorage.clear();
+                                    sessionStorage.clear();
+                                    // Вместо reload используем href, чтобы принудительно уйти со страницы портфеля
+                                    window.location.href = '/login';
+                                }}
+                                className="dropdown-item logout"
+                            >
+                                Выйти
+                            </button>
                         </div>
                     )}
                 </div>

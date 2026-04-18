@@ -509,8 +509,18 @@ const Chats = () => {
         return d.toLocaleDateString('ru-RU', { weekday: 'short', month: 'long', day: 'numeric' });
     };
 
-    const rawPriceUsd = currentChatInfo?.priceUsd;
-    const displayPrice = rawPriceUsd ? formatPrice(convertPrice(rawPriceUsd, 'USD')) : 'Не указана';
+    const displayPrice = useMemo(() => {
+        // 1. Приоритет — полным данным объекта (там есть родная валюта)
+        if (fullObjectInfo) {
+            return formatPrice(convertPrice(fullObjectInfo.priceTotal, fullObjectInfo.currency));
+        }
+        // 2. Фолбэк на данные из чата, если объект еще грузится
+        if (currentChatInfo?.priceUsd) {
+            // Тут оставляем USD как базовый ориентир для DTO чата
+            return formatPrice(convertPrice(currentChatInfo.priceUsd, 'USD'));
+        }
+        return 'Загрузка...';
+    }, [fullObjectInfo, currentChatInfo, currency, convertPrice, formatPrice]);
 
     return (
         <div className="chats-layout">
