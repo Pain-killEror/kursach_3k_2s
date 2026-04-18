@@ -540,18 +540,41 @@ const Home = () => {
                 <p className="d-email">{user?.email}</p>
                 <p className="d-role" style={{ fontSize: '10px', color: '#888', textTransform: 'uppercase' }}>{user?.role}</p>
               </div>
-              <button className="dropdown-item">Мой профиль</button>
+
+              {/* Заменили Профиль на Портфель */}
+              <button
+                className="dropdown-item"
+                onClick={() => {
+                  setIsMenuOpen(false); // Закрываем меню перед переходом
+                  navigate('/portfolio');
+                }}
+              >
+                Мой портфель
+              </button>
 
               <button
                 className="dropdown-item"
-                onClick={() => navigate('/chats')}
+                onClick={() => {
+                  setIsMenuOpen(false);
+                  navigate('/chats');
+                }}
                 style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}
               >
                 Чаты
                 {totalUnread > 0 && <span className="menu-badge">{totalUnread}</span>}
               </button>
 
-              <button onClick={() => { localStorage.clear(); sessionStorage.clear(); window.location.reload(); navigate('/login'); }} className="dropdown-item logout">Выйти</button>
+              <button
+                onClick={() => {
+                  localStorage.clear();
+                  sessionStorage.clear();
+                  window.location.reload();
+                  navigate('/login');
+                }}
+                className="dropdown-item logout"
+              >
+                Выйти
+              </button>
             </div>
           )}
         </div>

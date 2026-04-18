@@ -577,11 +577,39 @@ const Chats = () => {
                     {isMenuOpen && (
                         <div className="user-dropdown-menu">
                             <div className="dropdown-header">
-                                <p className="d-name">{user?.name}</p><p className="d-email">{user?.email}</p><p className="d-role" style={{ fontSize: '10px', color: '#888', textTransform: 'uppercase' }}>{user?.role}</p>
+                                <p className="d-name">{user?.name}</p>
+                                <p className="d-email">{user?.email}</p>
+                                <p className="d-role" style={{ fontSize: '10px', color: '#888', textTransform: 'uppercase' }}>
+                                    {user?.role}
+                                </p>
                             </div>
-                            <button className="dropdown-item">Мой профиль</button>
-                            <button className="dropdown-item" onClick={() => navigate('/chats')} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>Чаты {totalUnread > 0 && <span className="menu-badge">{totalUnread}</span>}</button>
-                            <button className="dropdown-item logout" onClick={handleLogout}>Выйти</button>
+
+                            {/* Теперь кнопка ведет в портфель и закрывает меню */}
+                            <button
+                                className="dropdown-item"
+                                onClick={() => {
+                                    setIsMenuOpen(false);
+                                    navigate('/portfolio');
+                                }}
+                            >
+                                Мой портфель
+                            </button>
+
+                            <button
+                                className="dropdown-item"
+                                onClick={() => {
+                                    setIsMenuOpen(false);
+                                    navigate('/chats');
+                                }}
+                                style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}
+                            >
+                                Чаты
+                                {totalUnread > 0 && <span className="menu-badge">{totalUnread}</span>}
+                            </button>
+
+                            <button className="dropdown-item logout" onClick={handleLogout}>
+                                Выйти
+                            </button>
                         </div>
                     )}
                 </div>

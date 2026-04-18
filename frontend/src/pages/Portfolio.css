@@ -1,0 +1,80 @@
+.portfolio-page {
+    padding: 20px;
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+.portfolio-header {
+    background: #fff;
+    padding: 30px;
+    border-radius: 12px;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
+    margin-bottom: 30px;
+}
+
+.total-stats .value {
+    font-size: 2rem;
+    font-weight: bold;
+    margin-left: 15px;
+}
+
+.positive {
+    color: #27ae60;
+}
+
+.negative {
+    color: #e74c3c;
+}
+
+.portfolio-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 20px;
+}
+
+.portfolio-card {
+    background: white;
+    padding: 20px;
+    border-radius: 12px;
+    border: 1px solid #eee;
+    cursor: pointer;
+    transition: transform 0.2s, shadow 0.2s;
+}
+
+.portfolio-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
+}
+
+.strategy-tag {
+    color: #666;
+    font-size: 0.9rem;
+    margin: 10px 0;
+}
+
+.card-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-top: 15px;
+}
+
+.status-badge {
+    background: #f0f2f5;
+    padding: 4px 10px;
+    border-radius: 20px;
+    font-size: 0.8rem;
+    text-transform: uppercase;
+}
+
+.item-balance {
+    font-weight: bold;
+}
+
+.plus {
+    color: #2ecc71;
+}
+
+.minus {
+    color: #e74c3c;
+}

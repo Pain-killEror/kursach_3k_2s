@@ -6,6 +6,8 @@ import ObjectDetails from './pages/ObjectDetails';
 import AddObject from './pages/AddObject';
 import Admin from './pages/Admin';
 import Chats from './pages/Chats';
+import Portfolio from './pages/Portfolio';
+import PortfolioItemDetails from './pages/PortfolioItemDetails';
 
 // Защищает обычные приватные страницы (если НЕТ токена -> на логин)
 const ProtectedRoute = ({ children }) => {
@@ -73,6 +75,8 @@ function App() {
             </AdminRoute>
           }
         />
+        <Route path="/portfolio" element={<Portfolio />} />
+        <Route path="/portfolio/:itemId" element={<PortfolioItemDetails />} />
         <Route path="/chats" element={<Chats />} />
         <Route path="/chats/:chatId" element={<Chats />} />
       </Routes>

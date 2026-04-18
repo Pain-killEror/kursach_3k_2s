@@ -20,6 +20,22 @@ public class PortfolioItem {
     @Column(name = "purchase_date")
     private LocalDate purchaseDate;
 
+    // --- НОВЫЕ ПОЛЯ ДЛЯ ФИНАНСОВОГО УЧЕТА ---
+    
+    @Column(name = "strategy_name")
+    private String strategyName; // Название стратегии с фронтенда (например, "Перепродажа")
+
+    @Column(name = "target_amount")
+    private BigDecimal targetAmount; // Целевая цена (за сколько планируем продать/сдать)
+
+    @Column(name = "exit_tax_rate")
+    private BigDecimal exitTaxRate = new BigDecimal("13.00"); // Налог в % (по умолчанию 13%)
+
+    @Column(name = "status")
+    private String status = "PLANNING"; // PLANNING, RENOVATION, RENTED, FOR_SALE, SOLD
+
+    // ----------------------------------------
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "portfolio_id")
     private Portfolio portfolio;
@@ -44,6 +60,8 @@ public class PortfolioItem {
         this.investmentStrategy = investmentStrategy;
     }
 
+    // --- ГЕТТЕРЫ И СЕТТЕРЫ ---
+
     public UUID getId() {
         return id;
     }
@@ -66,6 +84,38 @@ public class PortfolioItem {
 
     public void setPurchaseDate(LocalDate purchaseDate) {
         this.purchaseDate = purchaseDate;
+    }
+
+    public String getStrategyName() {
+        return strategyName;
+    }
+
+    public void setStrategyName(String strategyName) {
+        this.strategyName = strategyName;
+    }
+
+    public BigDecimal getTargetAmount() {
+        return targetAmount;
+    }
+
+    public void setTargetAmount(BigDecimal targetAmount) {
+        this.targetAmount = targetAmount;
+    }
+
+    public BigDecimal getExitTaxRate() {
+        return exitTaxRate;
+    }
+
+    public void setExitTaxRate(BigDecimal exitTaxRate) {
+        this.exitTaxRate = exitTaxRate;
+    }
+
+    public String getStatus() {
+        return status;
+    }
+
+    public void setStatus(String status) {
+        this.status = status;
     }
 
     public Portfolio getPortfolio() {
