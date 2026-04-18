@@ -57,8 +57,14 @@ const Home = () => {
   const [allObjects, setAllObjects] = useState([]);
   const [displayedObjects, setDisplayedObjects] = useState([]);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
-  const [transactionType, setTransactionType] = useState('ALL');
-  const [rentType, setRentType] = useState('ALL');
+  const [transactionType, setTransactionType] = useState(() => {
+    const saved = sessionStorage.getItem('homeTransactionType');
+    return saved ? saved : 'ALL';
+  });
+  const [rentType, setRentType] = useState(() => {
+    const saved = sessionStorage.getItem('homeRentType');
+    return saved ? saved : 'ALL';
+  });
   const [showAdvanced, setShowAdvanced] = useState(() => {
     const saved = sessionStorage.getItem('homeShowAdvanced');
     return saved ? JSON.parse(saved) : false;
@@ -120,7 +126,9 @@ const Home = () => {
     sessionStorage.setItem('homeFilters', JSON.stringify(filters));
     sessionStorage.setItem('homeSortOption', sortOption);
     sessionStorage.setItem('homeShowAdvanced', JSON.stringify(showAdvanced));
-  }, [filters, sortOption, showAdvanced]);
+    sessionStorage.setItem('homeTransactionType', transactionType);
+    sessionStorage.setItem('homeRentType', rentType);
+  }, [filters, sortOption, showAdvanced, transactionType, rentType]);
 
   useEffect(() => {
     let timeoutId;
@@ -329,7 +337,7 @@ const Home = () => {
           } else if (f.type === 'boolean') {
             const filterVal = filters.attributes[f.name];
             if (filterVal === undefined || filterVal === '') return true;
-            return toBool(objAttrs[f.name]) === filterVal;
+            return toBool(objAttrs[f.name]) === toBool(filterVal);
           } else {
             const filterVal = filters.attributes[f.name];
             if (filterVal === undefined || filterVal === '') return true;
@@ -656,9 +664,17 @@ const Home = () => {
                 CATEGORY_CONFIG[cat].map(f => (
                   <div key={f.name} className="attr-item" style={{ display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
                     <label className="attr-label">{f.label} <small>({cat})</small></label>
+
                     {f.type === 'select' ? (
                       <select className="attr-select" value={filters.attributes[f.name] || ''} onChange={(e) => handleAttrChange(f.name, e.target.value)}>
                         <option value="">Любой</option>
+                        {f.options.map(opt => (
+                          <option key={opt} value={opt}>{opt}</option>
+                        ))}
+                      </select>
+                    ) : f.type === 'boolean' ? (
+                      <select className="attr-select" value={filters.attributes[f.name] !== undefined ? String(filters.attributes[f.name]) : ''} onChange={(e) => handleAttrChange(f.name, e.target.value)}>
+                        <option value="">Не важно</option>
                         <option value="true">Да</option>
                         <option value="false">Нет</option>
                       </select>
