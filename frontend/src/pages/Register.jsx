@@ -16,13 +16,11 @@ const Register = () => {
     name: '',
     email: '',
     phoneNumber: '',
-    role: 'INVESTOR',
-    entityType: 'INDIVIDUAL', // <-- НОВОЕ ПОЛЕ: Налоговый статус (по умолчанию Физлицо)
+    entityType: 'INDIVIDUAL', // Налоговый статус (по умолчанию Физлицо)
     password: '',
     confirmPassword: ''
   });
 
-  // ТЕПЕРЬ ОШИБКИ ХРАНЯТСЯ ОТДЕЛЬНО!
   const [errors, setErrors] = useState({
     email: '',
     password: '',
@@ -49,7 +47,7 @@ const Register = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setLoading(true); // Включаем кнопку загрузки
+    setLoading(true);
 
     const currentErrors = { email: '', password: '', general: '' };
     let hasError = false;
@@ -60,39 +58,35 @@ const Register = () => {
       hasError = true;
     }
 
-    // 2. СЕРВЕРНАЯ ПРОВЕРКА: Занята ли почта? (БЕЗ попытки регистрации)
+    // 2. СЕРВЕРНАЯ ПРОВЕРКА: Занята ли почта?
     try {
       await api.get('/auth/check-email', { params: { email: formData.email } });
     } catch (err) {
-      // Если сервер ответил ошибкой 400, значит почта занята
       if (err.response?.data?.message?.toLowerCase().includes('email')) {
         currentErrors.email = err.response.data.message;
         hasError = true;
       }
     }
 
-    // Обновляем состояния ошибок на экране (покажутся обе одновременно, если обе есть!)
     setErrors(currentErrors);
 
-    // Если есть хоть одна ошибка (пароль кривой ИЛИ почта занята) — прерываем функцию!
     if (hasError) {
       setLoading(false);
       return;
     }
 
-    // 3. Если ошибок нет вообще — отправляем финальный запрос на РЕГИСТРАЦИЮ
+    // 3. Отправляем финальный запрос на РЕГИСТРАЦИЮ
     try {
       await api.post('/auth/register', {
         name: formData.name,
         email: formData.email,
         phoneNumber: formData.phoneNumber,
-        role: formData.role,
-        entityType: formData.entityType, // <-- ОТПРАВЛЯЕМ СТАТУС НА БЭКЕНД
+        role: 'USER', // <-- ЖЕСТКО ЗАДАЕМ РОЛЬ КАК USER
+        entityType: formData.entityType,
         password: formData.password
       });
       navigate('/login');
     } catch (err) {
-      // На случай непредвиденных ошибок сервера
       setErrors(prev => ({ ...prev, general: err.response?.data?.message || 'Ошибка регистрации' }));
     } finally {
       setLoading(false);
@@ -107,7 +101,6 @@ const Register = () => {
           Создайте аккаунт
         </p>
 
-        {/* Общая ошибка (если упал сервер или что-то непредвиденное) */}
         {errors.general && (
           <div className="error-message" style={{ padding: '8px', marginBottom: '12px', fontSize: '0.8rem' }}>
             {errors.general}
@@ -116,34 +109,18 @@ const Register = () => {
 
         <form onSubmit={handleSubmit} className="auth-form" style={{ gap: '10px' }}>
 
-          {/* Блок с Ролью и Налоговым статусом в одну линию */}
-          <div style={{ display: 'flex', gap: '10px' }}>
-            <div className="input-group" style={{ gap: '3px', flex: 1 }}>
-              <label style={{ fontSize: '0.85rem' }}>Роль</label>
-              <select
-                name="role"
-                value={formData.role}
-                onChange={handleChange}
-                style={{ padding: '10px 12px', borderRadius: '4px', border: '1px solid #ccc' }}
-              >
-                <option value="INVESTOR">Инвестор</option>
-                <option value="SELLER">Продавец</option>
-              </select>
-            </div>
-
-            <div className="input-group" style={{ gap: '3px', flex: 1 }}>
-              <label style={{ fontSize: '0.85rem' }}>Налоговый статус</label>
-              <select
-                name="entityType"
-                value={formData.entityType}
-                onChange={handleChange}
-                style={{ padding: '10px 12px', borderRadius: '4px', border: '1px solid #ccc' }}
-              >
-                <option value="INDIVIDUAL">Физлицо</option>
-                <option value="ENTREPRENEUR">ИП</option>
-                <option value="LEGAL_ENTITY">Юрлицо</option>
-              </select>
-            </div>
+          <div className="input-group" style={{ gap: '3px' }}>
+            <label style={{ fontSize: '0.85rem' }}>Налоговый статус</label>
+            <select
+              name="entityType"
+              value={formData.entityType}
+              onChange={handleChange}
+              style={{ padding: '10px 12px', borderRadius: '4px', border: '1px solid #ccc', width: '100%', outline: 'none' }}
+            >
+              <option value="INDIVIDUAL">Физлицо</option>
+              <option value="ENTREPRENEUR">ИП</option>
+              <option value="LEGAL_ENTITY">Юрлицо</option>
+            </select>
           </div>
 
           <div className="input-group" style={{ gap: '3px' }}>
@@ -159,7 +136,6 @@ const Register = () => {
             />
           </div>
 
-          {/* ПОЛЕ EMAIL */}
           <div className="input-group" style={{ gap: '3px', position: 'relative' }}>
             <label style={{ fontSize: '0.85rem' }}>Email</label>
             <input
@@ -213,7 +189,6 @@ const Register = () => {
             />
           </div>
 
-          {/* ПАРОЛЬ */}
           <div className="input-group" style={{ gap: '3px', position: 'relative' }}>
             <label style={{ fontSize: '0.85rem' }}>Пароль</label>
             <div className="password-input-container" style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
@@ -242,7 +217,6 @@ const Register = () => {
             </div>
           </div>
 
-          {/* ПОДТВЕРЖДЕНИЕ ПАРОЛЯ */}
           <div className="input-group" style={{ gap: '3px', position: 'relative' }}>
             <label style={{ fontSize: '0.85rem' }}>Подтвердите пароль</label>
             <div className="password-input-container" style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
@@ -270,7 +244,6 @@ const Register = () => {
               )}
             </div>
 
-            {/* Всплывающая ошибка справа МЕЖДУ паролями */}
             {errors.password && (
               <div style={{
                 position: 'absolute',

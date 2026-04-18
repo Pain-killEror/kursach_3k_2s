@@ -6,6 +6,7 @@ import com.example.backend.entities.Role;
 import com.example.backend.entities.Status;
 import com.example.backend.entities.User;
 import com.example.backend.repositories.UserRepository;
+import com.example.backend.entities.enums.EntityType;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
@@ -31,6 +32,7 @@ public class AuthService {
             throw new RuntimeException("Пользователь с таким email не найден");
         }
 
+        // Если у пользователя нет хеша пароля, значит он регистрировался через Google
         if (user.getPasswordHash() == null || user.getPasswordHash().isEmpty()) {
             throw new RuntimeException("Этот аккаунт привязан к Google. Пожалуйста, используйте кнопку 'Вход через Google' ниже.");
         }
@@ -52,12 +54,12 @@ public class AuthService {
             throw new RuntimeException("Пользователь с таким email уже существует");
         }
 
-        if (user.getRole() == null) {
-            user.setRole(Role.USER);
-        }
+        // Безопасность: принудительно ставим роль USER. 
+        // Даже если фронтенд или злоумышленник пришлет ADMIN, сервер это перезапишет.
+        user.setRole(Role.USER);
         
         if (user.getEntityType() == null) {
-            user.setEntityType(com.example.backend.entities.enums.EntityType.INDIVIDUAL);
+            user.setEntityType(EntityType.INDIVIDUAL);
         }
 
         if (user.getStatus() == null) {
@@ -68,6 +70,7 @@ public class AuthService {
             user.setCreatedAt(LocalDateTime.now());
         }
         
+        // Хешируем пароль только если он передан (для Google-регистрации он может быть пустым)
         if (user.getPasswordHash() != null && !user.getPasswordHash().isEmpty()) {
             user.setPasswordHash(passwordEncoder.encode(user.getPasswordHash()));
         }

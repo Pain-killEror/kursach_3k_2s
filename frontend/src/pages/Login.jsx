@@ -26,8 +26,9 @@ const Login = () => {
   // Стейты для Google-регистрации
   const [needsRegistration, setNeedsRegistration] = useState(false);
   const [googleData, setGoogleData] = useState({ email: '', name: '', token: '' });
-  // НОВОЕ: добавлено entityType: 'INDIVIDUAL'
-  const [extraData, setExtraData] = useState({ phoneNumber: '', role: 'INVESTOR', entityType: 'INDIVIDUAL' });
+
+  // Роль удалена из стейта, оставляем только телефон и налоговый статус
+  const [extraData, setExtraData] = useState({ phoneNumber: '', entityType: 'INDIVIDUAL' });
 
   const navigate = useNavigate();
 
@@ -110,8 +111,8 @@ const Login = () => {
         name: googleData.name,
         email: googleData.email,
         phoneNumber: extraData.phoneNumber,
-        role: extraData.role,
-        entityType: extraData.entityType, // <-- НОВОЕ: отправляем статус
+        role: 'USER', // <-- ЖЕСТКО ЗАДАЕМ РОЛЬ КАК USER
+        entityType: extraData.entityType,
         password: "" // Пароль пустой, как и должно быть
       });
 
@@ -135,7 +136,7 @@ const Login = () => {
         <div className="auth-card" style={{ padding: '24px 32px' }}>
           <h2 style={{ marginBottom: '4px', fontSize: '1.5rem', textAlign: 'center', color: '#fff' }}>Почти готово!</h2>
           <p className="auth-subtitle" style={{ marginBottom: '16px', fontSize: '0.85rem', textAlign: 'center', color: '#a1a1aa' }}>
-            Укажите вашу роль и номер телефона
+            Укажите ваш налоговый статус и номер телефона
           </p>
 
           {errors.general && (
@@ -146,25 +147,13 @@ const Login = () => {
 
           <form onSubmit={handleCompleteRegistration} className="auth-form" style={{ gap: '12px', display: 'flex', flexDirection: 'column' }}>
 
-            {/* Блок с Ролью и Статусом в один ряд */}
-            <div style={{ display: 'flex', gap: '10px' }}>
-              <div className="input-group" style={{ gap: '4px', display: 'flex', flexDirection: 'column', flex: 1 }}>
-                <label style={{ fontSize: '0.85rem', color: '#e4e4e7' }}>Роль</label>
-                <select name="role" value={extraData.role} onChange={handleExtraChange} style={{ padding: '10px 12px', borderRadius: '4px', border: '1px solid #3f3f46', background: '#27272a', color: '#fff' }}>
-                  <option value="INVESTOR">Инвестор</option>
-                  <option value="SELLER">Продавец</option>
-                </select>
-              </div>
-
-              {/* НОВОЕ: Налоговый статус */}
-              <div className="input-group" style={{ gap: '4px', display: 'flex', flexDirection: 'column', flex: 1 }}>
-                <label style={{ fontSize: '0.85rem', color: '#e4e4e7' }}>Налоговый статус</label>
-                <select name="entityType" value={extraData.entityType} onChange={handleExtraChange} style={{ padding: '10px 12px', borderRadius: '4px', border: '1px solid #3f3f46', background: '#27272a', color: '#fff' }}>
-                  <option value="INDIVIDUAL">Физлицо</option>
-                  <option value="ENTREPRENEUR">ИП</option>
-                  <option value="LEGAL_ENTITY">Юрлицо</option>
-                </select>
-              </div>
+            <div className="input-group" style={{ gap: '4px', display: 'flex', flexDirection: 'column' }}>
+              <label style={{ fontSize: '0.85rem', color: '#e4e4e7' }}>Налоговый статус</label>
+              <select name="entityType" value={extraData.entityType} onChange={handleExtraChange} style={{ padding: '10px 12px', borderRadius: '4px', border: '1px solid #3f3f46', background: '#27272a', color: '#fff', outline: 'none' }}>
+                <option value="INDIVIDUAL">Физлицо</option>
+                <option value="ENTREPRENEUR">ИП</option>
+                <option value="LEGAL_ENTITY">Юрлицо</option>
+              </select>
             </div>
 
             <div className="input-group" style={{ gap: '4px', display: 'flex', flexDirection: 'column' }}>

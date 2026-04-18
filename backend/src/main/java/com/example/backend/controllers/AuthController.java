@@ -12,6 +12,7 @@ import com.google.api.client.googleapis.auth.oauth2.GoogleIdTokenVerifier;
 import com.google.api.client.http.javanet.NetHttpTransport;
 import com.google.api.client.json.gson.GsonFactory;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -21,7 +22,7 @@ import java.util.Map;
 
 @RestController
 @RequestMapping("/api/auth")
-@CrossOrigin(origins = "http://localhost:5173")
+@CrossOrigin(origins = "http://localhost:5173") // Настрой под свой фронтенд
 public class AuthController {
 
     private final AuthService authService;
@@ -37,6 +38,9 @@ public class AuthController {
         this.jwtUtils = jwtUtils;
     }
 
+    /**
+     * Обычный логин через email и пароль
+     */
     @PostMapping("/login")
     public ResponseEntity<?> login(@RequestBody LoginRequest loginRequest) {
         try {
@@ -46,6 +50,9 @@ public class AuthController {
         }
     }
 
+    /**
+     * Проверка существования email (используется фронтендом при регистрации)
+     */
     @GetMapping("/check-email")
     public ResponseEntity<?> checkEmail(@RequestParam String email) {
         if (userRepository.findByEmail(email).isPresent()) {
@@ -54,9 +61,14 @@ public class AuthController {
         return ResponseEntity.ok().build();
     }
 
+    /**
+     * Регистрация нового пользователя
+     * Роль USER будет установлена принудительно внутри authService.register
+     */
     @PostMapping("/register")
     public ResponseEntity<?> register(@RequestBody User user) {
         try {
+            // Если пароль не пришел (регистрация через Google), инициализируем пустой строкой
             if (user.getPasswordHash() == null) {
                 user.setPasswordHash("");
             }
@@ -66,6 +78,9 @@ public class AuthController {
         }
     }
 
+    /**
+     * Авторизация через Google
+     */
     @PostMapping("/google")
     public ResponseEntity<?> googleAuth(@RequestBody Map<String, String> request) {
         String idTokenString = request.get("token");
@@ -83,6 +98,7 @@ public class AuthController {
 
                 User user = userRepository.findByEmail(email).orElse(null);
 
+                // Если пользователя нет, сообщаем фронтенду, что нужна дорегистрация (телефон, налоговый статус)
                 if (user == null) {
                     Map<String, Object> response = new HashMap<>();
                     response.put("needsRegistration", true);
@@ -91,16 +107,20 @@ public class AuthController {
                     return ResponseEntity.ok(response);
                 }
 
+                // Проверка на блокировку
                 if (user.getStatus() == Status.BLOCKED) {
-                    return ResponseEntity.status(403).body(Map.of("message", "Ваш аккаунт заблокирован администратором"));
+                    return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                            .body(Map.of("message", "Ваш аккаунт заблокирован администратором"));
                 }
 
+                // Генерируем JWT. Роль берется из БД (у обычных пользователей там будет USER)
                 String jwt = jwtUtils.generateToken(user.getEmail(), user.getRole().name());
                 return ResponseEntity.ok(new JwtResponse(jwt, user));
             }
         } catch (Exception e) {
-            return ResponseEntity.status(401).body(Map.of("message", "Ошибка проверки Google токена"));
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(Map.of("message", "Ошибка проверки Google токена"));
         }
-        return ResponseEntity.status(401).build();
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
     }
 }
