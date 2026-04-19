@@ -10,7 +10,6 @@ const Portfolio = () => {
     const [loading, setLoading] = useState(true);
     const navigate = useNavigate();
 
-    // Добавляем convertPrice, чтобы менять цифры при переключении валюты
     const { currency, setCurrency, convertPrice } = useCurrency();
     const [isMenuOpen, setIsMenuOpen] = useState(false);
     const [totalUnread, setTotalUnread] = useState(0);
@@ -57,7 +56,6 @@ const Portfolio = () => {
 
     const cleanCategoryName = (item) => {
         if (item.customName) return item.customName;
-        // Берем категорию полностью, как ты и просил
         return item.objectTitle || "Объект";
     };
 
@@ -67,7 +65,7 @@ const Portfolio = () => {
         return fullAddress.trim();
     };
 
-    // Считаем общий баланс с учетом конвертации валюты
+    // Бэкенд теперь отдает правильный баланс (с учетом покупки), просто складываем всё!
     const totalBalance = items.reduce((sum, item) => sum + (item.currentBalance || 0), 0);
 
     if (loading) return <div className="loader">Загрузка портфеля...</div>;
@@ -139,7 +137,7 @@ const Portfolio = () => {
                         <div className="total-stats">
                             <span className="label" style={{ color: '#8e8e93' }}>Общий финансовый результат: </span>
                             <span className={`value ${totalBalance >= 0 ? 'positive' : 'negative'}`} style={{ fontSize: '24px', fontWeight: 'bold', color: totalBalance >= 0 ? '#30d158' : '#ff453a' }}>
-                                {convertPrice(totalBalance, 'USD').toLocaleString()} {currency === 'BYN' ? 'Br' : '$'}
+                                {totalBalance > 0 ? '+' : ''}{convertPrice(totalBalance, 'USD').toLocaleString()} {currency === 'BYN' ? 'Br' : '$'}
                             </span>
                         </div>
                     </div>
@@ -166,7 +164,6 @@ const Portfolio = () => {
                                     transition: 'transform 0.2s'
                                 }}
                             >
-                                {/* Уменьшаем padding здесь, чтобы карточка стала ниже (было 20px, стало 15px) */}
                                 <div className="card-info" style={{ padding: '15px', display: 'flex', flexDirection: 'column', height: '100%' }}>
                                     <h3 className="item-display-name" style={{ fontSize: '1.1rem', margin: '0 0 4px 0', color: '#fff' }}>
                                         {cleanCategoryName(item)}
@@ -176,13 +173,9 @@ const Portfolio = () => {
                                         {getStreetOnly(item)}
                                     </p>
 
-                                    <div className="card-footer" style={{ marginTop: 'auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                        <span className="status-badge" style={{ background: '#2c2c2e', color: '#fff', padding: '4px 10px', borderRadius: '8px', fontSize: '11px', fontWeight: '600' }}>
-                                            {item.status}
-                                        </span>
-                                        <span className={`item-balance ${item.currentBalance >= 0 ? 'plus' : 'minus'}`} style={{ fontWeight: 'bold', color: item.currentBalance >= 0 ? '#30d158' : '#ff453a' }}>
-                                            {/* Конвертируем сумму для каждой карточки */}
-                                            {convertPrice(item.currentBalance, 'USD').toLocaleString()} {currency === 'BYN' ? 'Br' : '$'}
+                                    <div className="card-footer" style={{ marginTop: 'auto', display: 'flex', justifyContent: 'flex-end', alignItems: 'center' }}>
+                                        <span className={`item-balance ${item.currentBalance >= 0 ? 'plus' : 'minus'}`} style={{ fontWeight: 'bold', fontSize: '16px', color: item.currentBalance >= 0 ? '#30d158' : '#ff453a' }}>
+                                            {item.currentBalance > 0 ? '+' : ''}{convertPrice(item.currentBalance, 'USD').toLocaleString()} {currency === 'BYN' ? 'Br' : '$'}
                                         </span>
                                     </div>
                                 </div>

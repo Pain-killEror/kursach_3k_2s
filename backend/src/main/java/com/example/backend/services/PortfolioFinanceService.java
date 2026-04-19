@@ -169,11 +169,19 @@ public class PortfolioFinanceService {
             PortfolioSummaryDto dto = new PortfolioSummaryDto();
             dto.setPortfolioItemId(item.getId());
             
-            BigDecimal balance = item.getTransactions().stream()
+            // 1. Достаем стоимость покупки объекта
+            BigDecimal purchasePrice = item.getInvestedAmount() != null ? item.getInvestedAmount() : BigDecimal.ZERO;
+            
+            // 2. Считаем баланс по транзакциям (доходы минус расходы)
+            BigDecimal transactionsBalance = item.getTransactions().stream()
                 .map(t -> t.getType() == FlowType.INCOME ? t.getAmount() : t.getAmount().negate())
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
                 
-            dto.setCurrentBalance(balance);
+            // 3. РЕАЛЬНЫЙ БАЛАНС: Баланс транзакций МИНУС цена покупки
+            dto.setCurrentBalance(transactionsBalance.subtract(purchasePrice));
+            
+            // На всякий случай кладем цену покупки в DTO (чтобы фронт её видел)
+            dto.setPurchasePrice(purchasePrice);
             
             if (item.getRealEstateObject() != null) {
                 dto.setObjectTitle(item.getRealEstateObject().getTitle());
