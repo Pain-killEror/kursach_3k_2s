@@ -14,7 +14,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.Collectors;
-import com.example.backend.entities.enums.ObjectStatus;
+import com.example.backend.entities.ObjectStatus;
 
 
 @Service
@@ -259,7 +259,7 @@ public class ChatService {
                 // 1. Смена собственника (Критически важно для user_id в БД)
                 object.setUser(buyer); 
                 object.setCurrentOccupant(buyer);
-                object.setObjectStatus("SOLD");
+                object.setObjectStatus(ObjectStatus.SOLD);
                 object.setIsVisible(false);
                 objectRepository.save(object);
 
