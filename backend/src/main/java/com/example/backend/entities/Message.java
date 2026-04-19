@@ -7,9 +7,11 @@ import java.util.UUID;
 import java.math.BigDecimal;
 
 import com.example.backend.config.StringCryptoConverter;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
 @Entity
 @Table(name = "messages")
+@JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
 public class Message {
 
     @Id

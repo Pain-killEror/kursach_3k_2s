@@ -6,9 +6,12 @@ import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 
 @Entity
 @Table(name = "portfolio_items")
+@JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
 public class PortfolioItem {
 
     @Id
@@ -45,6 +48,7 @@ public class PortfolioItem {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "portfolio_id")
+    @JsonIgnore
     private Portfolio portfolio;
 
     @ManyToOne(fetch = FetchType.LAZY)

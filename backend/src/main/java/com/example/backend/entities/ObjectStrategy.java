@@ -2,10 +2,12 @@ package com.example.backend.entities;
 
 import jakarta.persistence.*;
 import java.math.BigDecimal;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
 @Entity
 @Table(name = "object_strategies")
 @IdClass(ObjectStrategyId.class)
+@JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
 public class ObjectStrategy {
 
     @Id

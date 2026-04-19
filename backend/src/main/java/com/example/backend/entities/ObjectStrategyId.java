@@ -3,7 +3,9 @@ package com.example.backend.entities;
 import java.io.Serializable;
 import java.util.Objects;
 import java.util.UUID;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
+@JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
 public class ObjectStrategyId implements Serializable {
 
     private UUID realEstateObject;

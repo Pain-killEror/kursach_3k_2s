@@ -8,9 +8,11 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.UUID;
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
 @Entity
 @Table(name = "portfolio_transactions")
+@JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
 public class PortfolioTransaction {
 
     @Id

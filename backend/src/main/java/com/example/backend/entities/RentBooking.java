@@ -5,9 +5,11 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.UUID;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 
 @Entity
 @Table(name = "rent_bookings")
+@JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
 public class RentBooking {
 
     @Id

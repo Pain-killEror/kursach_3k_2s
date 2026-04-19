@@ -2,9 +2,11 @@ package com.example.backend.entities;
 
 import jakarta.persistence.*;
 import java.util.UUID;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
 @Entity
 @Table(name = "portfolios")
+@JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
 public class Portfolio {
 
     @Id

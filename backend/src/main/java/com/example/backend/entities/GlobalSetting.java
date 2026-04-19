@@ -2,9 +2,11 @@ package com.example.backend.entities;
 
 import jakarta.persistence.*;
 import java.math.BigDecimal;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
 @Entity
 @Table(name = "global_settings")
+@JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
 public class GlobalSetting {
 
     @Id

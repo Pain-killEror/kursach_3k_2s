@@ -3,9 +3,11 @@ package com.example.backend.entities;
 import jakarta.persistence.*;
 import java.math.BigDecimal;
 import java.util.UUID;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
 @Entity
 @Table(name = "financial_models")
+@JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
 public class FinancialModel {
 
     @Id

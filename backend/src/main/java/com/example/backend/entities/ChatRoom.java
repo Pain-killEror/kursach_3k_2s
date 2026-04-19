@@ -3,9 +3,11 @@ package com.example.backend.entities;
 import jakarta.persistence.*;
 import java.time.LocalDateTime;
 import java.util.UUID;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
 @Entity
 @Table(name = "chat_rooms")
+@JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
 public class ChatRoom {
 
     @Id

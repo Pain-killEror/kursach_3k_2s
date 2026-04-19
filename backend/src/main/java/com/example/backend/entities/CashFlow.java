@@ -5,9 +5,11 @@ import com.example.backend.entities.enums.Periodicity;
 import jakarta.persistence.*;
 import java.math.BigDecimal;
 import java.util.UUID;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
 @Entity
 @Table(name = "cash_flows")
+@JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
 public class CashFlow {
 
     @Id
