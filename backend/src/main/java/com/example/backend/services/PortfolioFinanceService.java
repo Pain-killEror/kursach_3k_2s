@@ -27,7 +27,15 @@ public class PortfolioFinanceService {
     /**
      * Сохранение новой транзакции
      */
-    public PortfolioTransaction addTransaction(PortfolioTransaction transaction) {
+    public PortfolioTransaction addTransaction(UUID itemId, PortfolioTransaction transaction) {
+        // 1. Находим объект портфеля, к которому крепим чек/трату
+        PortfolioItem item = itemRepository.findById(itemId)
+                .orElseThrow(() -> new RuntimeException("Объект портфеля не найден"));
+
+        // 2. Устанавливаем связь (это то, чего не хватало!)
+        transaction.setPortfolioItem(item);
+        
+        // 3. Сохраняем
         return transactionRepository.save(transaction);
     }
 

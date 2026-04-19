@@ -71,36 +71,36 @@ const PortfolioItemDetails = () => {
     const handleAddTransaction = async (e) => {
         e.preventDefault();
         try {
-            // Проверь, что itemId (из useParams) существует
             if (!itemId) {
                 console.error("ID объекта не найден в URL");
                 return;
             }
 
+            // 1. Формируем чистые данные транзакции без лишних вложений
             const dataToSend = {
                 title: transaction.title,
                 amount: parseFloat(transaction.amount),
                 type: transaction.type,
                 category: transaction.category,
-                transactionDate: transaction.transactionDate,
-                // ВАЖНО: отправляем как вложенный объект, чтобы Hibernate понял связь
-                portfolioItem: {
-                    id: itemId
-                }
+                transactionDate: transaction.transactionDate
             };
 
             console.log("Отправка данных:", dataToSend);
 
-            const response = await api.post('/portfolio/transactions', dataToSend);
+            // 2. Отправляем POST запрос, где itemId идет в URL (?itemId=...)
+            // Это соответствует аннотации @RequestParam на бэкенде
+            const response = await api.post(`/portfolio/transactions?itemId=${itemId}`, dataToSend);
 
             console.log("Успех:", response.data);
+
+            // Очистка формы и обновление данных
             setTransaction({ ...transaction, title: '', amount: '' });
             loadData();
+
         } catch (err) {
-            // Теперь тебя не выкинет на логин, и мы увидим ошибку
-            console.error("Ошибка 403. Проверь консоль бэкенда (IntelliJ)!");
-            console.error("Детали:", err.response?.data);
-            alert("Ошибка доступа или данных. Проверь консоль IDEA.");
+            console.error("Ошибка при добавлении транзакции!");
+            console.error("Детали от сервера:", err.response?.data);
+            alert("Не удалось добавить операцию. Проверь консоль бэкенда.");
         }
     };
 

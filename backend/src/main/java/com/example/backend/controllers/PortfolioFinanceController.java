@@ -47,8 +47,12 @@ public class PortfolioFinanceController {
     }
 
     @PostMapping("/transactions")
-    public ResponseEntity<PortfolioTransaction> addTransaction(@RequestBody PortfolioTransaction transaction) {
-        return ResponseEntity.ok(financeService.addTransaction(transaction));
+    public ResponseEntity<PortfolioTransaction> addTransaction(
+            @RequestParam UUID itemId, // Принимаем ID через параметр запроса
+            @RequestBody PortfolioTransaction transaction) {
+        
+        // Передаем и ID, и саму транзакцию в сервис
+        return ResponseEntity.ok(financeService.addTransaction(itemId, transaction));
     }
 
     @PutMapping("/items/{itemId}/settings")

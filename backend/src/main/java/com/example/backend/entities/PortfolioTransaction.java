@@ -7,6 +7,7 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.UUID;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 
 @Entity
 @Table(name = "portfolio_transactions")
@@ -20,7 +21,7 @@ public class PortfolioTransaction {
     // СВЯЗЬ: Теперь это объект, а не просто UUID
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "portfolio_item_id", nullable = false)
-    @com.fasterxml.jackson.annotation.JsonIgnore 
+    @JsonIgnore
     private PortfolioItem portfolioItem;
 
     @Column(nullable = false)
@@ -37,7 +38,7 @@ public class PortfolioTransaction {
     private FlowType type;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
+    @Column(nullable = false, length = 50)
     private TransactionCategory category;
 
     @Column(name = "transaction_date", nullable = false)

@@ -16,6 +16,7 @@ import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
+import java.util.Arrays;
 import java.util.List;
 
 @Configuration
@@ -36,21 +37,27 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
-            .cors(cors -> cors.configurationSource(corsConfigurationSource()))
+            // 1. Отключаем CSRF (обязательно для Stateless API с JWT)
             .csrf(AbstractHttpConfigurer::disable)
+            
+            // 2. Включаем CORS с нашей конфигурацией
+            .cors(cors -> cors.configurationSource(corsConfigurationSource()))
+            
+            // 3. Устанавливаем Stateless сессии (сервер не хранит состояние, работаем по токенам)
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             
+            // 4. Настройка правил доступа
             .authorizeHttpRequests(auth -> auth
-                // Разрешаем OPTIONS запросы для CORS
+                // Разрешаем все OPTIONS запросы (необходимы браузеру перед POST запросом)
                 .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                 
                 // Публичные эндпоинты
-                .requestMatchers("/api/auth/**", "/uploads/**", "/ws/**").permitAll()
+                .requestMatchers("/api/auth/**", "/uploads/**", "/ws/**", "/error").permitAll() 
                 
-                // Просмотр объектов доступен всем (только GET)
-                .requestMatchers(HttpMethod.GET, "/api/objects", "/api/objects/**").permitAll() 
+                // Просмотр объектов доступен всем (GET запросы на /api/objects и /api/objects/...)
+                .requestMatchers(HttpMethod.GET, "/api/objects/**").permitAll() 
                 
-                // --- ПОРТФЕЛЬ: Доступ только для авторизованных пользователей ---
+                // Портфель и транзакции - только для авторизованных
                 .requestMatchers("/api/portfolio/**").authenticated()
                 
                 // Админка
@@ -59,6 +66,8 @@ public class SecurityConfig {
                 // Все остальные запросы должны быть подтверждены JWT токеном
                 .anyRequest().authenticated()
             )
+            
+            // 5. Добавляем фильтр проверки JWT перед стандартным фильтром аутентификации
             .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
@@ -67,12 +76,22 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
-        // Убедись, что адрес фронтенда совпадает с твоим (обычно 5173 для Vite)
+        
+        // Разрешаем фронтенд (убедись, что порт 5173 верный)
         config.setAllowedOrigins(List.of("http://localhost:5173"));
-        config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
-        config.setAllowedHeaders(List.of("*"));
+        
+        // Явно разрешаем все основные HTTP методы
+        config.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
+        
+        // Явно разрешаем заголовок Authorization (критично для JWT!)
+        config.setAllowedHeaders(Arrays.asList("Authorization", "Content-Type", "Accept", "X-Requested-With"));
+        
+        // Разрешаем отправку Credentials (куки, заголовки авторизации)
         config.setAllowCredentials(true);
         
+        // Кэшируем предварительные (OPTIONS) запросы на 1 час
+        config.setMaxAge(3600L);
+
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", config);
         return source;
