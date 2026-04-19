@@ -49,6 +49,9 @@ public class PortfolioTransaction {
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
 
+    @Column(name = "currency", length = 10)
+    private String currency = "USD";
+
     @PrePersist
     protected void onCreate() {
         this.createdAt = LocalDateTime.now();
@@ -69,6 +72,9 @@ public class PortfolioTransaction {
     }
 
     // --- ГЕТТЕРЫ И СЕТТЕРЫ ---
+
+    public String getCurrency() { return currency; }
+    public void setCurrency(String currency) { this.currency = currency; }
 
     public UUID getId() {
         return id;

@@ -5,13 +5,29 @@ import { useCurrency } from '../context/CurrencyContext';
 import './PortfolioItemDetails.css';
 import './Home.css';
 
+const categoryMap = {
+    PURCHASE: 'Покупка объекта',
+    MATERIALS: 'Материалы',
+    LABOR: 'Рабочие / Услуги',
+    TAX: 'Налоги / Сборы',
+    UTILITIES: 'Коммуналка',
+    RENT_INCOME: 'Доход от аренды',
+    SALE_PROCEEDS: 'Выручка от продажи',
+    OTHER: 'Прочее'
+};
+
+const MonthNames = [
+    'Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь',
+    'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'
+];
+
 const PortfolioItemDetails = () => {
     const { itemId } = useParams();
     const navigate = useNavigate();
     const [summary, setSummary] = useState(null);
     const [loading, setLoading] = useState(true);
 
-    const { currency, setCurrency } = useCurrency();
+    const { currency, setCurrency, convertPrice } = useCurrency();
     const [isMenuOpen, setIsMenuOpen] = useState(false);
     const [totalUnread, setTotalUnread] = useState(0);
     const dropdownRef = useRef(null);
@@ -22,6 +38,13 @@ const PortfolioItemDetails = () => {
             return u ? JSON.parse(u) : null;
         } catch (e) { return null; }
     }, []);
+
+    const currentRealDate = new Date();
+    const currentYearStr = currentRealDate.getFullYear().toString();
+    const currentMonthStr = (currentRealDate.getMonth() + 1).toString();
+
+    const [expandedYears, setExpandedYears] = useState({ [currentYearStr]: true });
+    const [expandedMonths, setExpandedMonths] = useState({ [`${currentYearStr}-${currentMonthStr}`]: true });
 
     useEffect(() => {
         const token = localStorage.getItem('token');
@@ -40,18 +63,18 @@ const PortfolioItemDetails = () => {
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, []);
 
+    const todayDateString = currentRealDate.toISOString().split('T')[0];
+
     const [transaction, setTransaction] = useState({
         title: '',
         amount: '',
+        currency: currency || 'USD',
         type: 'EXPENSE',
         category: 'MATERIALS',
-        // Дата операции (когда она фактически была, напр. "вчера купил обои"). 
-        // А точное время создания БД поставит сама в created_at!
-        transactionDate: new Date().toISOString().split('T')[0]
+        transactionDate: todayDateString
     });
 
     const [isEditingSettings, setIsEditingSettings] = useState(false);
-    // Налог теперь инициализируется как 0, никаких захардкоженных 13
     const [settings, setSettings] = useState({ strategyName: '', targetAmount: '', exitTaxRate: 0 });
 
     useEffect(() => { loadData(); }, [itemId]);
@@ -77,6 +100,7 @@ const PortfolioItemDetails = () => {
             const dataToSend = {
                 title: transaction.title,
                 amount: parseFloat(transaction.amount),
+                currency: transaction.currency,
                 type: transaction.type,
                 category: transaction.category,
                 transactionDate: transaction.transactionDate
@@ -100,21 +124,25 @@ const PortfolioItemDetails = () => {
         } catch (err) { alert("Ошибка при сохранении настроек"); }
     };
 
-    // --- УМНАЯ СОРТИРОВКА И ГРУППИРОВКА ---
     const sortedAndGroupedTransactions = useMemo(() => {
         if (!summary || !summary.transactions) return [];
 
-        // 1. Сортируем от новых к старым, используя точное время создания из БД (createdAt)
         const sorted = [...summary.transactions].sort((a, b) => {
-            const timeA = a.createdAt ? new Date(a.createdAt).getTime() : new Date(a.transactionDate).getTime();
-            const timeB = b.createdAt ? new Date(b.createdAt).getTime() : new Date(b.transactionDate).getTime();
+            const dateA = new Date(a.transactionDate).getTime();
+            const dateB = new Date(b.transactionDate).getTime();
+
+            if (dateA !== dateB) {
+                return dateB - dateA;
+            }
+
+            const timeA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+            const timeB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
             return timeB - timeA;
         });
 
         const grouped = [];
         let lastDate = null;
 
-        // 2. Вставляем разделители дат на основе фактической даты операции (transactionDate)
         sorted.forEach(t => {
             const datePart = t.transactionDate ? t.transactionDate.split('T')[0] : '';
             if (datePart !== lastDate) {
@@ -126,6 +154,80 @@ const PortfolioItemDetails = () => {
 
         return grouped;
     }, [summary]);
+
+    // --- ОБНОВЛЕННАЯ ЛОГИКА: Авто-учет покупки объекта ---
+    const hierarchicalData = useMemo(() => {
+        if (!summary) return [];
+
+        const tree = {};
+
+        const addRecord = (dateStr, amount, currencyParam, type, isPurchase = false) => {
+            if (!dateStr) return;
+            const parts = dateStr.split('-');
+            if (parts.length !== 3) return;
+
+            const y = parts[0];
+            const m = parseInt(parts[1], 10).toString();
+            const d = parseInt(parts[2], 10).toString();
+
+            const val = convertPrice ? convertPrice(Number(amount), currencyParam || 'USD') : Number(amount);
+            const isIncome = type === 'INCOME';
+
+            if (!tree[y]) tree[y] = { year: y, income: 0, expense: 0, net: 0, months: {} };
+            if (!tree[y].months[m]) tree[y].months[m] = { month: m, income: 0, expense: 0, net: 0, days: {} };
+            if (!tree[y].months[m].days[d]) tree[y].months[m].days[d] = { day: d, income: 0, expense: 0, net: 0, count: 0, hasPurchase: false };
+
+            if (isIncome) {
+                tree[y].income += val;
+                tree[y].months[m].income += val;
+                tree[y].months[m].days[d].income += val;
+            } else {
+                tree[y].expense += val;
+                tree[y].months[m].expense += val;
+                tree[y].months[m].days[d].expense += val;
+            }
+            tree[y].months[m].days[d].count += 1;
+            if (isPurchase) tree[y].months[m].days[d].hasPurchase = true;
+        };
+
+        // 1. АВТОМАТИЧЕСКИЙ ВБРОС СТОИМОСТИ ПОКУПКИ В ТАБЛИЦУ
+        if (summary.purchasePrice && Number(summary.purchasePrice) > 0) {
+            // Ищем лучшую дату: дата покупки -> дата создания записи -> сегодня
+            const pDate = summary.purchaseDate || summary.createdAt || new Date().toISOString();
+            const pDateStr = pDate.split('T')[0];
+            // Покупка - это всегда расход (EXPENSE)
+            addRecord(pDateStr, summary.purchasePrice, 'USD', 'EXPENSE', true);
+        }
+
+        // 2. ДОБАВЛЕНИЕ ВСЕХ ОСТАЛЬНЫХ ТРАНЗАКЦИЙ
+        if (summary.transactions) {
+            summary.transactions.forEach(tx => {
+                // Если юзер сделал ручную операцию "Покупка объекта", мы её игнорируем здесь, 
+                // чтобы не задвоить с пунктом 1 выше.
+                if (tx.category === 'PURCHASE') return;
+
+                const dateStr = tx.transactionDate ? tx.transactionDate.split('T')[0] : '';
+                addRecord(dateStr, tx.amount, tx.currency || 'USD', tx.type);
+            });
+        }
+
+        // Превращаем дерево в отсортированные массивы
+        return Object.values(tree).map(yData => {
+            yData.net = yData.income - yData.expense;
+            yData.months = Object.values(yData.months).map(mData => {
+                mData.net = mData.income - mData.expense;
+                mData.days = Object.values(mData.days).map(dData => {
+                    dData.net = dData.income - dData.expense;
+                    return dData;
+                }).sort((a, b) => Number(b.day) - Number(a.day));
+                return mData;
+            }).sort((a, b) => Number(b.month) - Number(a.month));
+            return yData;
+        }).sort((a, b) => Number(b.year) - Number(a.year));
+    }, [summary, convertPrice, currency]);
+
+    const toggleYear = (y) => setExpandedYears(prev => ({ ...prev, [y]: !prev[y] }));
+    const toggleMonth = (y, m) => setExpandedMonths(prev => ({ ...prev, [`${y}-${m}`]: !prev[`${y}-${m}`] }));
 
     const formatDateSeparator = (dateString) => {
         const todayDate = new Date();
@@ -143,14 +245,19 @@ const PortfolioItemDetails = () => {
         return dateString;
     };
 
-    // Форматирование времени (ЧЧ:ММ) из поля createdAt
     const formatTime = (isoString) => {
         if (!isoString) return '';
         const date = new Date(isoString);
         return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     };
 
-    // Вспомогательные расчеты для визуала налогов
+    const formatPrice = (amount) => {
+        const val = Number(amount) || 0;
+        const converted = convertPrice ? convertPrice(val, 'USD') : val;
+        const symbol = currency === 'BYN' ? 'Br' : '$';
+        return `${converted.toLocaleString()} ${symbol}`;
+    };
+
     const netDebt = (summary?.totalInvested || 0) - (summary?.totalIncome || 0);
     const taxAmount = ((settings.targetAmount || 0) * (summary?.exitTaxRate || 0)) / 100;
 
@@ -207,34 +314,31 @@ const PortfolioItemDetails = () => {
                 </div>
 
                 <div className="details-grid">
-                    {/* ЛЕВАЯ КОЛОНКА */}
                     <div className="analysis-section">
                         <div className="card-glass summary-card">
                             <h3 className="card-title">Финансовый результат</h3>
                             <div className="big-balance-wrapper" style={{ margin: '20px 0' }}>
                                 <span className={`big-balance-value ${summary.currentBalance >= 0 ? 'positive' : 'negative'}`} style={{ fontSize: '36px', fontWeight: '800' }}>
-                                    {summary.currentBalance?.toLocaleString() || 0} $
+                                    {summary.currentBalance > 0 ? '+' : ''}{formatPrice(summary.currentBalance)}
                                 </span>
                             </div>
 
-                            {/* Куплено за | Вложено (доп) | Доход */}
                             <div className="stats-mini-row" style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid #333', paddingTop: '15px' }}>
                                 <div className="stat-item" style={{ textAlign: 'left' }}>
                                     <span style={{ color: '#8e8e93', fontSize: '14px', display: 'block' }}>Куплено за</span>
-                                    <span style={{ fontWeight: 'bold' }}>{(summary.purchasePrice || 0).toLocaleString()} $</span>
+                                    <span style={{ fontWeight: 'bold' }}>{formatPrice(summary.purchasePrice)}</span>
                                 </div>
                                 <div className="stat-item" style={{ textAlign: 'center' }}>
                                     <span style={{ color: '#8e8e93', fontSize: '14px', display: 'block' }}>Вложено (доп.)</span>
-                                    <span style={{ fontWeight: 'bold' }}>{(summary.additionalInvestments || 0).toLocaleString()} $</span>
+                                    <span style={{ fontWeight: 'bold' }}>{formatPrice(summary.additionalInvestments)}</span>
                                 </div>
                                 <div className="stat-item" style={{ textAlign: 'right' }}>
                                     <span style={{ color: '#8e8e93', fontSize: '14px', display: 'block' }}>Доход</span>
-                                    <span style={{ fontWeight: 'bold' }}>{(summary.totalIncome || 0).toLocaleString()} $</span>
+                                    <span style={{ fontWeight: 'bold' }}>{formatPrice(summary.totalIncome)}</span>
                                 </div>
                             </div>
                         </div>
 
-                        {/* КРУТОЙ БЛОК: Экономика и Налоги */}
                         <div className="card-glass economy-card" style={{ marginTop: '20px' }}>
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
                                 <h3 className="card-title" style={{ margin: 0 }}>⚖️ Расчет прибыли и налогов</h3>
@@ -251,20 +355,20 @@ const PortfolioItemDetails = () => {
                                 <div className="calculation-breakdown" style={{ background: '#1c1c1e', padding: '15px', borderRadius: '10px', border: '1px solid #333' }}>
                                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px', fontSize: '14px' }}>
                                         <span style={{ color: '#fff' }}>🎯 Целевая цена продажи</span>
-                                        <span style={{ fontWeight: 'bold' }}>{Number(settings.targetAmount).toLocaleString()} $</span>
+                                        <span style={{ fontWeight: 'bold' }}>{formatPrice(settings.targetAmount)}</span>
                                     </div>
                                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px', fontSize: '14px', color: '#ff453a' }}>
                                         <span>🏛 Налог с продажи ({summary.exitTaxRate}%)</span>
-                                        <span>- {taxAmount.toLocaleString()} $</span>
+                                        <span>- {formatPrice(taxAmount)}</span>
                                     </div>
                                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '15px', fontSize: '14px', color: '#ff9f0a' }}>
                                         <span>💰 Возврат всех вложений</span>
-                                        <span>- {netDebt > 0 ? netDebt.toLocaleString() : 0} $</span>
+                                        <span>- {formatPrice(netDebt > 0 ? netDebt : 0)}</span>
                                     </div>
                                     <div style={{ borderTop: '1px dashed #444', paddingTop: '15px', display: 'flex', justifyContent: 'space-between', fontSize: '16px', fontWeight: 'bold' }}>
                                         <span style={{ color: '#fff' }}>✨ Чистая прибыль</span>
                                         <span className={summary.expectedProfit >= 0 ? 'positive' : 'negative'}>
-                                            {summary.expectedProfit >= 0 ? '+' : ''}{summary.expectedProfit?.toLocaleString()} $
+                                            {summary.expectedProfit >= 0 ? '+' : ''}{formatPrice(summary.expectedProfit)}
                                         </span>
                                     </div>
                                 </div>
@@ -274,14 +378,12 @@ const PortfolioItemDetails = () => {
                                 </div>
                             )}
 
-                            {/* Мини-подсказка: Точка безубыточности */}
                             <div style={{ marginTop: '15px', background: 'rgba(255, 159, 10, 0.1)', borderLeft: '3px solid #ff9f0a', padding: '10px 15px', borderRadius: '0 8px 8px 0' }}>
-                                <div style={{ fontSize: '13px', color: '#ff9f0a', fontWeight: '600', marginBottom: '4px' }}>Точка безубыточности: {summary.breakEvenPrice?.toLocaleString() || 0} $</div>
+                                <div style={{ fontSize: '13px', color: '#ff9f0a', fontWeight: '600', marginBottom: '4px' }}>Точка безубыточности: {formatPrice(summary.breakEvenPrice)}</div>
                                 <div style={{ fontSize: '11px', color: '#a1a1aa' }}>Минимальная цена продажи, чтобы после уплаты налога ({summary.exitTaxRate}%) выйти ровно в ноль по всем вложениям.</div>
                             </div>
                         </div>
 
-                        {/* НАСТРОЙКИ СТРАТЕГИИ (теперь без поля налога) */}
                         <div className="card-glass settings-card" style={{ marginTop: '20px' }}>
                             <div className="card-header-flex" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
                                 <h3 className="card-title" style={{ margin: 0 }}>Стратегия и цель</h3>
@@ -297,20 +399,25 @@ const PortfolioItemDetails = () => {
                             ) : (
                                 <div className="view-settings">
                                     <p style={{ margin: '0 0 5px 0', fontSize: '15px' }}><strong>{summary.strategyName || 'Не установлена'}</strong></p>
-                                    <p style={{ margin: 0, color: '#8e8e93', fontSize: '14px' }}>План продажи: {summary.targetAmount ? `${summary.targetAmount.toLocaleString()} $` : 'Цена не задана'}</p>
+                                    <p style={{ margin: 0, color: '#8e8e93', fontSize: '14px' }}>План продажи: {summary.targetAmount ? formatPrice(summary.targetAmount) : 'Цена не задана'}</p>
                                 </div>
                             )}
                         </div>
                     </div>
 
-                    {/* ПРАВАЯ КОЛОНКА (ОПЕРАЦИИ) */}
                     <div className="transactions-section">
                         <div className="card-glass add-tx-card">
                             <h3 className="card-title">Добавить операцию</h3>
                             <form onSubmit={handleAddTransaction} style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                                 <input className="dark-input" value={transaction.title} onChange={e => setTransaction({ ...transaction, title: e.target.value })} placeholder="Наименование (напр. 'Замена окон')" required />
                                 <div className="form-row" style={{ display: 'flex', gap: '10px' }}>
-                                    <input className="dark-input" type="number" value={transaction.amount} onChange={e => setTransaction({ ...transaction, amount: e.target.value })} placeholder="Сумма" required style={{ flex: 1 }} />
+                                    <div style={{ display: 'flex', flex: 1, gap: '5px' }}>
+                                        <input className="dark-input" type="number" value={transaction.amount} onChange={e => setTransaction({ ...transaction, amount: e.target.value })} placeholder="Сумма" required style={{ flex: 1, minWidth: '0' }} />
+                                        <select className="dark-select" value={transaction.currency} onChange={e => setTransaction({ ...transaction, currency: e.target.value })} style={{ flex: '0 0 85px', padding: '12px 8px' }}>
+                                            <option value="USD">USD</option>
+                                            <option value="BYN">BYN</option>
+                                        </select>
+                                    </div>
                                     <select className="dark-select" value={transaction.type} onChange={e => setTransaction({ ...transaction, type: e.target.value })} style={{ flex: 1 }}>
                                         <option value="EXPENSE">Расход (-)</option>
                                         <option value="INCOME">Доход (+)</option>
@@ -327,7 +434,7 @@ const PortfolioItemDetails = () => {
                                         <option value="SALE_PROCEEDS">Выручка от продажи</option>
                                         <option value="OTHER">Прочее</option>
                                     </select>
-                                    <input className="dark-input" type="date" value={transaction.transactionDate} onChange={e => setTransaction({ ...transaction, transactionDate: e.target.value })} required style={{ flex: 1 }} title="Дата операции" />
+                                    <input className="dark-input" type="date" max={todayDateString} value={transaction.transactionDate} onChange={e => setTransaction({ ...transaction, transactionDate: e.target.value })} required style={{ flex: 1 }} title="Дата операции" />
                                 </div>
                                 <button type="submit" className="btn-add-tx" style={{ background: '#007aff', color: '#fff', border: 'none', padding: '12px', borderRadius: '10px', fontWeight: 'bold', cursor: 'pointer', marginTop: '5px' }}>
                                     Записать операцию
@@ -335,7 +442,6 @@ const PortfolioItemDetails = () => {
                             </form>
                         </div>
 
-                        {/* ИСТОРИЯ ОПЕРАЦИЙ (ГРУППИРОВКА ПО ДНЯМ + ТОЧНОЕ ВРЕМЯ ИЗ БД) */}
                         <div className="card-glass history-card" style={{ marginTop: '20px' }}>
                             <h3 className="card-title">История операций</h3>
                             <div className="tx-list" style={{ maxHeight: '500px', overflowY: 'auto', paddingRight: '5px' }}>
@@ -357,14 +463,18 @@ const PortfolioItemDetails = () => {
                                             <div key={item.id} className="tx-item" style={{ display: 'flex', justifyContent: 'space-between', padding: '12px 10px', borderBottom: '1px solid #333', borderRadius: '8px', transition: 'background 0.2s', cursor: 'default' }}>
                                                 <div className="tx-main">
                                                     <span className="tx-title" style={{ fontWeight: '500', display: 'block', fontSize: '15px' }}>{item.title}</span>
-                                                    {/* ВЫВОДИМ ТОЧНОЕ ВРЕМЯ ИЗ БД (item.createdAt) */}
                                                     <span style={{ fontSize: '12px', color: '#8e8e93', display: 'flex', gap: '6px', alignItems: 'center', marginTop: '4px' }}>
-                                                        <span style={{ background: '#3a3a3c', padding: '2px 6px', borderRadius: '4px', fontSize: '10px' }}>{item.category}</span>
+                                                        <span style={{ background: '#3a3a3c', padding: '2px 6px', borderRadius: '4px', fontSize: '10px' }}>
+                                                            {categoryMap[item.category] || item.category}
+                                                        </span>
                                                         {item.createdAt ? formatTime(item.createdAt) : ''}
                                                     </span>
                                                 </div>
                                                 <span className={`tx-amount ${item.type === 'INCOME' ? 'positive' : 'negative'}`} style={{ fontWeight: 'bold', alignSelf: 'center', fontSize: '15px' }}>
-                                                    {item.type === 'INCOME' ? '+' : '-'}{item.amount.toLocaleString()} $
+                                                    {item.type === 'INCOME' ? '+' : '-'}
+                                                    {item.currency
+                                                        ? `${Number(item.amount).toLocaleString()} ${item.currency === 'BYN' ? 'Br' : '$'}`
+                                                        : formatPrice(item.amount)}
                                                 </span>
                                             </div>
                                         );
@@ -374,6 +484,86 @@ const PortfolioItemDetails = () => {
                         </div>
                     </div>
                 </div>
+
+                {hierarchicalData.length > 0 && (
+                    <div className="card-glass" style={{ marginTop: '20px', padding: '20px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
+                            <h3 className="card-title" style={{ margin: 0 }}>📊 Сводка по периодам</h3>
+                            <span style={{ fontSize: '12px', color: '#8e8e93' }}>Суммы указаны в {currency === 'BYN' ? 'BYN' : 'USD'}</span>
+                        </div>
+
+                        <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr', gap: '10px', padding: '10px 15px', color: '#8e8e93', fontSize: '12px', textTransform: 'uppercase', borderBottom: '2px solid #333', fontWeight: 'bold' }}>
+                            <div>Период</div>
+                            <div style={{ textAlign: 'right' }}>Получено</div>
+                            <div style={{ textAlign: 'right' }}>Потрачено</div>
+                            <div style={{ textAlign: 'right' }}>Итого</div>
+                        </div>
+
+                        <div style={{ display: 'flex', flexDirection: 'column' }}>
+                            {hierarchicalData.map(yData => (
+                                <div key={yData.year} style={{ borderBottom: '1px solid #2c2c2e' }}>
+                                    {/* ГОД */}
+                                    <div
+                                        onClick={() => toggleYear(yData.year)}
+                                        style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr', gap: '10px', padding: '14px 15px', background: expandedYears[yData.year] ? '#1c1c1e' : 'transparent', cursor: 'pointer', transition: '0.2s', alignItems: 'center' }}
+                                        onMouseOver={(e) => e.currentTarget.style.background = '#2c2c2e'}
+                                        onMouseOut={(e) => e.currentTarget.style.background = expandedYears[yData.year] ? '#1c1c1e' : 'transparent'}
+                                    >
+                                        <div style={{ fontWeight: 'bold', fontSize: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                            <span style={{ fontSize: '12px', opacity: 0.5 }}>{expandedYears[yData.year] ? '▼' : '▶'}</span>
+                                            {yData.year} год
+                                        </div>
+                                        <div style={{ color: '#32d74b', textAlign: 'right', fontWeight: '600' }}>{yData.income > 0 ? `+${formatPrice(yData.income)}` : '-'}</div>
+                                        <div style={{ color: '#ff453a', textAlign: 'right', fontWeight: '600' }}>{yData.expense > 0 ? `-${formatPrice(yData.expense)}` : '-'}</div>
+                                        <div className={yData.net >= 0 ? 'positive' : 'negative'} style={{ textAlign: 'right', fontWeight: 'bold' }}>
+                                            {yData.net > 0 ? '+' : ''}{formatPrice(yData.net)}
+                                        </div>
+                                    </div>
+
+                                    {/* МЕСЯЦЫ */}
+                                    {expandedYears[yData.year] && yData.months.map(mData => (
+                                        <div key={mData.month}>
+                                            <div
+                                                onClick={() => toggleMonth(yData.year, mData.month)}
+                                                style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr', gap: '10px', padding: '12px 15px 12px 35px', background: expandedMonths[`${yData.year}-${mData.month}`] ? '#1a1a1c' : 'transparent', cursor: 'pointer', borderTop: '1px dashed #333' }}
+                                                onMouseOver={(e) => e.currentTarget.style.background = '#2c2c2e'}
+                                                onMouseOut={(e) => e.currentTarget.style.background = expandedMonths[`${yData.year}-${mData.month}`] ? '#1a1a1c' : 'transparent'}
+                                            >
+                                                <div style={{ fontSize: '14px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                    <span style={{ fontSize: '10px', opacity: 0.5 }}>{expandedMonths[`${yData.year}-${mData.month}`] ? '▼' : '▶'}</span>
+                                                    {MonthNames[mData.month - 1]}
+                                                </div>
+                                                <div style={{ color: '#32d74b', textAlign: 'right', fontSize: '14px' }}>{mData.income > 0 ? `+${formatPrice(mData.income)}` : ''}</div>
+                                                <div style={{ color: '#ff453a', textAlign: 'right', fontSize: '14px' }}>{mData.expense > 0 ? `-${formatPrice(mData.expense)}` : ''}</div>
+                                                <div className={mData.net >= 0 ? 'positive' : 'negative'} style={{ textAlign: 'right', fontSize: '14px', fontWeight: '600' }}>
+                                                    {mData.net > 0 ? '+' : ''}{formatPrice(mData.net)}
+                                                </div>
+                                            </div>
+
+                                            {/* ДНИ */}
+                                            {expandedMonths[`${yData.year}-${mData.month}`] && mData.days.map(dData => (
+                                                <div key={dData.day} style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr', gap: '10px', padding: '10px 15px 10px 55px', borderTop: '1px solid #222', fontSize: '13px', background: 'rgba(0,0,0,0.2)' }}>
+                                                    <div style={{ color: '#a1a1aa', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                                        <span style={{ width: '4px', height: '4px', borderRadius: '50%', background: '#666' }}></span>
+                                                        {dData.day} числа <span style={{ fontSize: '11px', opacity: 0.5 }}>({dData.count} зап.)</span>
+
+                                                        {/* НОВЫЙ БЕЙДЖ ДЛЯ ОТОБРАЖЕНИЯ ПОКУПКИ */}
+                                                        {dData.hasPurchase && <span style={{ background: '#007aff', color: 'white', padding: '2px 6px', borderRadius: '4px', fontSize: '10px', marginLeft: '5px' }}>Покупка объекта</span>}
+                                                    </div>
+                                                    <div style={{ color: '#32d74b', textAlign: 'right', opacity: 0.8 }}>{dData.income > 0 ? `+${formatPrice(dData.income)}` : ''}</div>
+                                                    <div style={{ color: '#ff453a', textAlign: 'right', opacity: 0.8 }}>{dData.expense > 0 ? `-${formatPrice(dData.expense)}` : ''}</div>
+                                                    <div style={{ color: dData.net >= 0 ? '#32d74b' : '#ff453a', textAlign: 'right', opacity: 0.9 }}>
+                                                        {dData.net > 0 ? '+' : ''}{formatPrice(dData.net)}
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    ))}
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
             </main>
         </div>
     );
