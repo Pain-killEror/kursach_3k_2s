@@ -11,14 +11,20 @@ public class PortfolioSummaryDto {
     private BigDecimal targetAmount;
     private BigDecimal exitTaxRate;
 
-    // Финансовые показатели
-    private BigDecimal totalInvested;  // Общая сумма всех расходов (EXPENSE)
-    private BigDecimal totalIncome;    // Общая сумма всех доходов (INCOME)
-    private BigDecimal currentBalance; // Текущий финансовый результат (Income - Expense)
+    // --- НОВЫЕ ПОЛЯ ДЛЯ ОТОБРАЖЕНИЯ НА КАРТОЧКЕ ---
+    private String objectCategory; // Категория (Квартира, Дом и т.д.)
+    private String objectAddress;  // Полный адрес для извлечения улицы
+    private String objectTitle;    // Оригинальный заголовок из объявления
+    private String customName;     // Пользовательское имя (на будущее)
 
-    // Аналитические показатели (расчетные)
-    private BigDecimal breakEvenPrice; // Цена продажи, при которой инвестор выйдет в 0 с учетом налога
-    private BigDecimal expectedProfit; // Чистая прибыль, если продать по цене targetAmount
+    // Финансовые показатели
+    private BigDecimal totalInvested;
+    private BigDecimal totalIncome;
+    private BigDecimal currentBalance;
+
+    // Аналитические показатели
+    private BigDecimal breakEvenPrice;
+    private BigDecimal expectedProfit;
 
     // Лента операций
     private List<PortfolioTransaction> transactions;
@@ -26,85 +32,39 @@ public class PortfolioSummaryDto {
     public PortfolioSummaryDto() {
     }
 
-    // --- ГЕТТЕРЫ И СЕТТЕРЫ ---
+    // --- ГЕТТЕРЫ И СЕТТЕРЫ ДЛЯ НОВЫХ ПОЛЕЙ ---
 
-    public UUID getPortfolioItemId() {
-        return portfolioItemId;
-    }
+    public String getObjectCategory() { return objectCategory; }
+    public void setObjectCategory(String objectCategory) { this.objectCategory = objectCategory; }
 
-    public void setPortfolioItemId(UUID portfolioItemId) {
-        this.portfolioItemId = portfolioItemId;
-    }
+    public String getObjectAddress() { return objectAddress; }
+    public void setObjectAddress(String objectAddress) { this.objectAddress = objectAddress; }
 
-    public String getStrategyName() {
-        return strategyName;
-    }
+    public String getObjectTitle() { return objectTitle; }
+    public void setObjectTitle(String objectTitle) { this.objectTitle = objectTitle; }
 
-    public void setStrategyName(String strategyName) {
-        this.strategyName = strategyName;
-    }
+    public String getCustomName() { return customName; }
+    public void setCustomName(String customName) { this.customName = customName; }
 
-    public BigDecimal getTargetAmount() {
-        return targetAmount;
-    }
-
-    public void setTargetAmount(BigDecimal targetAmount) {
-        this.targetAmount = targetAmount;
-    }
-
-    public BigDecimal getExitTaxRate() {
-        return exitTaxRate;
-    }
-
-    public void setExitTaxRate(BigDecimal exitTaxRate) {
-        this.exitTaxRate = exitTaxRate;
-    }
-
-    public BigDecimal getTotalInvested() {
-        return totalInvested;
-    }
-
-    public void setTotalInvested(BigDecimal totalInvested) {
-        this.totalInvested = totalInvested;
-    }
-
-    public BigDecimal getTotalIncome() {
-        return totalIncome;
-    }
-
-    public void setTotalIncome(BigDecimal totalIncome) {
-        this.totalIncome = totalIncome;
-    }
-
-    public BigDecimal getCurrentBalance() {
-        return currentBalance;
-    }
-
-    public void setCurrentBalance(BigDecimal currentBalance) {
-        this.currentBalance = currentBalance;
-    }
-
-    public BigDecimal getBreakEvenPrice() {
-        return breakEvenPrice;
-    }
-
-    public void setBreakEvenPrice(BigDecimal breakEvenPrice) {
-        this.breakEvenPrice = breakEvenPrice;
-    }
-
-    public BigDecimal getExpectedProfit() {
-        return expectedProfit;
-    }
-
-    public void setExpectedProfit(BigDecimal expectedProfit) {
-        this.expectedProfit = expectedProfit;
-    }
-
-    public List<PortfolioTransaction> getTransactions() {
-        return transactions;
-    }
-
-    public void setTransactions(List<PortfolioTransaction> transactions) {
-        this.transactions = transactions;
-    }
+    // --- ОСТАЛЬНЫЕ ГЕТТЕРЫ И СЕТТЕРЫ (оставь как были) ---
+    public UUID getPortfolioItemId() { return portfolioItemId; }
+    public void setPortfolioItemId(UUID portfolioItemId) { this.portfolioItemId = portfolioItemId; }
+    public String getStrategyName() { return strategyName; }
+    public void setStrategyName(String strategyName) { this.strategyName = strategyName; }
+    public BigDecimal getTargetAmount() { return targetAmount; }
+    public void setTargetAmount(BigDecimal targetAmount) { this.targetAmount = targetAmount; }
+    public BigDecimal getExitTaxRate() { return exitTaxRate; }
+    public void setExitTaxRate(BigDecimal exitTaxRate) { this.exitTaxRate = exitTaxRate; }
+    public BigDecimal getTotalInvested() { return totalInvested; }
+    public void setTotalInvested(BigDecimal totalInvested) { this.totalInvested = totalInvested; }
+    public BigDecimal getTotalIncome() { return totalIncome; }
+    public void setTotalIncome(BigDecimal totalIncome) { this.totalIncome = totalIncome; }
+    public BigDecimal getCurrentBalance() { return currentBalance; }
+    public void setCurrentBalance(BigDecimal currentBalance) { this.currentBalance = currentBalance; }
+    public BigDecimal getBreakEvenPrice() { return breakEvenPrice; }
+    public void setBreakEvenPrice(BigDecimal breakEvenPrice) { this.breakEvenPrice = breakEvenPrice; }
+    public BigDecimal getExpectedProfit() { return expectedProfit; }
+    public void setExpectedProfit(BigDecimal expectedProfit) { this.expectedProfit = expectedProfit; }
+    public List<PortfolioTransaction> getTransactions() { return transactions; }
+    public void setTransactions(List<PortfolioTransaction> transactions) { this.transactions = transactions; }
 }

@@ -41,7 +41,7 @@ public class PortfolioItem {
     private Portfolio portfolio;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "object_id")
+    @JoinColumn(name = "real_estate_object_id")
     private RealEstateObject realEstateObject;
 
     @ManyToOne(fetch = FetchType.LAZY)

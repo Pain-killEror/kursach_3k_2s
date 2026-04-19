@@ -51,12 +51,22 @@
 
 .portfolio-card.dark-card {
     background: #1e1e1e;
-    padding: 24px;
+    /* Уменьшаем padding: было 24px, стало 16px (сверху/снизу) и 20px (слева/справа) */
+    padding: 16px 20px;
     border-radius: 14px;
     border: 1px solid #333;
     color: white;
     cursor: pointer;
     transition: all 0.3s ease;
+
+    /* Дополнительно: можно ограничить минимальную высоту, если контента мало */
+    min-height: auto;
+
+    /* Если используешь flex внутри карточки, проверь отступы между элементами (gap) */
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    /* Уменьши это значение, если элементы внутри слишком далеко друг от друга */
 }
 
 .portfolio-card.dark-card:hover {

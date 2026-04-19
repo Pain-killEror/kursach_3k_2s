@@ -1,0 +1,162 @@
+/* Основной фон страницы (синхронизация с Portfolio.css) */
+.details-page {
+    background-color: #000;
+    min-height: 100vh;
+    color: #fff;
+}
+
+/* Сетка страницы */
+.details-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    /* Две равные колонки */
+    gap: 30px;
+    align-items: start;
+    margin-top: 20px;
+}
+
+/* Эффект "стеклянных" карточек */
+.card-glass {
+    background: rgba(28, 28, 30, 0.7);
+    backdrop-filter: blur(15px);
+    -webkit-backdrop-filter: blur(15px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 20px;
+    padding: 24px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+    transition: transform 0.3s ease;
+}
+
+/* Баннер объекта (шапка страницы) */
+.details-banner {
+    background: linear-gradient(145deg, #1c1c1e, #0a0a0a) !important;
+    border: 1px solid #333 !important;
+    padding: 30px !important;
+    border-radius: 24px !important;
+}
+
+.category-tag {
+    display: inline-block;
+    color: #fff;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 12px;
+}
+
+/* Заголовки внутри карточек */
+.card-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: #8e8e93;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin: 0 0 15px 0;
+}
+
+/* Финансовые показатели */
+.big-balance-value {
+    font-family: 'Inter', -apple-system, sans-serif;
+    display: inline-block;
+}
+
+.positive {
+    color: #30d158;
+}
+
+/* Зеленый (Apple iOS Style) */
+.negative {
+    color: #ff453a;
+}
+
+/* Красный */
+
+/* Поля ввода и селекты (Dark Inputs) */
+.dark-input,
+.dark-select {
+    background: #121212 !important;
+    border: 1px solid #333 !important;
+    border-radius: 12px !important;
+    padding: 12px 16px !important;
+    color: #fff !important;
+    font-size: 15px !important;
+    transition: border-color 0.2s ease;
+}
+
+.dark-input:focus,
+.dark-select:focus {
+    border-color: #007aff !important;
+    outline: none;
+}
+
+/* Кнопки */
+.btn-back {
+    transition: all 0.2s ease;
+}
+
+.btn-back:hover {
+    background: #3a3a3c !important;
+    transform: translateX(-3px);
+}
+
+.btn-add-tx {
+    transition: background 0.2s ease, transform 0.1s active;
+}
+
+.btn-add-tx:hover {
+    background: #0a84ff !important;
+}
+
+.btn-add-tx:active {
+    transform: scale(0.98);
+}
+
+/* История операций (Список) */
+.tx-list {
+    scrollbar-width: thin;
+    scrollbar-color: #444 transparent;
+}
+
+.tx-list::-webkit-scrollbar {
+    width: 6px;
+}
+
+.tx-list::-webkit-scrollbar-thumb {
+    background-color: #444;
+    border-radius: 10px;
+}
+
+.tx-item {
+    transition: background 0.2s ease;
+}
+
+.tx-item:last-child {
+    border-bottom: none !important;
+}
+
+/* Адаптивность для мобильных устройств */
+@media (max-width: 900px) {
+    .details-grid {
+        grid-template-columns: 1fr;
+        /* Колонки встают друг под друга */
+    }
+
+    .big-balance-value {
+        font-size: 28px !important;
+    }
+}
+
+/* Стили для "Умных подсказок" */
+.insight-item {
+    background: rgba(255, 255, 255, 0.03);
+    padding: 12px;
+    border-radius: 12px;
+}
+
+.tax-input {
+    width: 120px !important;
+    /* Еще чуть больше места для комфорта */
+    font-weight: 600;
+    color: #007aff !important;
+    /* Сделаем само число синим, чтобы выделить */
+    border-color: rgba(0, 122, 255, 0.3) !important;
+}

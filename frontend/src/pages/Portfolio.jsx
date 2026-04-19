@@ -10,7 +10,8 @@ const Portfolio = () => {
     const [loading, setLoading] = useState(true);
     const navigate = useNavigate();
 
-    const { currency, setCurrency } = useCurrency();
+    // Добавляем convertPrice, чтобы менять цифры при переключении валюты
+    const { currency, setCurrency, convertPrice } = useCurrency();
     const [isMenuOpen, setIsMenuOpen] = useState(false);
     const [totalUnread, setTotalUnread] = useState(0);
     const dropdownRef = useRef(null);
@@ -54,6 +55,19 @@ const Portfolio = () => {
         }
     };
 
+    const cleanCategoryName = (item) => {
+        if (item.customName) return item.customName;
+        // Берем категорию полностью, как ты и просил
+        return item.objectTitle || "Объект";
+    };
+
+    const getStreetOnly = (item) => {
+        const fullAddress = item.objectAddress || "";
+        if (!fullAddress) return "Адрес не указан";
+        return fullAddress.trim();
+    };
+
+    // Считаем общий баланс с учетом конвертации валюты
     const totalBalance = items.reduce((sum, item) => sum + (item.currentBalance || 0), 0);
 
     if (loading) return <div className="loader">Загрузка портфеля...</div>;
@@ -63,25 +77,7 @@ const Portfolio = () => {
             <header className="home-header">
                 <div className="brand" onClick={() => navigate('/')} style={{ cursor: 'pointer' }}>💎 InvestHub</div>
 
-                <button
-                    onClick={() => navigate('/')}
-                    style={{
-                        marginLeft: 'auto',
-                        marginRight: '15px',
-                        padding: '8px 18px',
-                        backgroundColor: '#34495e',
-                        color: 'white',
-                        border: 'none',
-                        borderRadius: '8px',
-                        fontWeight: '600',
-                        cursor: 'pointer',
-                        fontSize: '13px'
-                    }}
-                >
-                    🏠 На главную
-                </button>
-
-                <div className="currency-selector" style={{ marginRight: '15px' }}>
+                <div className="currency-selector" style={{ marginLeft: 'auto', marginRight: '15px' }}>
                     <select
                         value={currency}
                         onChange={(e) => setCurrency(e.target.value)}
@@ -92,29 +88,15 @@ const Portfolio = () => {
                             background: '#1a1a1a',
                             color: 'white',
                             fontWeight: '600',
-                            fontSize: '14px'
+                            fontSize: '14px',
+                            cursor: 'pointer',
+                            outline: 'none'
                         }}
                     >
                         <option value="USD">USD ($)</option>
                         <option value="BYN">BYN (Br)</option>
                     </select>
                 </div>
-
-                {/* Кнопка "Продать недвижимость" удалена отсюда */}
-
-                {user?.role === 'ADMIN' && (
-                    <button
-                        className="admin-panel-btn"
-                        onClick={() => navigate('/admin')}
-                        style={{
-                            marginRight: '15px', padding: '8px 18px', backgroundColor: '#8e44ad',
-                            color: 'white', border: 'none', borderRadius: '8px', fontWeight: '600',
-                            cursor: 'pointer', fontSize: '13px'
-                        }}
-                    >
-                        ⚙️ Администрирование
-                    </button>
-                )}
 
                 <div className="user-profile-container" ref={dropdownRef}>
                     <div className="avatar-wrapper" onClick={() => setIsMenuOpen(!isMenuOpen)}>
@@ -131,7 +113,6 @@ const Portfolio = () => {
                             <div className="dropdown-header">
                                 <p className="d-name">{user?.name}</p>
                                 <p className="d-email">{user?.email}</p>
-                                <p className="d-role" style={{ fontSize: '10px', color: '#888', textTransform: 'uppercase' }}>{user?.role}</p>
                             </div>
                             <button className="dropdown-item" onClick={() => { setIsMenuOpen(false); navigate('/portfolio'); }}>
                                 Мой портфель
@@ -139,15 +120,7 @@ const Portfolio = () => {
                             <button className="dropdown-item" onClick={() => { setIsMenuOpen(false); navigate('/chats'); }}>
                                 Чаты {totalUnread > 0 && <span className="menu-badge">{totalUnread}</span>}
                             </button>
-                            <button
-                                onClick={() => {
-                                    localStorage.clear();
-                                    sessionStorage.clear();
-                                    // Вместо reload используем href, чтобы принудительно уйти со страницы портфеля
-                                    window.location.href = '/login';
-                                }}
-                                className="dropdown-item logout"
-                            >
+                            <button onClick={() => { localStorage.clear(); window.location.href = '/login'; }} className="dropdown-item logout">
                                 Выйти
                             </button>
                         </div>
@@ -155,46 +128,69 @@ const Portfolio = () => {
                 </div>
             </header>
 
-            {/* БЛОК ИНВЕСТИЦИЙ С ТЕМНЫМ ФОНОМ */}
-            <div className="portfolio-summary-banner">
-                <div className="summary-content">
-                    <h1>Мои инвестиции</h1>
-                    <div className="total-stats">
-                        <span className="label">Общий финансовый результат:</span>
-                        <span className={`value ${totalBalance >= 0 ? 'positive' : 'negative'}`}>
-                            {totalBalance.toLocaleString()} $
-                        </span>
+            <main className="portfolio-container" style={{ maxWidth: '1200px', margin: '0 auto', padding: '5px' }}>
+                <div className="portfolio-navigation" style={{ marginBottom: '5px', marginTop: '0' }}>
+                    <button className="btn-back" onClick={() => navigate('/')} style={{ background: '#2c2c2e', padding: '8px 16px', borderRadius: '10px', color: '#fff', border: 'none', cursor: 'pointer' }}>← На главную</button>
+                </div>
+
+                <div className="portfolio-summary-banner" style={{ background: '#1c1c1e', padding: '20px', borderRadius: '20px', marginBottom: '20px', border: '1px solid #2c2c2e' }}>
+                    <div className="summary-content">
+                        <h1 style={{ margin: '0 0 10px 0', fontSize: '28px' }}>Мои инвестиции</h1>
+                        <div className="total-stats">
+                            <span className="label" style={{ color: '#8e8e93' }}>Общий финансовый результат: </span>
+                            <span className={`value ${totalBalance >= 0 ? 'positive' : 'negative'}`} style={{ fontSize: '24px', fontWeight: 'bold', color: totalBalance >= 0 ? '#30d158' : '#ff453a' }}>
+                                {convertPrice(totalBalance, 'USD').toLocaleString()} {currency === 'BYN' ? 'Br' : '$'}
+                            </span>
+                        </div>
                     </div>
                 </div>
-            </div>
 
-            <div className="portfolio-grid">
-                {items.length === 0 ? (
-                    <div className="empty-portfolio">
-                        <p>У вас пока нет купленных объектов.</p>
-                        <button onClick={() => navigate('/')}>Перейти к поиску</button>
-                    </div>
-                ) : (
-                    items.map((item) => (
-                        <div
-                            key={item.portfolioItemId}
-                            className="portfolio-card dark-card"
-                            onClick={() => navigate(`/portfolio/${item.portfolioItemId}`)}
-                        >
-                            <div className="card-info">
-                                <h3>Объект #{item.portfolioItemId.substring(0, 8)}</h3>
-                                <p className="strategy-tag">{item.strategyName || 'Стратегия не задана'}</p>
-                                <div className="card-footer">
-                                    <span className="status-badge">{item.status}</span>
-                                    <span className={`item-balance ${item.currentBalance >= 0 ? 'plus' : 'minus'}`}>
-                                        {item.currentBalance.toLocaleString()} $
-                                    </span>
+                <div className="portfolio-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '20px' }}>
+                    {items.length === 0 ? (
+                        <div className="empty-portfolio">
+                            <p>У вас пока нет купленных объектов.</p>
+                            <button onClick={() => navigate('/')}>Перейти к поиску</button>
+                        </div>
+                    ) : (
+                        items.map((item) => (
+                            <div
+                                key={item.portfolioItemId}
+                                className="portfolio-card dark-card"
+                                onClick={() => navigate(`/portfolio/${item.portfolioItemId}`)}
+                                style={{
+                                    background: '#1c1c1e',
+                                    borderRadius: '16px',
+                                    overflow: 'hidden',
+                                    border: '1px solid #2c2c2e',
+                                    cursor: 'pointer',
+                                    transition: 'transform 0.2s'
+                                }}
+                            >
+                                {/* Уменьшаем padding здесь, чтобы карточка стала ниже (было 20px, стало 15px) */}
+                                <div className="card-info" style={{ padding: '15px', display: 'flex', flexDirection: 'column', height: '100%' }}>
+                                    <h3 className="item-display-name" style={{ fontSize: '1.1rem', margin: '0 0 4px 0', color: '#fff' }}>
+                                        {cleanCategoryName(item)}
+                                    </h3>
+
+                                    <p className="item-street" style={{ color: '#8e8e93', fontSize: '13px', margin: '0 0 10px 0' }}>
+                                        {getStreetOnly(item)}
+                                    </p>
+
+                                    <div className="card-footer" style={{ marginTop: 'auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                        <span className="status-badge" style={{ background: '#2c2c2e', color: '#fff', padding: '4px 10px', borderRadius: '8px', fontSize: '11px', fontWeight: '600' }}>
+                                            {item.status}
+                                        </span>
+                                        <span className={`item-balance ${item.currentBalance >= 0 ? 'plus' : 'minus'}`} style={{ fontWeight: 'bold', color: item.currentBalance >= 0 ? '#30d158' : '#ff453a' }}>
+                                            {/* Конвертируем сумму для каждой карточки */}
+                                            {convertPrice(item.currentBalance, 'USD').toLocaleString()} {currency === 'BYN' ? 'Br' : '$'}
+                                        </span>
+                                    </div>
                                 </div>
                             </div>
-                        </div>
-                    ))
-                )}
-            </div>
+                        ))
+                    )}
+                </div>
+            </main>
         </div>
     );
 };

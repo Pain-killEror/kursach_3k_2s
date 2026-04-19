@@ -2,16 +2,8 @@ package com.example.backend.services;
 
 import com.example.backend.dto.ChatRoomDto;
 import com.example.backend.dto.MessageDto;
-import com.example.backend.entities.ChatRoom;
-import com.example.backend.entities.Message;
-import com.example.backend.entities.RealEstateObject;
-import com.example.backend.entities.RentBooking;
-import com.example.backend.entities.User;
-import com.example.backend.repositories.ChatRoomRepository;
-import com.example.backend.repositories.MessageRepository;
-import com.example.backend.repositories.RealEstateObjectRepository;
-import com.example.backend.repositories.RentBookingRepository;
-import com.example.backend.repositories.UserRepository;
+import com.example.backend.entities.*;
+import com.example.backend.repositories.*;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -31,17 +23,23 @@ public class ChatService {
     private final UserRepository userRepository;
     private final RealEstateObjectRepository objectRepository;
     private final RentBookingRepository rentBookingRepository;
+    private final PortfolioItemRepository portfolioItemRepository;
+    private final PortfolioRepository portfolioRepository; 
 
     public ChatService(ChatRoomRepository chatRoomRepository, 
                        MessageRepository messageRepository, 
                        UserRepository userRepository, 
                        RealEstateObjectRepository objectRepository,
-                       RentBookingRepository rentBookingRepository) {
+                       RentBookingRepository rentBookingRepository, 
+                       PortfolioItemRepository portfolioItemRepository,
+                       PortfolioRepository portfolioRepository) { 
         this.chatRoomRepository = chatRoomRepository;
         this.messageRepository = messageRepository;
         this.userRepository = userRepository;
         this.objectRepository = objectRepository;
         this.rentBookingRepository = rentBookingRepository;
+        this.portfolioItemRepository = portfolioItemRepository;
+        this.portfolioRepository = portfolioRepository; 
     }
 
     @Transactional
@@ -56,13 +54,11 @@ public class ChatService {
         
         UUID sellerId = object.getUser().getId();
 
-        // Проверяем, есть ли уже чат
         Optional<ChatRoom> existingChat = chatRoomRepository.findByInvestorIdAndSellerIdAndRealEstateObjectId(investorId, sellerId, objectId);
         if (existingChat.isPresent()) {
             return existingChat.get().getId();
         }
 
-        // Если чата нет - создаем
         User investor = userRepository.findById(investorId).orElseThrow();
         User seller = userRepository.findById(sellerId).orElseThrow();
 
@@ -72,7 +68,6 @@ public class ChatService {
         newChat.setRealEstateObject(object);
         newChat = chatRoomRepository.save(newChat);
 
-        // Отправляем автоматическое первое сообщение
         Message autoMessage = new Message();
         autoMessage.setChatRoom(newChat);
         autoMessage.setSender(investor);
@@ -156,10 +151,6 @@ public class ChatService {
         return total;
     }
 
-    // ==========================================
-    // ЛОГИКА ДЛЯ ДОГОВОРОВ (ОФФЕРОВ) С НОВЫМИ ПОЛЯМИ
-    // ==========================================
-
     @Transactional
     public MessageDto sendOffer(UUID chatId, UUID senderId, BigDecimal amount, 
                                 String currency, String contractTypeStr, 
@@ -169,7 +160,6 @@ public class ChatService {
         User sender = userRepository.findById(senderId)
                 .orElseThrow(() -> new RuntimeException("Пользователь не найден"));
 
-        // 1. Отменяем старые предложения
         List<Message> existingMessages = messageRepository.findByChatRoomIdOrderByCreatedAtAsc(chatId);
         for (Message msg : existingMessages) {
             if (msg.getMessageType() == Message.MessageType.OFFER && msg.getOfferStatus() == Message.OfferStatus.ACTIVE) {
@@ -178,7 +168,6 @@ public class ChatService {
             }
         }
 
-        // 2. Создаем новое предложение с новыми полями
         Message offer = new Message();
         offer.setChatRoom(chat);
         offer.setSender(sender);
@@ -190,7 +179,7 @@ public class ChatService {
             if (contractTypeStr != null) {
                 offer.setOfferContractType(Message.OfferContractType.valueOf(contractTypeStr.toUpperCase()));
             } else {
-                offer.setOfferContractType(Message.OfferContractType.SALE); // Дефолт, если фронтенд не прислал
+                offer.setOfferContractType(Message.OfferContractType.SALE);
             }
         } catch (IllegalArgumentException e) {
             offer.setOfferContractType(Message.OfferContractType.SALE);
@@ -235,7 +224,9 @@ public class ChatService {
 
     @Transactional
     public MessageDto acceptOffer(UUID messageId, UUID userId) {
-        Message msg = messageRepository.findById(messageId).orElseThrow();
+        Message msg = messageRepository.findById(messageId)
+                .orElseThrow(() -> new RuntimeException("Сообщение не найдено"));
+
         if (msg.getSender().getId().equals(userId)) {
             throw new RuntimeException("Отправитель не может принять свое же предложение");
         }
@@ -245,62 +236,93 @@ public class ChatService {
 
         ChatRoom chat = msg.getChatRoom();
         RealEstateObject object = chat.getRealEstateObject();
-        User tenantOrBuyer = chat.getInvestor(); // Покупатель/Арендатор - это всегда тот, кто начал чат
+        User buyer = chat.getInvestor(); // Тот, кто покупает/арендует
 
-        // Проверяем тип контракта
+        // Получаем или инициализируем портфель покупателя
+        Portfolio portfolio = portfolioRepository.findByUserId(buyer.getId())
+                .orElseGet(() -> {
+                    Portfolio newP = new Portfolio();
+                    newP.setUser(buyer);
+                    newP.setName("Основной портфель");
+                    return portfolioRepository.save(newP);
+                });
+
         Message.OfferContractType contractType = msg.getOfferContractType() != null 
                 ? msg.getOfferContractType() 
-                : Message.OfferContractType.SALE; // Фоллбэк для старых записей
+                : Message.OfferContractType.SALE;
 
         switch (contractType) {
-            case SHORT_RENT:
-                // Проверяем занятость дат
-                if (rentBookingRepository.hasOverlappingBookings(object.getId(), msg.getOfferStartDate(), msg.getOfferEndDate())) {
-                    throw new RuntimeException("Выбранные даты уже забронированы другим пользователем");
-                }
-                // Создаем запись бронирования
-                RentBooking booking = new RentBooking();
-                booking.setRealEstateObject(object);
-                booking.setTenant(tenantOrBuyer);
-                booking.setStartDate(msg.getOfferStartDate());
-                booking.setEndDate(msg.getOfferEndDate());
-                rentBookingRepository.save(booking);
-                // Объект остается видимым
+            case SALE:
+                // 1. Смена собственника (Критически важно для user_id в БД)
+                object.setUser(buyer); 
+                object.setCurrentOccupant(buyer);
+                object.setObjectStatus(ObjectStatus.SOLD);
+                object.setIsVisible(false);
+                objectRepository.save(object);
+
+                // 2. Создание записи в портфеле
+                createPortfolioEntry(portfolio, object, "Перепродажа", msg.getOfferAmount());
                 break;
 
             case LONG_RENT:
-                object.setCurrentOccupant(tenantOrBuyer);
-                object.setIsVisible(false); // Прячем с главной
-                objectRepository.save(object);
-                break;
-
-            case SALE:
-                // При продаже можно полностью сменить владельца (getUser) или записать в currentOccupant.
-                // Запишем в currentOccupant для гибкости (чтобы у прошлого владельца осталась история объекта)
-                object.setCurrentOccupant(tenantOrBuyer);
-                object.setObjectStatus(com.example.backend.entities.ObjectStatus.SOLD);
+                object.setCurrentOccupant(buyer);
                 object.setIsVisible(false);
                 objectRepository.save(object);
+
+                // Добавляем в портфель как активную аренду
+                createPortfolioEntry(portfolio, object, "Долгосрочная аренда", msg.getOfferAmount());
+                break;
+
+            case SHORT_RENT:
+                if (rentBookingRepository.hasOverlappingBookings(object.getId(), msg.getOfferStartDate(), msg.getOfferEndDate())) {
+                    throw new RuntimeException("Выбранные даты уже забронированы");
+                }
+                RentBooking booking = new RentBooking();
+                booking.setRealEstateObject(object);
+                booking.setTenant(buyer);
+                booking.setStartDate(msg.getOfferStartDate());
+                booking.setEndDate(msg.getOfferEndDate());
+                rentBookingRepository.save(booking);
                 break;
 
             case TERMINATION:
-                // Расторжение долгосрока
                 object.setCurrentOccupant(null);
-                // Объект появится на главной только через 30 дней
                 object.setAvailableFrom(LocalDateTime.now().plusDays(30));
-                // isVisible остается false, пока фоновая задача не включит его обратно
                 objectRepository.save(object);
                 break;
         }
 
-        // Меняем статус сообщения на ПРИНЯТО
         msg.setOfferStatus(Message.OfferStatus.ACCEPTED);
         msg = messageRepository.save(msg);
 
         return mapToMessageDto(msg);
     }
 
-    // Вспомогательный метод маппинга
+    private void createPortfolioEntry(Portfolio portfolio, RealEstateObject object, String strategy, BigDecimal amount) {
+        // Проверка на дубликаты
+        boolean exists = portfolioItemRepository.findByPortfolioUserId(portfolio.getUser().getId())
+                .stream()
+                .anyMatch(item -> item.getRealEstateObject().getId().equals(object.getId()));
+
+        if (!exists) {
+            PortfolioItem newItem = new PortfolioItem();
+            newItem.setPortfolio(portfolio);
+            newItem.setRealEstateObject(object);
+            newItem.setStatus("ACTIVE");
+            newItem.setStrategyName(strategy);
+            newItem.setInvestedAmount(amount); // Фиксируем цену покупки
+            newItem.setPurchaseDate(LocalDate.now());
+            
+            // Ставим цель +20% к покупке по умолчанию
+            if (amount != null) {
+                newItem.setTargetAmount(amount.multiply(new BigDecimal("1.20")));
+            }
+            newItem.setExitTaxRate(new BigDecimal("13.0"));
+
+            portfolioItemRepository.save(newItem);
+        }
+    }
+
     private MessageDto mapToMessageDto(Message m) {
         MessageDto dto = new MessageDto();
         dto.setId(m.getId());
