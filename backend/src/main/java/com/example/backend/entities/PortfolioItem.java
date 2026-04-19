@@ -3,6 +3,8 @@ package com.example.backend.entities;
 import jakarta.persistence.*;
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 
 @Entity
@@ -20,21 +22,26 @@ public class PortfolioItem {
     @Column(name = "purchase_date")
     private LocalDate purchaseDate;
 
-    // --- НОВЫЕ ПОЛЯ ДЛЯ ФИНАНСОВОГО УЧЕТА ---
+    // --- ФИНАНСОВЫЙ УЧЕТ ---
     
     @Column(name = "strategy_name")
-    private String strategyName; // Название стратегии с фронтенда (например, "Перепродажа")
+    private String strategyName;
 
     @Column(name = "target_amount")
-    private BigDecimal targetAmount; // Целевая цена (за сколько планируем продать/сдать)
+    private BigDecimal targetAmount;
 
     @Column(name = "exit_tax_rate")
-    private BigDecimal exitTaxRate = new BigDecimal("13.00"); // Налог в % (по умолчанию 13%)
+    private BigDecimal exitTaxRate = new BigDecimal("13.00");
 
     @Column(name = "status")
-    private String status = "PLANNING"; // PLANNING, RENOVATION, RENTED, FOR_SALE, SOLD
+    private String status = "PLANNING";
 
-    // ----------------------------------------
+    // --- ОБРАТНАЯ СВЯЗЬ С ТРАНЗАКЦИЯМИ ---
+    // mappedBy указывает на имя поля "portfolioItem" в классе PortfolioTransaction
+    @OneToMany(mappedBy = "portfolioItem", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
+    private List<PortfolioTransaction> transactions = new ArrayList<>();
+
+    // --- СВЯЗИ ---
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "portfolio_id")
@@ -51,16 +58,15 @@ public class PortfolioItem {
     public PortfolioItem() {
     }
 
-    public PortfolioItem(UUID id, BigDecimal investedAmount, LocalDate purchaseDate, Portfolio portfolio, RealEstateObject realEstateObject, InvestmentStrategy investmentStrategy) {
-        this.id = id;
-        this.investedAmount = investedAmount;
-        this.purchaseDate = purchaseDate;
-        this.portfolio = portfolio;
-        this.realEstateObject = realEstateObject;
-        this.investmentStrategy = investmentStrategy;
+    // --- ГЕТТЕРЫ И СЕТТЕРЫ ---
+
+    public List<PortfolioTransaction> getTransactions() {
+        return transactions;
     }
 
-    // --- ГЕТТЕРЫ И СЕТТЕРЫ ---
+    public void setTransactions(List<PortfolioTransaction> transactions) {
+        this.transactions = transactions;
+    }
 
     public UUID getId() {
         return id;

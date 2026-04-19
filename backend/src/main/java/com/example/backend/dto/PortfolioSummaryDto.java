@@ -10,7 +10,7 @@ public class PortfolioSummaryDto {
     private String strategyName;
     private BigDecimal targetAmount;
     private BigDecimal exitTaxRate;
-
+    private String status;
     // --- НОВЫЕ ПОЛЯ ДЛЯ ОТОБРАЖЕНИЯ НА КАРТОЧКЕ ---
     private String objectCategory; // Категория (Квартира, Дом и т.д.)
     private String objectAddress;  // Полный адрес для извлечения улицы
@@ -45,7 +45,13 @@ public class PortfolioSummaryDto {
 
     public String getCustomName() { return customName; }
     public void setCustomName(String customName) { this.customName = customName; }
+    public String getStatus() {
+        return status;
+    }
 
+    public void setStatus(String status) {
+        this.status = status;
+    }
     // --- ОСТАЛЬНЫЕ ГЕТТЕРЫ И СЕТТЕРЫ (оставь как были) ---
     public UUID getPortfolioItemId() { return portfolioItemId; }
     public void setPortfolioItemId(UUID portfolioItemId) { this.portfolioItemId = portfolioItemId; }

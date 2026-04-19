@@ -1,14 +1,18 @@
 package com.example.backend.entities.enums;
 
+import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonValue;
+
 public enum TransactionCategory {
-    PURCHASE,      // Покупка объекта
-    MATERIALS,     // Строительные материалы
-    LABOR,         // Оплата рабочим/услуги
-    TAX,           // Налоги
-    UTILITIES,     // Коммунальные платежи
-    LOAN,          // Ипотека/Кредит
-    RENT_INCOME,   // Доход от аренды
-    SALE_PROCEEDS, // Выручка от продажи
-    ADVERTISING,   // Реклама
-    OTHER          // Прочее
+    PURCHASE, MATERIALS, LABOR, TAX, UTILITIES, LOAN, RENT_INCOME, SALE_PROCEEDS, ADVERTISING, OTHER;
+
+    @JsonCreator
+    public static TransactionCategory fromString(String key) {
+        return key == null ? null : TransactionCategory.valueOf(key.toUpperCase());
+    }
+
+    @JsonValue
+    public String toValue() {
+        return name();
+    }
 }

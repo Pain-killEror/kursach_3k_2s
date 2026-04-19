@@ -8,5 +8,5 @@ import java.util.UUID;
 
 @Repository
 public interface PortfolioItemRepository extends JpaRepository<PortfolioItem, UUID> {
-    List<PortfolioItem> findByPortfolioUserId(UUID userId);
+    List<PortfolioItem> findAllByPortfolio_User_Id(UUID userId);
 }

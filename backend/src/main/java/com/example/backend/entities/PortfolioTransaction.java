@@ -17,33 +17,35 @@ public class PortfolioTransaction {
     @Column(columnDefinition = "BINARY(16)")
     private UUID id;
 
-    @Column(name = "portfolio_item_id", nullable = false)
-    private UUID portfolioItemId;
+    // СВЯЗЬ: Теперь это объект, а не просто UUID
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "portfolio_item_id", nullable = false)
+    @com.fasterxml.jackson.annotation.JsonIgnore 
+    private PortfolioItem portfolioItem;
 
     @Column(nullable = false)
-    private String title; // Название траты/дохода (например, "Покупка ламината")
+    private String title;
 
     @Column(columnDefinition = "TEXT")
-    private String description; // Дополнительные заметки (по желанию пользователя)
+    private String description;
 
     @Column(nullable = false)
     private BigDecimal amount;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
-    private FlowType type; // INCOME (Доход) или EXPENSE (Расход)
+    private FlowType type;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
-    private TransactionCategory category; // Категория из нашего нового Enum
+    private TransactionCategory category;
 
     @Column(name = "transaction_date", nullable = false)
-    private LocalDate transactionDate; // Дата совершения операции
+    private LocalDate transactionDate;
 
     @Column(name = "created_at", updatable = false)
-    private LocalDateTime createdAt; // Дата создания записи в системе
+    private LocalDateTime createdAt;
 
-    // Автоматически устанавливаем дату создания перед сохранением в БД
     @PrePersist
     protected void onCreate() {
         this.createdAt = LocalDateTime.now();
@@ -52,8 +54,9 @@ public class PortfolioTransaction {
     public PortfolioTransaction() {
     }
 
-    public PortfolioTransaction(UUID portfolioItemId, String title, String description, BigDecimal amount, FlowType type, TransactionCategory category, LocalDate transactionDate) {
-        this.portfolioItemId = portfolioItemId;
+    // ИСПРАВЛЕННЫЙ КОНСТРУКТОР
+    public PortfolioTransaction(PortfolioItem portfolioItem, String title, String description, BigDecimal amount, FlowType type, TransactionCategory category, LocalDate transactionDate) {
+        this.portfolioItem = portfolioItem;
         this.title = title;
         this.description = description;
         this.amount = amount;
@@ -72,12 +75,14 @@ public class PortfolioTransaction {
         this.id = id;
     }
 
-    public UUID getPortfolioItemId() {
-        return portfolioItemId;
+    // Исправлено: возвращаем объект
+    public PortfolioItem getPortfolioItem() {
+        return portfolioItem;
     }
 
-    public void setPortfolioItemId(UUID portfolioItemId) {
-        this.portfolioItemId = portfolioItemId;
+    // Исправлено: принимаем объект
+    public void setPortfolioItem(PortfolioItem portfolioItem) {
+        this.portfolioItem = portfolioItem;
     }
 
     public String getTitle() {

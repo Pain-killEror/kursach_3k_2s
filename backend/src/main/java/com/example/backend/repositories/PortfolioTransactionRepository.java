@@ -9,5 +9,5 @@ import java.util.UUID;
 
 @Repository
 public interface PortfolioTransactionRepository extends JpaRepository<PortfolioTransaction, UUID> {
-    List<PortfolioTransaction> findAllByPortfolioItemIdOrderByTransactionDateDesc(UUID portfolioItemId);
+    List<PortfolioTransaction> findAllByPortfolioItem_IdOrderByTransactionDateDesc(UUID itemId);
 }

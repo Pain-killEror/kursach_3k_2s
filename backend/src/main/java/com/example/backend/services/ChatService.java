@@ -14,6 +14,8 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.Collectors;
+import com.example.backend.entities.enums.ObjectStatus;
+
 
 @Service
 public class ChatService {
@@ -25,6 +27,7 @@ public class ChatService {
     private final RentBookingRepository rentBookingRepository;
     private final PortfolioItemRepository portfolioItemRepository;
     private final PortfolioRepository portfolioRepository; 
+    
 
     public ChatService(ChatRoomRepository chatRoomRepository, 
                        MessageRepository messageRepository, 
@@ -256,7 +259,7 @@ public class ChatService {
                 // 1. Смена собственника (Критически важно для user_id в БД)
                 object.setUser(buyer); 
                 object.setCurrentOccupant(buyer);
-                object.setObjectStatus(ObjectStatus.SOLD);
+                object.setObjectStatus("SOLD");
                 object.setIsVisible(false);
                 objectRepository.save(object);
 
@@ -299,8 +302,11 @@ public class ChatService {
     }
 
     private void createPortfolioEntry(Portfolio portfolio, RealEstateObject object, String strategy, BigDecimal amount) {
-        // Проверка на дубликаты
-        boolean exists = portfolioItemRepository.findByPortfolioUserId(portfolio.getUser().getId())
+        // 1. Получаем ID пользователя из объекта портфеля
+        UUID ownerId = portfolio.getUser().getId();
+
+        // 2. Проверка на дубликаты (УБРАНА лишняя точка с запятой перед .stream())
+        boolean exists = portfolioItemRepository.findAllByPortfolio_User_Id(ownerId)
                 .stream()
                 .anyMatch(item -> item.getRealEstateObject().getId().equals(object.getId()));
 
@@ -310,10 +316,9 @@ public class ChatService {
             newItem.setRealEstateObject(object);
             newItem.setStatus("ACTIVE");
             newItem.setStrategyName(strategy);
-            newItem.setInvestedAmount(amount); // Фиксируем цену покупки
+            newItem.setInvestedAmount(amount); 
             newItem.setPurchaseDate(LocalDate.now());
             
-            // Ставим цель +20% к покупке по умолчанию
             if (amount != null) {
                 newItem.setTargetAmount(amount.multiply(new BigDecimal("1.20")));
             }

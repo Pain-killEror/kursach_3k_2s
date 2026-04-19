@@ -71,10 +71,37 @@ const PortfolioItemDetails = () => {
     const handleAddTransaction = async (e) => {
         e.preventDefault();
         try {
-            await api.post('/portfolio/transactions', { ...transaction, portfolioItemId: itemId });
+            // Проверь, что itemId (из useParams) существует
+            if (!itemId) {
+                console.error("ID объекта не найден в URL");
+                return;
+            }
+
+            const dataToSend = {
+                title: transaction.title,
+                amount: parseFloat(transaction.amount),
+                type: transaction.type,
+                category: transaction.category,
+                transactionDate: transaction.transactionDate,
+                // ВАЖНО: отправляем как вложенный объект, чтобы Hibernate понял связь
+                portfolioItem: {
+                    id: itemId
+                }
+            };
+
+            console.log("Отправка данных:", dataToSend);
+
+            const response = await api.post('/portfolio/transactions', dataToSend);
+
+            console.log("Успех:", response.data);
             setTransaction({ ...transaction, title: '', amount: '' });
             loadData();
-        } catch (err) { alert("Ошибка при добавлении записи"); }
+        } catch (err) {
+            // Теперь тебя не выкинет на логин, и мы увидим ошибку
+            console.error("Ошибка 403. Проверь консоль бэкенда (IntelliJ)!");
+            console.error("Детали:", err.response?.data);
+            alert("Ошибка доступа или данных. Проверь консоль IDEA.");
+        }
     };
 
     const saveSettings = async () => {
@@ -252,12 +279,20 @@ const PortfolioItemDetails = () => {
                                         <option value="INCOME">Доход (+)</option>
                                     </select>
                                 </div>
-                                <select className="dark-select" value={transaction.category} onChange={e => setTransaction({ ...transaction, category: e.target.value })}>
+                                <select
+                                    className="dark-select"
+                                    value={transaction.category}
+                                    onChange={e => setTransaction({ ...transaction, category: e.target.value })}
+                                >
+                                    <option value="PURCHASE">Покупка объекта</option>
                                     <option value="MATERIALS">Материалы</option>
                                     <option value="LABOR">Рабочие / Услуги</option>
                                     <option value="TAX">Налоги</option>
                                     <option value="UTILITIES">Коммуналка</option>
-                                    <option value="RENT_INCOME">Аренда</option>
+                                    <option value="LOAN">Кредит / Ипотека</option>
+                                    <option value="RENT_INCOME">Доход от аренды</option>
+                                    <option value="SALE_PROCEEDS">Выручка от продажи</option>
+                                    <option value="ADVERTISING">Реклама</option>
                                     <option value="OTHER">Прочее</option>
                                 </select>
                                 <button type="submit" className="btn-add-tx" style={{ background: '#007aff', color: '#fff', border: 'none', padding: '12px', borderRadius: '10px', fontWeight: 'bold', cursor: 'pointer', marginTop: '5px' }}>
