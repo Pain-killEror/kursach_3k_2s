@@ -26,6 +26,9 @@ public class PortfolioSummaryDto {
     private BigDecimal breakEvenPrice;
     private BigDecimal expectedProfit;
 
+    private BigDecimal purchasePrice;         // Куплено за
+    private BigDecimal additionalInvestments;
+
     // Лента операций
     private List<PortfolioTransaction> transactions;
 
@@ -33,6 +36,12 @@ public class PortfolioSummaryDto {
     }
 
     // --- ГЕТТЕРЫ И СЕТТЕРЫ ДЛЯ НОВЫХ ПОЛЕЙ ---
+
+    public BigDecimal getPurchasePrice() { return purchasePrice; }
+    public void setPurchasePrice(BigDecimal purchasePrice) { this.purchasePrice = purchasePrice; }
+    
+    public BigDecimal getAdditionalInvestments() { return additionalInvestments; }
+    public void setAdditionalInvestments(BigDecimal additionalInvestments) { this.additionalInvestments = additionalInvestments; }  
 
     public String getObjectCategory() { return objectCategory; }
     public void setObjectCategory(String objectCategory) { this.objectCategory = objectCategory; }
