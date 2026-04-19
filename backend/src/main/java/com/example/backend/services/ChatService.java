@@ -8,6 +8,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -15,7 +16,6 @@ import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.Collectors;
 import com.example.backend.entities.ObjectStatus;
-
 
 @Service
 public class ChatService {
@@ -27,7 +27,8 @@ public class ChatService {
     private final RentBookingRepository rentBookingRepository;
     private final PortfolioItemRepository portfolioItemRepository;
     private final PortfolioRepository portfolioRepository; 
-    
+    private final PortfolioTransactionRepository portfolioTransactionRepository;
+    private final GlobalSettingRepository globalSettingRepository;
 
     public ChatService(ChatRoomRepository chatRoomRepository, 
                        MessageRepository messageRepository, 
@@ -35,7 +36,9 @@ public class ChatService {
                        RealEstateObjectRepository objectRepository,
                        RentBookingRepository rentBookingRepository, 
                        PortfolioItemRepository portfolioItemRepository,
-                       PortfolioRepository portfolioRepository) { 
+                       PortfolioRepository portfolioRepository,
+                       PortfolioTransactionRepository portfolioTransactionRepository,
+                       GlobalSettingRepository globalSettingRepository) {
         this.chatRoomRepository = chatRoomRepository;
         this.messageRepository = messageRepository;
         this.userRepository = userRepository;
@@ -43,6 +46,8 @@ public class ChatService {
         this.rentBookingRepository = rentBookingRepository;
         this.portfolioItemRepository = portfolioItemRepository;
         this.portfolioRepository = portfolioRepository; 
+        this.portfolioTransactionRepository = portfolioTransactionRepository;
+        this.globalSettingRepository = globalSettingRepository;
     }
 
     @Transactional
@@ -225,6 +230,22 @@ public class ChatService {
         return mapToMessageDto(msg);
     }
 
+    private BigDecimal getSystemTaxRate(User user) {
+        try {
+            String entityType = user.getEntityType() != null ? user.getEntityType().name() : "INDIVIDUAL";
+            String settingKey = switch (entityType) {
+                case "ENTREPRENEUR" -> "TAX_ENTREPRENEUR_INCOME";
+                case "LEGAL" -> "TAX_LEGAL_USN";
+                default -> "TAX_INDIVIDUAL_INCOME";
+            };
+            Optional<GlobalSetting> settingOpt = globalSettingRepository.findBySettingKey(settingKey);
+            if (settingOpt.isPresent() && settingOpt.get().getSettingValue() != null) {
+                return settingOpt.get().getSettingValue();
+            }
+        } catch (Exception e) {}
+        return new BigDecimal("13.0");
+    }
+
     @Transactional
     public MessageDto acceptOffer(UUID messageId, UUID userId) {
         Message msg = messageRepository.findById(messageId)
@@ -239,15 +260,41 @@ public class ChatService {
 
         ChatRoom chat = msg.getChatRoom();
         RealEstateObject object = chat.getRealEstateObject();
-        User buyer = chat.getInvestor(); // Тот, кто покупает/арендует
+        User buyer = chat.getInvestor(); 
+        User seller = chat.getSeller();  
 
-        // Получаем или инициализируем портфель покупателя
-        Portfolio portfolio = portfolioRepository.findByUserId(buyer.getId())
+        // 1. НАХОДИМ ИЛИ СОЗДАЕМ ПОРТФЕЛЬ ПОКУПАТЕЛЯ/АРЕНДАТОРА
+        Portfolio buyerPortfolio = portfolioRepository.findByUserId(buyer.getId())
                 .orElseGet(() -> {
                     Portfolio newP = new Portfolio();
                     newP.setUser(buyer);
                     newP.setName("Основной портфель");
                     return portfolioRepository.save(newP);
+                });
+
+        // 2. НАХОДИМ ИЛИ СОЗДАЕМ ПОРТФЕЛЬ ПРОДАВЦА/АРЕНДОДАТЕЛЯ
+        Portfolio sellerPortfolio = portfolioRepository.findByUserId(seller.getId())
+                .orElseGet(() -> {
+                    Portfolio newP = new Portfolio();
+                    newP.setUser(seller);
+                    newP.setName("Основной портфель");
+                    return portfolioRepository.save(newP);
+                });
+
+        // 3. ГАРАНТИРУЕМ, ЧТО ОБЪЕКТ ЕСТЬ В ПОРТФЕЛЕ ПРОДАВЦА
+        PortfolioItem sItem = portfolioItemRepository.findAllByPortfolio_User_Id(seller.getId())
+                .stream()
+                .filter(item -> item.getRealEstateObject().getId().equals(object.getId()))
+                .findFirst()
+                .orElseGet(() -> {
+                    PortfolioItem newItem = new PortfolioItem();
+                    newItem.setPortfolio(sellerPortfolio);
+                    newItem.setRealEstateObject(object);
+                    newItem.setStatus("ACTIVE");
+                    newItem.setStrategyName("Сдача в аренду");
+                    newItem.setInvestedAmount(object.getPriceTotal() != null ? object.getPriceTotal() : BigDecimal.ZERO);
+                    newItem.setPurchaseDate(LocalDate.now());
+                    return portfolioItemRepository.save(newItem);
                 });
 
         Message.OfferContractType contractType = msg.getOfferContractType() != null 
@@ -256,27 +303,79 @@ public class ChatService {
 
         switch (contractType) {
             case SALE:
-                // 1. Смена собственника (Критически важно для user_id в БД)
+                // --- 1. ЛОГИКА ПРОДАВЦА ---
+                BigDecimal taxRate = getSystemTaxRate(seller);
+                BigDecimal taxMultiplier = BigDecimal.ONE.subtract(taxRate.divide(new BigDecimal("100"), 4, RoundingMode.HALF_UP));
+                BigDecimal netProceeds = msg.getOfferAmount().multiply(taxMultiplier);
+
+                PortfolioTransaction saleTx = new PortfolioTransaction();
+                saleTx.setPortfolioItem(sItem);
+                saleTx.setAmount(netProceeds);
+                saleTx.setType(com.example.backend.entities.enums.FlowType.INCOME);
+                saleTx.setCategory(com.example.backend.entities.enums.TransactionCategory.SALE_PROCEEDS); 
+                saleTx.setTitle("🟢 Объект продан (вычтен налог " + taxRate + "%)"); 
+                saleTx.setTransactionDate(LocalDate.now());
+                portfolioTransactionRepository.save(saleTx);
+
+                sItem.setStatus("SOLD");
+                portfolioItemRepository.save(sItem);
+
+                // --- 2. ЛОГИКА ПОКУПАТЕЛЯ ---
                 object.setUser(buyer); 
                 object.setCurrentOccupant(buyer);
                 object.setObjectStatus(ObjectStatus.SOLD);
                 object.setIsVisible(false);
                 objectRepository.save(object);
 
-                // 2. Создание записи в портфеле
-                createPortfolioEntry(portfolio, object, "Перепродажа", msg.getOfferAmount());
+                createPortfolioEntry(buyerPortfolio, object, "Перепродажа", msg.getOfferAmount());
                 break;
 
             case LONG_RENT:
+                // --- 1. ЛОГИКА АРЕНДОДАТЕЛЯ ---
+                PortfolioTransaction rentTx = new PortfolioTransaction();
+                rentTx.setPortfolioItem(sItem);
+                rentTx.setAmount(msg.getOfferAmount()); // Сумма аренды
+                rentTx.setType(com.example.backend.entities.enums.FlowType.INCOME);
+                rentTx.setCategory(com.example.backend.entities.enums.TransactionCategory.RENT_INCOME); 
+                rentTx.setTitle("🔵 Сдан в долгосрочную аренду");
+                rentTx.setTransactionDate(msg.getOfferStartDate() != null ? msg.getOfferStartDate() : LocalDate.now());
+                portfolioTransactionRepository.save(rentTx);
+
+                sItem.setStatus("RENTED");
+                portfolioItemRepository.save(sItem);
+
+                // --- 2. ЛОГИКА АРЕНДАТОРА ---
                 object.setCurrentOccupant(buyer);
                 object.setIsVisible(false);
                 objectRepository.save(object);
 
-                // Добавляем в портфель как активную аренду
-                createPortfolioEntry(portfolio, object, "Долгосрочная аренда", msg.getOfferAmount());
+                PortfolioItem buyerLongRentItem = createPortfolioEntry(buyerPortfolio, object, "Долгосрочная аренда", BigDecimal.ZERO);
+                
+                PortfolioTransaction buyerRentTx = new PortfolioTransaction();
+                buyerRentTx.setPortfolioItem(buyerLongRentItem);
+                buyerRentTx.setAmount(msg.getOfferAmount());
+                buyerRentTx.setType(com.example.backend.entities.enums.FlowType.EXPENSE);
+                buyerRentTx.setCategory(com.example.backend.entities.enums.TransactionCategory.OTHER); 
+                buyerRentTx.setTitle("🔵 Взят в долгосрочную аренду (Заезд: " + (msg.getOfferStartDate() != null ? msg.getOfferStartDate() : LocalDate.now()) + ")");
+                buyerRentTx.setTransactionDate(msg.getOfferStartDate() != null ? msg.getOfferStartDate() : LocalDate.now());
+                portfolioTransactionRepository.save(buyerRentTx);
                 break;
 
             case SHORT_RENT:
+                // --- 1. ЛОГИКА АРЕНДОДАТЕЛЯ ---
+                PortfolioTransaction shortRentTx = new PortfolioTransaction();
+                shortRentTx.setPortfolioItem(sItem);
+                shortRentTx.setAmount(msg.getOfferAmount());
+                shortRentTx.setType(com.example.backend.entities.enums.FlowType.INCOME);
+                shortRentTx.setCategory(com.example.backend.entities.enums.TransactionCategory.RENT_INCOME); 
+                shortRentTx.setTitle("🔵 Сдан посуточно (с " + msg.getOfferStartDate() + " по " + msg.getOfferEndDate() + ")");
+                shortRentTx.setTransactionDate(msg.getOfferStartDate() != null ? msg.getOfferStartDate() : LocalDate.now());
+                portfolioTransactionRepository.save(shortRentTx);
+
+                sItem.setStatus("RENTED");
+                portfolioItemRepository.save(sItem);
+
+                // --- 2. ЛОГИКА АРЕНДАТОРА ---
                 if (rentBookingRepository.hasOverlappingBookings(object.getId(), msg.getOfferStartDate(), msg.getOfferEndDate())) {
                     throw new RuntimeException("Выбранные даты уже забронированы");
                 }
@@ -286,12 +385,26 @@ public class ChatService {
                 booking.setStartDate(msg.getOfferStartDate());
                 booking.setEndDate(msg.getOfferEndDate());
                 rentBookingRepository.save(booking);
+
+                PortfolioItem buyerShortRentItem = createPortfolioEntry(buyerPortfolio, object, "Краткосрочная аренда", BigDecimal.ZERO);
+                
+                PortfolioTransaction buyerShortRentTx = new PortfolioTransaction();
+                buyerShortRentTx.setPortfolioItem(buyerShortRentItem);
+                buyerShortRentTx.setAmount(msg.getOfferAmount());
+                buyerShortRentTx.setType(com.example.backend.entities.enums.FlowType.EXPENSE);
+                buyerShortRentTx.setCategory(com.example.backend.entities.enums.TransactionCategory.OTHER); 
+                buyerShortRentTx.setTitle("🔵 Взят посуточно (Заезд: " + msg.getOfferStartDate() + ", Выезд: " + msg.getOfferEndDate() + ")");
+                buyerShortRentTx.setTransactionDate(msg.getOfferStartDate() != null ? msg.getOfferStartDate() : LocalDate.now());
+                portfolioTransactionRepository.save(buyerShortRentTx);
                 break;
 
             case TERMINATION:
                 object.setCurrentOccupant(null);
                 object.setAvailableFrom(LocalDateTime.now().plusDays(30));
                 objectRepository.save(object);
+                
+                sItem.setStatus("ACTIVE");
+                portfolioItemRepository.save(sItem);
                 break;
         }
 
@@ -301,31 +414,31 @@ public class ChatService {
         return mapToMessageDto(msg);
     }
 
-    private void createPortfolioEntry(Portfolio portfolio, RealEstateObject object, String strategy, BigDecimal amount) {
-        // 1. Получаем ID пользователя из объекта портфеля
+    private PortfolioItem createPortfolioEntry(Portfolio portfolio, RealEstateObject object, String strategy, BigDecimal amount) {
         UUID ownerId = portfolio.getUser().getId();
 
-        // 2. Проверка на дубликаты (УБРАНА лишняя точка с запятой перед .stream())
-        boolean exists = portfolioItemRepository.findAllByPortfolio_User_Id(ownerId)
+        Optional<PortfolioItem> existing = portfolioItemRepository.findAllByPortfolio_User_Id(ownerId)
                 .stream()
-                .anyMatch(item -> item.getRealEstateObject().getId().equals(object.getId()));
+                .filter(item -> item.getRealEstateObject().getId().equals(object.getId()))
+                .findFirst();
 
-        if (!exists) {
+        if (existing.isEmpty()) {
             PortfolioItem newItem = new PortfolioItem();
             newItem.setPortfolio(portfolio);
             newItem.setRealEstateObject(object);
             newItem.setStatus("ACTIVE");
             newItem.setStrategyName(strategy);
-            newItem.setInvestedAmount(amount); 
+            newItem.setInvestedAmount(amount != null ? amount : BigDecimal.ZERO); 
             newItem.setPurchaseDate(LocalDate.now());
             
-            if (amount != null) {
+            if (amount != null && amount.compareTo(BigDecimal.ZERO) > 0) {
                 newItem.setTargetAmount(amount.multiply(new BigDecimal("1.20")));
             }
             newItem.setExitTaxRate(new BigDecimal("13.0"));
 
-            portfolioItemRepository.save(newItem);
+            return portfolioItemRepository.save(newItem);
         }
+        return existing.get();
     }
 
     private MessageDto mapToMessageDto(Message m) {
