@@ -21,6 +21,12 @@ const MonthNames = [
     'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'
 ];
 
+// Склонение слова "операция" (1 операция, 2 операции, 5 операций)
+const declOfNum = (number, titles) => {
+    const cases = [2, 0, 1, 1, 1, 2];
+    return titles[(number % 100 > 4 && number % 100 < 20) ? 2 : cases[(number % 10 < 5) ? number % 10 : 5]];
+};
+
 const PortfolioItemDetails = () => {
     const { itemId } = useParams();
     const navigate = useNavigate();
@@ -33,10 +39,8 @@ const PortfolioItemDetails = () => {
     const dropdownRef = useRef(null);
 
     const user = useMemo(() => {
-        try {
-            const u = localStorage.getItem('user');
-            return u ? JSON.parse(u) : null;
-        } catch (e) { return null; }
+        try { return JSON.parse(localStorage.getItem('user')) || null; }
+        catch (e) { return null; }
     }, []);
 
     const currentRealDate = new Date();
@@ -66,12 +70,7 @@ const PortfolioItemDetails = () => {
     const todayDateString = currentRealDate.toISOString().split('T')[0];
 
     const [transaction, setTransaction] = useState({
-        title: '',
-        amount: '',
-        currency: currency || 'USD',
-        type: 'EXPENSE',
-        category: 'MATERIALS',
-        transactionDate: todayDateString
+        title: '', amount: '', currency: currency || 'USD', type: 'EXPENSE', category: 'MATERIALS', transactionDate: todayDateString
     });
 
     const [isEditingSettings, setIsEditingSettings] = useState(false);
@@ -97,19 +96,13 @@ const PortfolioItemDetails = () => {
         try {
             if (!itemId) return;
             const dataToSend = {
-                title: transaction.title,
-                amount: parseFloat(transaction.amount),
-                currency: transaction.currency,
-                type: transaction.type,
-                category: transaction.category,
-                transactionDate: transaction.transactionDate
+                title: transaction.title, amount: parseFloat(transaction.amount), currency: transaction.currency,
+                type: transaction.type, category: transaction.category, transactionDate: transaction.transactionDate
             };
             await api.post(`/portfolio/transactions?itemId=${itemId}`, dataToSend);
             setTransaction({ ...transaction, title: '', amount: '' });
             loadData();
-        } catch (err) {
-            alert("Не удалось добавить операцию.");
-        }
+        } catch (err) { alert("Не удалось добавить операцию."); }
     };
 
     const saveSettings = async () => {
@@ -121,48 +114,65 @@ const PortfolioItemDetails = () => {
     };
 
     // ==========================================
-    // ЛОГИКА И СТАТИСТИКА (Только реальные деньги)
+    // ЛОГИКА И СТАТИСТИКА РОЛЕЙ
     // ==========================================
     const stats = useMemo(() => {
-        if (!summary) return { balance: 0, income: 0, expense: 0, isTenant: false, isSold: false };
+        if (!summary) return { balance: 0, income: 0, expense: 0, isTenant: false, isSold: false, isRentStrategy: false };
 
-        const isTenant = summary.strategyName === 'Долгосрочная аренда' || summary.strategyName === 'Краткосрочная аренда';
-        const isSold = summary.status === 'SOLD';
+        const strategyLower = (summary.strategyName || '').toLowerCase();
+        const isRentStrategy = strategyLower.includes('аренд');
+        const isTenant = isRentStrategy && summary.role === 'TENANT';
 
         let income = 0;
         let expense = 0;
+        let hasSaleMarker = false;
+        let hasPurchaseTransaction = false;
 
         (summary.transactions || []).forEach(tx => {
             const txText = tx.description || tx.title || '';
-            const isRentMarker = txText.startsWith('🔵'); // Метка аренды (договор, не деньги)
+            const isRentMarker = txText.startsWith('🔵');
 
-            // Если это не системная метка аренды - считаем в баланс
+            // Если есть факт продажи в истории, фиксируем
+            if (txText.startsWith('🟢') || tx.category === 'SALE_PROCEEDS') {
+                hasSaleMarker = true;
+            }
+            if (tx.category === 'PURCHASE') {
+                hasPurchaseTransaction = true;
+            }
+
+            // В баланс идут реальные деньги (и Покупки, и Продажи, и ручные траты)
             if (!isRentMarker) {
                 if (tx.type === 'INCOME') income += Number(tx.amount || 0);
                 if (tx.type === 'EXPENSE') expense += Number(tx.amount || 0);
             }
         });
 
+        // Усиленная проверка: если статус 'SOLD' в любом из полей бэка, либо есть транзакция продажи
+        const isSold = summary.status === 'SOLD' || summary.objectStatus === 'SOLD' || hasSaleMarker;
+
+        // ВАЖНО: Дублируем цену покупки в Расходы (если человек купил, и бэкенд не прислал это как транзакцию)
+        if (!isTenant && !isSold && summary.purchasePrice && Number(summary.purchasePrice) > 0 && !hasPurchaseTransaction) {
+            expense += Number(summary.purchasePrice);
+        }
+
         return {
             balance: income - expense,
             income,
             expense,
             isTenant,
-            isSold
+            isSold,
+            isRentStrategy
         };
     }, [summary]);
 
-    // Сортировка транзакций для Истории (Оставляем всё для визуала)
+    // Сортировка транзакций для Истории
     const sortedAndGroupedTransactions = useMemo(() => {
         if (!summary || !summary.transactions) return [];
-
         const sorted = [...summary.transactions].sort((a, b) => {
             const dateA = new Date(a.transactionDate).getTime();
             const dateB = new Date(b.transactionDate).getTime();
             if (dateA !== dateB) return dateB - dateA;
-            const timeA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
-            const timeB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
-            return timeB - timeA;
+            return (b.createdAt ? new Date(b.createdAt).getTime() : 0) - (a.createdAt ? new Date(a.createdAt).getTime() : 0);
         });
 
         const grouped = [];
@@ -175,19 +185,18 @@ const PortfolioItemDetails = () => {
             }
             grouped.push({ type: 'transaction', ...t });
         });
-
         return grouped;
     }, [summary]);
 
     // ==========================================
-    // СВОДКА ПО ПЕРИОДАМ (Только реальные деньги)
+    // СВОДКА ПО ПЕРИОДАМ (Таблица)
     // ==========================================
     const hierarchicalData = useMemo(() => {
         if (!summary) return [];
         const tree = {};
 
-        const addRecord = (dateStr, amount, currencyParam, type, category) => {
-            if (!dateStr || Number(amount) === 0) return;
+        const addRecord = (dateStr, amount, currencyParam, type, category, txText) => {
+            if (!dateStr) return;
             const parts = dateStr.split('-');
             if (parts.length !== 3) return;
 
@@ -195,34 +204,47 @@ const PortfolioItemDetails = () => {
             const m = parseInt(parts[1], 10).toString();
             const d = parseInt(parts[2], 10).toString();
 
-            const val = convertPrice ? convertPrice(Number(amount), currencyParam || 'USD') : Number(amount);
+            const isRentMarker = txText.startsWith('🔵');
+            const isSaleMarker = txText.startsWith('🟢');
+
+            const val = (isRentMarker || isSaleMarker) ? 0 : (convertPrice ? convertPrice(Number(amount), currencyParam || 'USD') : Number(amount));
             const isIncome = type === 'INCOME';
 
             if (!tree[y]) tree[y] = { year: y, income: 0, expense: 0, net: 0, months: {} };
             if (!tree[y].months[m]) tree[y].months[m] = { month: m, income: 0, expense: 0, net: 0, days: {} };
-            if (!tree[y].months[m].days[d]) tree[y].months[m].days[d] = { day: d, income: 0, expense: 0, net: 0, count: 0, hasPurchase: false };
-
-            if (isIncome) {
-                tree[y].income += val;
-                tree[y].months[m].income += val;
-                tree[y].months[m].days[d].income += val;
-            } else {
-                tree[y].expense += val;
-                tree[y].months[m].expense += val;
-                tree[y].months[m].days[d].expense += val;
+            if (!tree[y].months[m].days[d]) {
+                tree[y].months[m].days[d] = {
+                    day: d, income: 0, expense: 0, net: 0, count: 0,
+                    hasPurchase: false, hasSale: false, hasRentStart: false
+                };
             }
-            tree[y].months[m].days[d].count += 1;
+
+            tree[y].income += isIncome ? val : 0;
+            tree[y].expense += isIncome ? 0 : val;
+            tree[y].months[m].income += isIncome ? val : 0;
+            tree[y].months[m].expense += isIncome ? 0 : val;
+            tree[y].months[m].days[d].income += isIncome ? val : 0;
+            tree[y].months[m].days[d].expense += isIncome ? 0 : val;
+
+            if (!isRentMarker && !isSaleMarker) tree[y].months[m].days[d].count += 1;
+
             if (category === 'PURCHASE') tree[y].months[m].days[d].hasPurchase = true;
+            if (isSaleMarker || category === 'SALE_PROCEEDS') tree[y].months[m].days[d].hasSale = true;
+            if (isRentMarker) tree[y].months[m].days[d].hasRentStart = true;
         };
+
+        // ВАЖНО: Добавляем виртуальную запись о покупке, чтобы таблица отображалась сразу со старта
+        const hasPurchaseTransaction = (summary.transactions || []).some(tx => tx.category === 'PURCHASE');
+        if (!stats.isTenant && !stats.isSold && summary.purchasePrice && Number(summary.purchasePrice) > 0 && !hasPurchaseTransaction) {
+            const pDate = (summary.purchaseDate || summary.createdAt || new Date().toISOString()).split('T')[0];
+            addRecord(pDate, summary.purchasePrice, 'USD', 'EXPENSE', 'PURCHASE', 'Покупка объекта');
+        }
 
         if (summary.transactions) {
             summary.transactions.forEach(tx => {
                 const txText = tx.description || tx.title || '';
-                // Игнорируем синие метки договоров аренды в расчетах таблицы!
-                if (txText.startsWith('🔵')) return;
-
                 const dateStr = tx.transactionDate ? tx.transactionDate.split('T')[0] : '';
-                addRecord(dateStr, tx.amount, tx.currency || 'USD', tx.type, tx.category);
+                addRecord(dateStr, tx.amount, tx.currency || 'USD', tx.type, tx.category, txText);
             });
         }
 
@@ -238,7 +260,7 @@ const PortfolioItemDetails = () => {
             }).sort((a, b) => Number(b.month) - Number(a.month));
             return yData;
         }).sort((a, b) => Number(b.year) - Number(a.year));
-    }, [summary, convertPrice, currency]);
+    }, [summary, convertPrice, currency, stats]);
 
     const toggleYear = (y) => setExpandedYears(prev => ({ ...prev, [y]: !prev[y] }));
     const toggleMonth = (y, m) => setExpandedMonths(prev => ({ ...prev, [`${y}-${m}`]: !prev[`${y}-${m}`] }));
@@ -270,10 +292,30 @@ const PortfolioItemDetails = () => {
         return `${converted.toLocaleString()} ${symbol}`;
     };
 
-    // Налоги
+    // ==========================================
+    // МАТЕМАТИКА ЭКОНОМИКИ
+    // ==========================================
+    // Так как stats.expense теперь включает в себя цену покупки (для покупателя), 
+    // используем её напрямую или добавляем базу только если продан
+    const basePrice = Number(summary?.purchasePrice || 0);
+    const totalInvestedForCalc = stats.isSold ? (basePrice + stats.expense) : stats.expense;
+
     const taxAmount = ((settings.targetAmount || 0) * (summary?.exitTaxRate || 0)) / 100;
-    const netDebt = stats.expense - stats.income;
-    const expectedProfit = (settings.targetAmount || 0) - taxAmount - stats.expense + stats.income;
+    const netDebtSale = totalInvestedForCalc - stats.income;
+    const expectedProfitSale = (settings.targetAmount || 0) - taxAmount - totalInvestedForCalc + stats.income;
+    const taxRateMult = 1 - ((summary?.exitTaxRate || 0) / 100);
+    const breakEvenPriceSale = taxRateMult > 0 ? (netDebtSale > 0 ? (netDebtSale / taxRateMult) : 0) : 0;
+
+    const targetMonthlyRent = Number(settings.targetAmount || 0);
+    const monthsToBreakEven = targetMonthlyRent > 0 ? (netDebtSale > 0 ? (netDebtSale / targetMonthlyRent) : 0) : 0;
+
+    const getCostLabel = () => {
+        if (stats.isSold) return 'Продано за';
+        if (stats.isTenant) return 'Оценка объекта';
+        return 'Куплено за';
+    };
+
+    const displayCostValue = stats.isSold && stats.income > 0 ? stats.income : summary?.purchasePrice;
 
     if (loading) return <div className="p-loader">Загрузка аналитики...</div>;
     if (!summary) return <div>Объект не найден</div>;
@@ -340,9 +382,9 @@ const PortfolioItemDetails = () => {
                             <div className="stats-mini-row" style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid #333', paddingTop: '15px' }}>
                                 <div className="stat-item" style={{ textAlign: 'left' }}>
                                     <span style={{ color: '#8e8e93', fontSize: '14px', display: 'block' }}>
-                                        {stats.isTenant ? 'Оценка объекта' : 'Куплено за'}
+                                        {getCostLabel()}
                                     </span>
-                                    <span style={{ fontWeight: 'bold' }}>{formatPrice(summary.purchasePrice)}</span>
+                                    <span style={{ fontWeight: 'bold' }}>{formatPrice(displayCostValue)}</span>
                                 </div>
                                 <div className="stat-item" style={{ textAlign: 'center' }}>
                                     <span style={{ color: '#8e8e93', fontSize: '14px', display: 'block' }}>
@@ -357,67 +399,109 @@ const PortfolioItemDetails = () => {
                             </div>
                         </div>
 
-                        {/* СКРЫВАЕМ НАЛОГИ И СТРАТЕГИЮ ОТ АРЕНДАТОРОВ */}
-                        {!stats.isTenant && (
+                        {/* СКРЫВАЕМ БЛОКИ СТРАТЕГИИ И ЭКОНОМИКИ ЕСЛИ ОБЪЕКТ ПРОДАН ИЛИ ПОЛЬЗОВАТЕЛЬ АРЕНДАТОР */}
+                        {(!stats.isSold && !stats.isTenant) && (
                             <>
                                 <div className="card-glass economy-card" style={{ marginTop: '20px' }}>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
-                                        <h3 className="card-title" style={{ margin: 0 }}>⚖️ Расчет прибыли и налогов</h3>
-                                        <div style={{ background: '#2c2c2e', padding: '4px 10px', borderRadius: '8px', fontSize: '12px', border: '1px solid #444' }}>
-                                            <span style={{ color: '#8e8e93' }}>Ставка:</span> <span style={{ color: '#32ade6', fontWeight: 'bold' }}>{summary.exitTaxRate}%</span>
-                                        </div>
-                                    </div>
+                                    {stats.isRentStrategy ? (
+                                        <>
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
+                                                <h3 className="card-title" style={{ margin: 0 }}>📈 Расчет окупаемости аренды</h3>
+                                            </div>
+                                            <p style={{ color: '#a1a1aa', fontSize: '12px', margin: '0 0 15px 0', lineHeight: '1.4' }}>
+                                                Расчет срока окупаемости вложенных в объект средств (включая покупку и ремонт) при указанной целевой ставке за месяц.
+                                            </p>
 
-                                    <p style={{ color: '#a1a1aa', fontSize: '12px', margin: '0 0 15px 0', lineHeight: '1.4' }}>
-                                        Расчет для вашей Целевой цены с учетом всех внесенных ниже расходов.
-                                    </p>
-
-                                    {settings.targetAmount > 0 ? (
-                                        <div className="calculation-breakdown" style={{ background: '#1c1c1e', padding: '15px', borderRadius: '10px', border: '1px solid #333' }}>
-                                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px', fontSize: '14px' }}>
-                                                <span style={{ color: '#fff' }}>🎯 Целевая цена продажи</span>
-                                                <span style={{ fontWeight: 'bold' }}>{formatPrice(settings.targetAmount)}</span>
-                                            </div>
-                                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px', fontSize: '14px', color: '#ff453a' }}>
-                                                <span>🏛 Налог с продажи ({summary.exitTaxRate}%)</span>
-                                                <span>- {formatPrice(taxAmount)}</span>
-                                            </div>
-                                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '15px', fontSize: '14px', color: '#ff9f0a' }}>
-                                                <span>💰 Возврат всех вложений (расходов)</span>
-                                                <span>- {formatPrice(netDebt > 0 ? netDebt : 0)}</span>
-                                            </div>
-                                            <div style={{ borderTop: '1px dashed #444', paddingTop: '15px', display: 'flex', justifyContent: 'space-between', fontSize: '16px', fontWeight: 'bold' }}>
-                                                <span style={{ color: '#fff' }}>✨ Чистая прибыль</span>
-                                                <span className={expectedProfit >= 0 ? 'positive' : 'negative'}>
-                                                    {expectedProfit >= 0 ? '+' : ''}{formatPrice(expectedProfit)}
-                                                </span>
-                                            </div>
-                                        </div>
+                                            {targetMonthlyRent > 0 ? (
+                                                <div className="calculation-breakdown" style={{ background: '#1c1c1e', padding: '15px', borderRadius: '10px', border: '1px solid #333' }}>
+                                                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px', fontSize: '14px' }}>
+                                                        <span style={{ color: '#fff' }}>🎯 Целевая цена за месяц</span>
+                                                        <span style={{ fontWeight: 'bold', color: '#32d74b' }}>{formatPrice(targetMonthlyRent)}</span>
+                                                    </div>
+                                                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '15px', fontSize: '14px', color: '#ff453a' }}>
+                                                        <span>💰 Суммарные вложения (минус доходы)</span>
+                                                        <span>{formatPrice(netDebtSale > 0 ? netDebtSale : 0)}</span>
+                                                    </div>
+                                                    <div style={{ borderTop: '1px dashed #444', paddingTop: '15px', display: 'flex', justifyContent: 'space-between', fontSize: '16px', fontWeight: 'bold' }}>
+                                                        <span style={{ color: '#fff' }}>⏳ Срок окупаемости</span>
+                                                        <span style={{ color: '#32ade6' }}>
+                                                            {monthsToBreakEven > 0 ? `${Math.ceil(monthsToBreakEven)} мес.` : 'Уже окупилось!'}
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                            ) : (
+                                                <div style={{ textAlign: 'center', padding: '15px', background: '#2c2c2e', borderRadius: '10px', color: '#8e8e93', fontSize: '13px' }}>
+                                                    Установите "Целевую цену за месяц" ниже, чтобы увидеть расчет окупаемости.
+                                                </div>
+                                            )}
+                                        </>
                                     ) : (
-                                        <div style={{ textAlign: 'center', padding: '15px', background: '#2c2c2e', borderRadius: '10px', color: '#8e8e93', fontSize: '13px' }}>
-                                            Установите "Целевую цену продажи" ниже, чтобы увидеть полный расчет экономики.
-                                        </div>
+                                        <>
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
+                                                <h3 className="card-title" style={{ margin: 0 }}>⚖️ Расчет прибыли и налогов</h3>
+                                                <div style={{ background: '#2c2c2e', padding: '4px 10px', borderRadius: '8px', fontSize: '12px', border: '1px solid #444' }}>
+                                                    <span style={{ color: '#8e8e93' }}>Ставка:</span> <span style={{ color: '#32ade6', fontWeight: 'bold' }}>{summary.exitTaxRate}%</span>
+                                                </div>
+                                            </div>
+
+                                            <p style={{ color: '#a1a1aa', fontSize: '12px', margin: '0 0 15px 0', lineHeight: '1.4' }}>
+                                                Расчет для вашей Целевой цены продажи с учетом стоимости объекта и всех расходов.
+                                            </p>
+
+                                            {settings.targetAmount > 0 ? (
+                                                <div className="calculation-breakdown" style={{ background: '#1c1c1e', padding: '15px', borderRadius: '10px', border: '1px solid #333' }}>
+                                                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px', fontSize: '14px' }}>
+                                                        <span style={{ color: '#fff' }}>🎯 Целевая цена продажи</span>
+                                                        <span style={{ fontWeight: 'bold' }}>{formatPrice(settings.targetAmount)}</span>
+                                                    </div>
+                                                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px', fontSize: '14px', color: '#ff453a' }}>
+                                                        <span>🏛 Налог с продажи ({summary.exitTaxRate}%)</span>
+                                                        <span>- {formatPrice(taxAmount)}</span>
+                                                    </div>
+                                                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '15px', fontSize: '14px', color: '#ff9f0a' }}>
+                                                        <span>💰 Возврат вложений (цена + расходы)</span>
+                                                        <span>- {formatPrice(netDebtSale > 0 ? netDebtSale : 0)}</span>
+                                                    </div>
+                                                    <div style={{ borderTop: '1px dashed #444', paddingTop: '15px', display: 'flex', justifyContent: 'space-between', fontSize: '16px', fontWeight: 'bold' }}>
+                                                        <span style={{ color: '#fff' }}>✨ Чистая прибыль</span>
+                                                        <span className={expectedProfitSale >= 0 ? 'positive' : 'negative'}>
+                                                            {expectedProfitSale >= 0 ? '+' : ''}{formatPrice(expectedProfitSale)}
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                            ) : (
+                                                <div style={{ textAlign: 'center', padding: '15px', background: '#2c2c2e', borderRadius: '10px', color: '#8e8e93', fontSize: '13px' }}>
+                                                    Установите "Целевую цену продажи" ниже, чтобы увидеть полный расчет экономики.
+                                                </div>
+                                            )}
+
+                                            <div style={{ marginTop: '15px', background: 'rgba(255, 159, 10, 0.1)', borderLeft: '3px solid #ff9f0a', padding: '10px 15px', borderRadius: '0 8px 8px 0' }}>
+                                                <div style={{ fontSize: '13px', color: '#ff9f0a', fontWeight: '600', marginBottom: '4px' }}>Точка безубыточности: {formatPrice(breakEvenPriceSale)}</div>
+                                                <div style={{ fontSize: '11px', color: '#a1a1aa' }}>Минимальная цена продажи, чтобы после уплаты налога ({summary.exitTaxRate}%) отбить стоимость объекта и все расходов.</div>
+                                            </div>
+                                        </>
                                     )}
                                 </div>
 
                                 <div className="card-glass settings-card" style={{ marginTop: '20px' }}>
                                     <div className="card-header-flex" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
                                         <h3 className="card-title" style={{ margin: 0 }}>Стратегия и цель</h3>
-                                        {!stats.isSold && (
-                                            <button className="btn-edit-small" onClick={() => isEditingSettings ? saveSettings() : setIsEditingSettings(true)} style={{ background: '#3a3a3c', border: 'none', color: '#fff', padding: '5px 12px', borderRadius: '6px', cursor: 'pointer' }}>
-                                                {isEditingSettings ? 'Сохранить' : 'Изменить'}
-                                            </button>
-                                        )}
+                                        <button className="btn-edit-small" onClick={() => isEditingSettings ? saveSettings() : setIsEditingSettings(true)} style={{ background: '#3a3a3c', border: 'none', color: '#fff', padding: '5px 12px', borderRadius: '6px', cursor: 'pointer' }}>
+                                            {isEditingSettings ? 'Сохранить' : 'Изменить'}
+                                        </button>
                                     </div>
                                     {isEditingSettings ? (
                                         <div className="edit-settings-form">
-                                            <input className="dark-input" value={settings.strategyName} onChange={e => setSettings({ ...settings, strategyName: e.target.value })} placeholder="Название стратегии (напр. Флиппинг)" style={{ width: '100%', marginBottom: '10px' }} />
-                                            <input className="dark-input" type="number" value={settings.targetAmount} onChange={e => setSettings({ ...settings, targetAmount: e.target.value })} placeholder="Целевая цена продажи" style={{ width: '100%' }} />
+                                            <input className="dark-input" value={settings.strategyName} onChange={e => setSettings({ ...settings, strategyName: e.target.value })} placeholder="Название стратегии" style={{ width: '100%', marginBottom: '10px' }} />
+                                            <input className="dark-input" type="number" value={settings.targetAmount} onChange={e => setSettings({ ...settings, targetAmount: e.target.value })} placeholder={stats.isRentStrategy ? "Целевая цена за месяц" : "Целевая цена продажи"} style={{ width: '100%' }} />
                                         </div>
                                     ) : (
                                         <div className="view-settings">
                                             <p style={{ margin: '0 0 5px 0', fontSize: '15px' }}><strong>{summary.strategyName || 'Не установлена'}</strong></p>
-                                            <p style={{ margin: 0, color: '#8e8e93', fontSize: '14px' }}>План продажи: {summary.targetAmount ? formatPrice(summary.targetAmount) : 'Цена не задана'}</p>
+                                            <p style={{ margin: 0, color: '#8e8e93', fontSize: '14px' }}>
+                                                {stats.isRentStrategy ? 'План за месяц: ' : 'План продажи: '}
+                                                {summary.targetAmount ? formatPrice(summary.targetAmount) : 'Цена не задана'}
+                                            </p>
                                         </div>
                                     )}
                                 </div>
@@ -426,7 +510,6 @@ const PortfolioItemDetails = () => {
                     </div>
 
                     <div className="transactions-section">
-                        {/* СКРЫВАЕМ ФОРМУ ЕСЛИ ОБЪЕКТ ПРОДАН */}
                         {!stats.isSold && (
                             <div className="card-glass add-tx-card">
                                 <h3 className="card-title">Добавить операцию</h3>
@@ -486,7 +569,6 @@ const PortfolioItemDetails = () => {
                                         const isSaleMarker = txText.startsWith('🟢');
                                         const isRentMarker = txText.startsWith('🔵');
 
-                                        // ПРОДАЖА (Зеленая метка)
                                         if (isSaleMarker) {
                                             return (
                                                 <div key={item.id} style={{ margin: '10px 0', padding: '12px 15px', background: 'rgba(48, 209, 88, 0.1)', borderLeft: '4px solid #30d158', borderRadius: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -499,7 +581,6 @@ const PortfolioItemDetails = () => {
                                             );
                                         }
 
-                                        // АРЕНДА (Синяя метка - просто инфо-бейдж, без денег)
                                         if (isRentMarker) {
                                             return (
                                                 <div key={item.id} style={{ margin: '10px 0', padding: '12px 15px', background: 'rgba(10, 132, 255, 0.1)', borderLeft: '4px solid #0a84ff', borderRadius: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -512,7 +593,6 @@ const PortfolioItemDetails = () => {
                                             );
                                         }
 
-                                        // Обычная операция (вручную добавленная)
                                         return (
                                             <div key={item.id} className="tx-item" style={{ display: 'flex', justifyContent: 'space-between', padding: '12px 10px', borderBottom: '1px solid #333', borderRadius: '8px', transition: 'background 0.2s', cursor: 'default' }}>
                                                 <div className="tx-main">
@@ -594,15 +674,20 @@ const PortfolioItemDetails = () => {
 
                                             {expandedMonths[`${yData.year}-${mData.month}`] && mData.days.map(dData => (
                                                 <div key={dData.day} style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr', gap: '10px', padding: '10px 15px 10px 55px', borderTop: '1px solid #222', fontSize: '13px', background: 'rgba(0,0,0,0.2)' }}>
-                                                    <div style={{ color: '#a1a1aa', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                                    <div style={{ color: '#a1a1aa', display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
                                                         <span style={{ width: '4px', height: '4px', borderRadius: '50%', background: '#666' }}></span>
-                                                        {dData.day} числа <span style={{ fontSize: '11px', opacity: 0.5 }}>({dData.count} зап.)</span>
-                                                        {dData.hasPurchase && <span style={{ background: '#007aff', color: 'white', padding: '2px 6px', borderRadius: '4px', fontSize: '10px', marginLeft: '5px' }}>Покупка</span>}
+                                                        {dData.day} числа
+
+                                                        {dData.count > 0 && <span style={{ fontSize: '11px', opacity: 0.5 }}>({dData.count} {declOfNum(dData.count, ['операция', 'операции', 'операций'])})</span>}
+
+                                                        {dData.hasSale && <span style={{ background: '#30d158', color: '#000', padding: '2px 6px', borderRadius: '4px', fontSize: '10px', marginLeft: '5px', fontWeight: 'bold' }}>Продажа объекта</span>}
+                                                        {dData.hasPurchase && <span style={{ background: '#007aff', color: 'white', padding: '2px 6px', borderRadius: '4px', fontSize: '10px', marginLeft: '5px' }}>Покупка объекта</span>}
+                                                        {dData.hasRentStart && <span style={{ background: '#0a84ff', color: 'white', padding: '2px 6px', borderRadius: '4px', fontSize: '10px', marginLeft: '5px' }}>{stats.isTenant ? 'Заезд' : 'Начало сдачи'}</span>}
                                                     </div>
                                                     <div style={{ color: '#32d74b', textAlign: 'right', opacity: 0.8 }}>{dData.income > 0 ? `+${formatPrice(dData.income)}` : ''}</div>
                                                     <div style={{ color: '#ff453a', textAlign: 'right', opacity: 0.8 }}>{dData.expense > 0 ? `-${formatPrice(dData.expense)}` : ''}</div>
                                                     <div style={{ color: dData.net >= 0 ? '#32d74b' : '#ff453a', textAlign: 'right', opacity: 0.9 }}>
-                                                        {dData.net > 0 ? '+' : ''}{formatPrice(dData.net)}
+                                                        {dData.net === 0 && dData.count === 0 ? '-' : (dData.net > 0 ? '+' : '')}{dData.net !== 0 ? formatPrice(dData.net) : (dData.count > 0 ? formatPrice(0) : '')}
                                                     </div>
                                                 </div>
                                             ))}
