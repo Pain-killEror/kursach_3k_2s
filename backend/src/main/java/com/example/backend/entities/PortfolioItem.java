@@ -55,9 +55,6 @@ public class PortfolioItem {
     @JoinColumn(name = "real_estate_object_id")
     private RealEstateObject realEstateObject;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "strategy_id")
-    private InvestmentStrategy investmentStrategy;
 
     public PortfolioItem() {
     }
@@ -144,11 +141,4 @@ public class PortfolioItem {
         this.realEstateObject = realEstateObject;
     }
 
-    public InvestmentStrategy getInvestmentStrategy() {
-        return investmentStrategy;
-    }
-
-    public void setInvestmentStrategy(InvestmentStrategy investmentStrategy) {
-        this.investmentStrategy = investmentStrategy;
-    }
 }
