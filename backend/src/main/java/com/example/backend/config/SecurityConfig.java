@@ -1,5 +1,7 @@
 package com.example.backend.config;
 
+import jakarta.servlet.http.HttpServletResponse;
+
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -68,7 +70,16 @@ public class SecurityConfig {
             )
             
             // 5. Добавляем фильтр проверки JWT перед стандартным фильтром аутентификации
-            .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class);
+            .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class)
+            
+            // 6. Обработка ошибок аутентификации (чтобы при плохом токене был 401, а не 403)
+            .exceptionHandling(ex -> ex
+                .authenticationEntryPoint((request, response, authException) -> {
+                    response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+                    response.setContentType("application/json");
+                    response.getWriter().write("{\"message\": \"Невалидный или просроченный токен\", \"status\": 401}");
+                })
+            );
 
         return http.build();
     }

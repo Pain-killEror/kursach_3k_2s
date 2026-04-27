@@ -7,6 +7,7 @@ import com.example.backend.entities.User;
 import com.example.backend.repositories.ChatRoomRepository;
 import com.example.backend.repositories.RealEstateObjectRepository;
 import com.example.backend.repositories.UserRepository;
+import com.example.backend.exceptions.ResourceNotFoundException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -66,13 +67,13 @@ public class RealEstateObjectService {
     // Стандартный метод (оставляем для внутреннего использования бэкенда)
     public RealEstateObject getObjectById(UUID id) {
         return repository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Объект не найден с ID: " + id));
+                .orElseThrow(() -> new ResourceNotFoundException("Объект не найден с ID: " + id));
     }
 
     // НОВЫЙ МЕТОД: Умный фейс-контроль для скрытых объектов
     public RealEstateObject getObjectByIdWithAccessCheck(UUID objectId, UUID userIdFromParam) {
         RealEstateObject obj = repository.findById(objectId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Объект не найден"));
+                .orElseThrow(() -> new ResourceNotFoundException("Объект не найден"));
 
         // 1. Если объект видим — отдаем всем
         if (obj.getIsVisible() != null && obj.getIsVisible()) {

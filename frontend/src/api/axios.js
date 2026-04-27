@@ -1,4 +1,5 @@
 import axios from 'axios';
+import toast from 'react-hot-toast';
 
 const api = axios.create({
     baseURL: 'http://localhost:8080/api',
@@ -19,32 +20,42 @@ api.interceptors.request.use(
     (error) => Promise.reject(error)
 );
 
-// Перехватчик ОТВЕТОВ (Наш МОЩНЫЙ радар проблем)
+// Перехватчик ОТВЕТОВ
 api.interceptors.response.use(
     (response) => response,
     (error) => {
-        // 1. Выводим полную инфу в консоль браузера для тебя
-        console.group('🛑 AXIOS ПЕРЕХВАТЧИК ОШИБОК');
-        console.error('URL:', error.config?.url);
-        console.error('Метод:', error.config?.method?.toUpperCase());
-        console.error('Статус:', error.response?.status || 'Network Error (СЕТЬ/CORS)');
-        console.error('Ответ сервера:', error.response?.data);
-        console.groupEnd();
+        const { response } = error;
 
-        // 2. Анализируем и показываем понятное окно
-        if (!error.response) {
-            alert(`СЕТЕВАЯ ОШИБКА (CORS) 🚫\n\nЗапрос к ${error.config?.url} был заблокирован.\nСкорее всего бэкенд отбил предварительный OPTIONS запрос. Смотри консоль F12.`);
-        } else if (error.response.status === 403) {
-            alert(`ОШИБКА 403: ДОСТУП ЗАПРЕЩЕН 👮‍♂️\n\nСервер тебя узнал, но у твоего токена нет роли ADMIN.\nВозможно, ты забыл выйти из аккаунта и зайти заново после изменения БД.`);
-        } else if (error.response.status === 401) {
-            alert(`ОШИБКА 401: НЕ АВТОРИЗОВАН 🔐\n\nТокен истек, поврежден или отсутствует.`);
-        }
+        if (!response) {
+            toast.error("Сетевая ошибка или проблема с CORS", { id: 'api-error' });
+        } else {
+            const status = response.status;
+            const message = response.data?.message || "Произошла ошибка";
 
-        // 3. Старая логика: если нет прав — стираем сессию и на логин
-        if (error.response && (error.response.status === 401 || error.response.status === 403)) {
-            localStorage.removeItem('token');
-            localStorage.removeItem('user');
-            //window.location.href = '/login';
+            switch (status) {
+                case 401:
+                    // Только один тост
+                    toast.error("Сессия истекла. Пожалуйста, войдите снова", { id: 'api-error' });
+                    // Токен протух или невалиден — чистим и редиректим
+                    localStorage.clear();
+                    sessionStorage.clear();
+                    if (window.location.pathname !== '/login') {
+                        setTimeout(() => {
+                            window.location.href = '/login';
+                        }, 1000); // Даем время увидеть сообщение
+                    }
+                    break;
+                case 403:
+                    // Нет прав доступа — просто уведомляем
+                    toast.error("У вас нет прав для этого действия", { id: 'api-error' });
+                    break;
+                case 404:
+                    toast.error(message || "Ресурс не найден", { id: 'api-error' });
+                    break;
+                default:
+                    toast.error(message || "Ошибка сервера", { id: 'api-error' });
+                    break;
+            }
         }
 
         return Promise.reject(error);
