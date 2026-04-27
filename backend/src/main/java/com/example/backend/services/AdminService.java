@@ -32,10 +32,6 @@ public class AdminService {
     @Autowired
     private GlobalSettingRepository globalSettingRepository;
 
-    // ==========================================
-    // УПРАВЛЕНИЕ ПОЛЬЗОВАТЕЛЯМИ
-    // ==========================================
-
     public List<User> getAllUsers(String adminEmail) {
         List<User> allUsers = userRepository.findAll();
 
@@ -65,10 +61,6 @@ public class AdminService {
         user.setEntityType(entityType);
         userRepository.save(user);
     }
-
-    // ==========================================
-    // УПРАВЛЕНИЕ ОБЪЕКТАМИ НЕДВИЖИМОСТИ
-    // ==========================================
 
     public Page<RealEstateObject> getAllObjects(String search, int page, int size, String sortBy, String sortDir) {
         Sort sort = Sort.by(Sort.Direction.fromString(sortDir), sortBy);
@@ -104,10 +96,6 @@ public class AdminService {
         obj.setIsVisible(isVisible); // Это поле мы добавим в Entity на следующем шаге
         realEstateObjectRepository.save(obj);
     }
-
-    // ==========================================
-    // ГЛОБАЛЬНЫЕ НАСТРОЙКИ
-    // ==========================================
 
     public List<GlobalSetting> getAllSettings() {
         return globalSettingRepository.findAll();

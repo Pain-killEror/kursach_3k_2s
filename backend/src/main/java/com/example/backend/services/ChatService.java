@@ -263,7 +263,6 @@ public class ChatService {
         User buyer = chat.getInvestor(); 
         User seller = chat.getSeller();  
 
-        // 1. НАХОДИМ ИЛИ СОЗДАЕМ ПОРТФЕЛЬ ПОКУПАТЕЛЯ/АРЕНДАТОРА
         Portfolio buyerPortfolio = portfolioRepository.findByUserId(buyer.getId())
                 .orElseGet(() -> {
                     Portfolio newP = new Portfolio();
@@ -272,7 +271,6 @@ public class ChatService {
                     return portfolioRepository.save(newP);
                 });
 
-        // 2. НАХОДИМ ИЛИ СОЗДАЕМ ПОРТФЕЛЬ ПРОДАВЦА/АРЕНДОДАТЕЛЯ
         Portfolio sellerPortfolio = portfolioRepository.findByUserId(seller.getId())
                 .orElseGet(() -> {
                     Portfolio newP = new Portfolio();
@@ -281,7 +279,6 @@ public class ChatService {
                     return portfolioRepository.save(newP);
                 });
 
-        // 3. ГАРАНТИРУЕМ, ЧТО ОБЪЕКТ ЕСТЬ В ПОРТФЕЛЕ ПРОДАВЦА
         PortfolioItem sItem = portfolioItemRepository.findAllByPortfolio_User_Id(seller.getId())
                 .stream()
                 .filter(item -> item.getRealEstateObject().getId().equals(object.getId()))
@@ -303,7 +300,6 @@ public class ChatService {
 
         switch (contractType) {
             case SALE:
-                // --- 1. ЛОГИКА ПРОДАВЦА ---
                 BigDecimal taxRate = getSystemTaxRate(seller);
                 BigDecimal taxMultiplier = BigDecimal.ONE.subtract(taxRate.divide(new BigDecimal("100"), 4, RoundingMode.HALF_UP));
                 BigDecimal netProceeds = msg.getOfferAmount().multiply(taxMultiplier);
@@ -320,7 +316,6 @@ public class ChatService {
                 sItem.setStatus("SOLD");
                 portfolioItemRepository.save(sItem);
 
-                // --- 2. ЛОГИКА ПОКУПАТЕЛЯ ---
                 object.setUser(buyer); 
                 object.setCurrentOccupant(buyer);
                 object.setObjectStatus(ObjectStatus.SOLD);
@@ -331,7 +326,6 @@ public class ChatService {
                 break;
 
             case LONG_RENT:
-                // --- 1. ЛОГИКА АРЕНДОДАТЕЛЯ ---
                 PortfolioTransaction rentTx = new PortfolioTransaction();
                 rentTx.setPortfolioItem(sItem);
                 rentTx.setAmount(msg.getOfferAmount()); // Сумма аренды
@@ -344,7 +338,6 @@ public class ChatService {
                 sItem.setStatus("RENTED");
                 portfolioItemRepository.save(sItem);
 
-                // --- 2. ЛОГИКА АРЕНДАТОРА ---
                 object.setCurrentOccupant(buyer);
                 object.setIsVisible(false);
                 objectRepository.save(object);
@@ -362,7 +355,6 @@ public class ChatService {
                 break;
 
             case SHORT_RENT:
-                // --- 1. ЛОГИКА АРЕНДОДАТЕЛЯ ---
                 PortfolioTransaction shortRentTx = new PortfolioTransaction();
                 shortRentTx.setPortfolioItem(sItem);
                 shortRentTx.setAmount(msg.getOfferAmount());
@@ -375,7 +367,6 @@ public class ChatService {
                 sItem.setStatus("RENTED");
                 portfolioItemRepository.save(sItem);
 
-                // --- 2. ЛОГИКА АРЕНДАТОРА ---
                 if (rentBookingRepository.hasOverlappingBookings(object.getId(), msg.getOfferStartDate(), msg.getOfferEndDate())) {
                     throw new RuntimeException("Выбранные даты уже забронированы");
                 }
