@@ -8,6 +8,8 @@ import com.example.backend.repositories.ChatRoomRepository;
 import com.example.backend.repositories.RealEstateObjectRepository;
 import com.example.backend.repositories.UserRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -44,11 +46,21 @@ public class RealEstateObjectService {
         this.chatRoomRepository = chatRoomRepository;
     }
 
-    public List<RealEstateObject> getAllObjects() {
-        return repository.findAll().stream()
-                .filter(obj -> obj.getUser() == null || obj.getUser().getStatus() != com.example.backend.entities.Status.BLOCKED)
-                .filter(obj -> obj.getIsVisible() == null || obj.getIsVisible())
-                .collect(Collectors.toList());
+    public Page<RealEstateObject> getAllObjects(
+            String city,
+            String category,
+            java.math.BigDecimal minPrice,
+            java.math.BigDecimal maxPrice,
+            java.math.BigDecimal minArea,
+            java.math.BigDecimal maxArea,
+            ObjectStatus transactionType,
+            Pageable pageable) {
+        return repository.findAll(
+                com.example.backend.specifications.RealEstateObjectSpecifications.filterBy(
+                        city, category, minPrice, maxPrice, minArea, maxArea, transactionType
+                ),
+                pageable
+        );
     }
 
     // Стандартный метод (оставляем для внутреннего использования бэкенда)

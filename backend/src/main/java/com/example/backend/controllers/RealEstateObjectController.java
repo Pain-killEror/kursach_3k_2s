@@ -3,6 +3,9 @@ package com.example.backend.controllers;
 import com.example.backend.entities.RealEstateObject;
 import com.example.backend.services.RealEstateObjectService;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.web.PageableDefault;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -26,8 +29,16 @@ public class RealEstateObjectController {
     }
 
     @GetMapping
-    public ResponseEntity<List<RealEstateObject>> getAllObjects() {
-        return ResponseEntity.ok(service.getAllObjects());
+    public ResponseEntity<Page<RealEstateObject>> getAllObjects(
+            @RequestParam(required = false) String city,
+            @RequestParam(required = false) String category,
+            @RequestParam(required = false) java.math.BigDecimal minPrice,
+            @RequestParam(required = false) java.math.BigDecimal maxPrice,
+            @RequestParam(required = false) java.math.BigDecimal minArea,
+            @RequestParam(required = false) java.math.BigDecimal maxArea,
+            @RequestParam(required = false) com.example.backend.entities.ObjectStatus transactionType,
+            @PageableDefault(size = 30) Pageable pageable) {
+        return ResponseEntity.ok(service.getAllObjects(city, category, minPrice, maxPrice, minArea, maxArea, transactionType, pageable));
     }
 
     // НОВЫЙ ВАРИАНТ С ПРОВЕРКОЙ ПРАВ

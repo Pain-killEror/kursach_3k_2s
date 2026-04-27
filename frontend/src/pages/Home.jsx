@@ -85,6 +85,8 @@ const Home = () => {
 
   const [showScrollTop, setShowScrollTop] = useState(false);
   const [totalUnread, setTotalUnread] = useState(0);
+  const [currentPage, setCurrentPage] = useState(0);
+  const [totalPages, setTotalPages] = useState(0);
 
   // Следим за изменениями выбранных категорий
   useEffect(() => {
@@ -242,14 +244,30 @@ const Home = () => {
   };
 
   useEffect(() => {
+    setCurrentPage(0);
+  }, [filters, transactionType, rentType]);
+
+  useEffect(() => {
     const fetchObjects = async () => {
       try {
-        const response = await api.get('/objects');
-        setAllObjects(response.data);
+        const params = {
+          page: currentPage,
+          size: 30,
+          city: filters.city || null,
+          category: filters.categories.length === 1 ? filters.categories[0] : null,
+          minPrice: filters.minPrice || null,
+          maxPrice: filters.maxPrice || null,
+          minArea: filters.minArea || null,
+          maxArea: filters.maxArea || null,
+          transactionType: transactionType !== 'ALL' ? transactionType : null
+        };
+        const response = await api.get('/objects', { params });
+        setDisplayedObjects(response.data.content);
+        setTotalPages(response.data.totalPages);
       } catch (error) { console.error('Load error:', error); }
     };
     if (token) fetchObjects();
-  }, [token]);
+  }, [token, currentPage, filters, transactionType, rentType]);
 
   useEffect(() => {
     const handleClickOutside = (e) => {
@@ -259,105 +277,7 @@ const Home = () => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  useEffect(() => {
-    let result = [...allObjects];
 
-    // 1. Фильтрация по статусу (в поиске)
-    result = result.filter(obj =>
-      obj.category === 'УЧАСТОК' || obj.objectStatus === 'FOR_SALE' || obj.objectStatus === 'FOR_RENT'
-    );
-
-    // 2. Фильтрация по типу сделки
-    if (transactionType !== 'ALL') {
-      result = result.filter(obj => obj.category === 'УЧАСТОК' || obj.objectStatus === transactionType);
-    }
-
-    // 3. Фильтрация по сроку аренды (только если Аренда и жилье)
-    if (transactionType === 'FOR_RENT' && rentType !== 'ALL') {
-      result = result.filter(obj => {
-        // Если это не жилье, пропускаем проверку срока аренды
-        if (obj.category !== 'КВАРТИРА' && obj.category !== 'ДОМ') return true;
-
-        let objAttrs = {};
-        try {
-          objAttrs = typeof obj.attributes === 'string' ? JSON.parse(obj.attributes) : (obj.attributes || {});
-        } catch (e) { objAttrs = {}; }
-
-        const actualRentType = objAttrs.type_rent;
-        if (rentType === 'SHORT_TERM') {
-          return actualRentType === 'краткосрочная аренда';
-        } else if (rentType === 'LONG_TERM') {
-          return actualRentType === 'долгосрочная аренда';
-        }
-        return true;
-      });
-    }
-
-    // 4. Основные параметры
-    if (filters.city) result = result.filter(obj => obj.city === filters.city);
-
-    if (filters.minPrice) {
-      result = result.filter(obj => convertPrice(Number(obj.priceTotal), obj.currency) >= Number(filters.minPrice));
-    }
-    if (filters.maxPrice) {
-      result = result.filter(obj => convertPrice(Number(obj.priceTotal), obj.currency) <= Number(filters.maxPrice));
-    }
-
-    if (filters.minArea) result = result.filter(obj => Number(obj.areaTotal) >= Number(filters.minArea));
-    if (filters.maxArea) result = result.filter(obj => Number(obj.areaTotal) <= Number(filters.maxArea));
-
-    // 5. Категории
-    if (filters.categories.length > 0) {
-      result = result.filter(obj => filters.categories.includes(obj.category));
-    }
-
-    // 6. Динамические атрибуты
-    const hasActiveAttrFilters = Object.entries(filters.attributes).some(([k, v]) =>
-      v !== '' && v !== null && v !== undefined && v !== false
-    );
-
-    if (hasActiveAttrFilters) {
-      result = result.filter(obj => {
-        const catConfig = CATEGORY_CONFIG[obj.category];
-        if (!catConfig) return true;
-
-        let objAttrs = {};
-        try {
-          objAttrs = typeof obj.attributes === 'string' ? JSON.parse(obj.attributes) : (obj.attributes || {});
-        } catch (e) { objAttrs = {}; }
-
-        return catConfig.every(f => {
-          if (f.type === 'range') {
-            const minVal = filters.attributes[`${f.name}_min`];
-            const maxVal = filters.attributes[`${f.name}_max`];
-            const objVal = objAttrs[f.name];
-            if (minVal && (objVal === undefined || Number(objVal) < Number(minVal))) return false;
-            if (maxVal && (objVal === undefined || Number(objVal) > Number(maxVal))) return false;
-            return true;
-          } else if (f.type === 'boolean') {
-            const filterVal = filters.attributes[f.name];
-            if (filterVal === undefined || filterVal === '') return true;
-            return toBool(objAttrs[f.name]) === toBool(filterVal);
-          } else {
-            const filterVal = filters.attributes[f.name];
-            if (filterVal === undefined || filterVal === '') return true;
-            const objVal = objAttrs[f.name];
-            if (objVal === null || objVal === undefined) return false;
-            return String(objVal).toLowerCase() === String(filterVal).toLowerCase();
-          }
-        });
-      });
-    }
-
-    // 7. Сортировка
-    if (sortOption === 'price_asc') {
-      result.sort((a, b) => convertPrice(Number(a.priceTotal), a.currency) - convertPrice(Number(b.priceTotal), b.currency));
-    } else if (sortOption === 'price_desc') {
-      result.sort((a, b) => convertPrice(Number(b.priceTotal), b.currency) - convertPrice(Number(a.priceTotal), a.currency));
-    }
-
-    setDisplayedObjects(result);
-  }, [allObjects, filters, sortOption, transactionType, rentType, convertPrice]);
 
   const toggleCategory = (cat) => {
     setFilters(prev => {
@@ -402,8 +322,8 @@ const Home = () => {
   };
 
   const uniqueCities = useMemo(() =>
-    [...new Set(allObjects.map(obj => obj.city).filter(Boolean))].sort()
-    , [allObjects]);
+    [...new Set(displayedObjects.map(obj => obj.city).filter(Boolean))].sort()
+    , [displayedObjects]);
 
   const isHousingSelected = filters.categories.length === 0 || filters.categories.includes('КВАРТИРА') || filters.categories.includes('ДОМ');
   const isOnlyPlotSelected = filters.categories.length === 1 && filters.categories[0] === 'УЧАСТОК';
@@ -728,6 +648,41 @@ const Home = () => {
       <div className="objects-grid">
         {displayedObjects.map(obj => <ObjectCard key={obj.id} object={obj} />)}
       </div>
+
+      <div className="pagination-controls" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '20px', marginTop: '40px', paddingBottom: '40px' }}>
+        <button 
+          className="page-btn"
+          onClick={() => setCurrentPage(prev => Math.max(0, prev - 1))}
+          disabled={currentPage === 0}
+          style={{
+            padding: '10px 20px',
+            backgroundColor: currentPage === 0 ? '#333' : '#1a1a1a',
+            color: currentPage === 0 ? '#666' : 'white',
+            border: '1px solid #444',
+            borderRadius: '8px',
+            cursor: currentPage === 0 ? 'not-allowed' : 'pointer'
+          }}
+        >
+          ← Назад
+        </button>
+        <span style={{ color: '#888', fontWeight: '600' }}>Страница {currentPage + 1} из {totalPages || 1}</span>
+        <button 
+          className="page-btn"
+          onClick={() => setCurrentPage(prev => Math.min(totalPages - 1, prev + 1))}
+          disabled={currentPage >= totalPages - 1}
+          style={{
+            padding: '10px 20px',
+            backgroundColor: currentPage >= totalPages - 1 ? '#333' : '#1a1a1a',
+            color: currentPage >= totalPages - 1 ? '#666' : 'white',
+            border: '1px solid #444',
+            borderRadius: '8px',
+            cursor: currentPage >= totalPages - 1 ? 'not-allowed' : 'pointer'
+          }}
+        >
+          Вперед →
+        </button>
+      </div>
+
       <button
         className={`scroll-to-top-btn ${showScrollTop ? 'visible' : ''}`}
         onClick={scrollToTop}
