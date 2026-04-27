@@ -110,53 +110,55 @@ public class PortfolioFinanceService {
         BigDecimal totalInvested = purchasePrice.add(additionalInvestments);
         BigDecimal currentBalance = totalIncome.subtract(totalInvested);
 
-        PortfolioSummaryDto summary = new PortfolioSummaryDto();
-        summary.setPortfolioItemId(item.getId());
-        summary.setStrategyName(item.getStrategyName());
-        summary.setTargetAmount(item.getTargetAmount());
-        
+        BigDecimal netDebt = totalInvested.subtract(totalIncome);
+
         // --- МАГИЯ ЗДЕСЬ: Получаем налог из глобальных настроек ---
         BigDecimal taxRate = getSystemTaxRate(item);
-        summary.setExitTaxRate(taxRate); // Передаем на фронтенд актуальный системный налог!
-
-        if (item.getRealEstateObject() != null) {
-            summary.setObjectCategory(item.getRealEstateObject().getCategory());
-            summary.setObjectAddress(item.getRealEstateObject().getAddress());
-            summary.setObjectTitle(item.getRealEstateObject().getTitle());
-        } else {
-            summary.setObjectCategory("Объект");    
-            summary.setObjectAddress("Адрес не указан");
-        }
-        
-        // Передаем новые метрики для колонок "Куплено за" и "Вложено"
-        summary.setPurchasePrice(purchasePrice);
-        summary.setAdditionalInvestments(additionalInvestments);
-        
-        summary.setTotalInvested(totalInvested);
-        summary.setTotalIncome(totalIncome);
-        summary.setCurrentBalance(currentBalance);
-        summary.setTransactions(transactions);
-
-        BigDecimal netDebt = totalInvested.subtract(totalIncome);
 
         // 2. Считаем подсказки (Insights) используя СИСТЕМНЫЙ налог
         BigDecimal taxMultiplier = BigDecimal.ONE.subtract(taxRate.divide(new BigDecimal("100"), 4, RoundingMode.HALF_UP));
 
+        BigDecimal breakEvenPrice = BigDecimal.ZERO;
         if (netDebt.compareTo(BigDecimal.ZERO) > 0) {
             if (taxMultiplier.compareTo(BigDecimal.ZERO) > 0) {
-                BigDecimal breakEven = netDebt.divide(taxMultiplier, 2, RoundingMode.HALF_UP);
-                summary.setBreakEvenPrice(breakEven);
+                breakEvenPrice = netDebt.divide(taxMultiplier, 2, RoundingMode.HALF_UP);
             }
-        } else {
-            summary.setBreakEvenPrice(BigDecimal.ZERO);
         }
 
+        BigDecimal expectedProfit = null;
         if (item.getTargetAmount() != null && item.getTargetAmount().compareTo(BigDecimal.ZERO) > 0) {
             BigDecimal netRevenueFromSale = item.getTargetAmount().multiply(taxMultiplier);
-            summary.setExpectedProfit(netRevenueFromSale.subtract(netDebt));
+            expectedProfit = netRevenueFromSale.subtract(netDebt);
         }
 
-        return summary;
+        String objectCategory = "Объект";
+        String objectAddress = "Адрес не указан";
+        String objectTitle = null;
+        if (item.getRealEstateObject() != null) {
+            objectCategory = item.getRealEstateObject().getCategory();
+            objectAddress = item.getRealEstateObject().getAddress();
+            objectTitle = item.getRealEstateObject().getTitle();
+        }
+
+        return new PortfolioSummaryDto(
+            item.getId(),
+            item.getStrategyName(),
+            item.getTargetAmount(),
+            taxRate,
+            item.getStatus(),
+            objectCategory,
+            objectAddress,
+            objectTitle,
+            null, // customName
+            totalInvested,
+            totalIncome,
+            currentBalance,
+            breakEvenPrice,
+            expectedProfit,
+            purchasePrice,
+            additionalInvestments,
+            transactions
+        );
     }
 
     /**
@@ -166,9 +168,6 @@ public class PortfolioFinanceService {
         List<PortfolioItem> items = itemRepository.findAllByPortfolio_User_Id(userId);
         
         return items.stream().map(item -> {
-            PortfolioSummaryDto dto = new PortfolioSummaryDto();
-            dto.setPortfolioItemId(item.getId());
-            
             // 1. Достаем стоимость покупки объекта
             BigDecimal purchasePrice = item.getInvestedAmount() != null ? item.getInvestedAmount() : BigDecimal.ZERO;
             
@@ -178,19 +177,36 @@ public class PortfolioFinanceService {
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
                 
             // 3. РЕАЛЬНЫЙ БАЛАНС: Баланс транзакций МИНУС цена покупки
-            dto.setCurrentBalance(transactionsBalance.subtract(purchasePrice));
+            BigDecimal currentBalance = transactionsBalance.subtract(purchasePrice);
             
-            // На всякий случай кладем цену покупки в DTO (чтобы фронт её видел)
-            dto.setPurchasePrice(purchasePrice);
-            
+            String objectTitle = null;
+            String objectCategory = null;
+            String objectAddress = null;
             if (item.getRealEstateObject() != null) {
-                dto.setObjectTitle(item.getRealEstateObject().getTitle());
-                dto.setObjectCategory(item.getRealEstateObject().getCategory());
-                dto.setObjectAddress(item.getRealEstateObject().getAddress());
+                objectTitle = item.getRealEstateObject().getTitle();
+                objectCategory = item.getRealEstateObject().getCategory();
+                objectAddress = item.getRealEstateObject().getAddress();
             }
             
-            dto.setStatus(item.getStatus());
-            return dto;
+            return new PortfolioSummaryDto(
+                item.getId(),
+                item.getStrategyName(),
+                item.getTargetAmount(),
+                item.getExitTaxRate(),
+                item.getStatus(),
+                objectCategory,
+                objectAddress,
+                objectTitle,
+                null, // customName
+                null, // totalInvested (можно рассчитать если нужно)
+                null, // totalIncome
+                currentBalance,
+                null, // breakEvenPrice
+                null, // expectedProfit
+                purchasePrice,
+                null, // additionalInvestments
+                null  // transactions
+            );
         }).collect(Collectors.toList());
     }
 }

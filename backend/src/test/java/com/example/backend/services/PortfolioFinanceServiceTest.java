@@ -123,12 +123,12 @@ class PortfolioFinanceServiceTest {
 
         // Assert
         assertNotNull(summary);
-        assertEquals(new BigDecimal("1000000.00"), summary.getPurchasePrice());
-        assertEquals(new BigDecimal("10000.00"), summary.getAdditionalInvestments());
-        assertEquals(new BigDecimal("1010000.00"), summary.getTotalInvested());
-        assertEquals(new BigDecimal("50000.00"), summary.getTotalIncome());
-        assertEquals(new BigDecimal("-960000.00"), summary.getCurrentBalance());
-        assertEquals(new BigDecimal("13.0"), summary.getExitTaxRate());
+        assertEquals(new BigDecimal("1000000.00"), summary.purchasePrice());
+        assertEquals(new BigDecimal("10000.00"), summary.additionalInvestments());
+        assertEquals(new BigDecimal("1010000.00"), summary.totalInvested());
+        assertEquals(new BigDecimal("50000.00"), summary.totalIncome());
+        assertEquals(new BigDecimal("-960000.00"), summary.currentBalance());
+        assertEquals(new BigDecimal("13.0"), summary.exitTaxRate());
     }
 
     @Test
@@ -153,7 +153,7 @@ class PortfolioFinanceServiceTest {
         PortfolioSummaryDto summary = summaries.get(0);
         
         // Income (20000) - Purchase Price (1000000) = -980000
-        assertEquals(new BigDecimal("-980000.00"), summary.getCurrentBalance());
-        assertEquals("Test Object", summary.getObjectTitle());
+        assertEquals(new BigDecimal("-980000.00"), summary.currentBalance());
+        assertEquals("Test Object", summary.objectTitle());
     }
 }

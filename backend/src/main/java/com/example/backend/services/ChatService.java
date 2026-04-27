@@ -90,55 +90,56 @@ public class ChatService {
         List<ChatRoom> chats = chatRoomRepository.findAllByUserId(userId);
 
         return chats.stream().map(chat -> {
-            ChatRoomDto dto = new ChatRoomDto();
-            dto.setId(chat.getId());
-            
             boolean isInvestor = chat.getInvestor().getId().equals(userId);
             User opponent = isInvestor ? chat.getSeller() : chat.getInvestor();
             
-            dto.setOpponentId(opponent.getId());
-            dto.setOpponentName(opponent.getName());
-            
             RealEstateObject obj = chat.getRealEstateObject();
-            dto.setObjectId(obj.getId());
+            Double priceUsd = (obj.getPriceTotal() != null) ? obj.getPriceTotal().doubleValue() : null;
             
-            if (obj.getPriceTotal() != null) {
-                dto.setPriceUsd(obj.getPriceTotal().doubleValue());
-            } else {
-                dto.setPriceUsd(null);
-            }
-            
-            dto.setPriceByn(null); 
-
             String rawCategory = obj.getCategory() != null ? obj.getCategory() : obj.getType();
             String formattedCategory = rawCategory;
             if (rawCategory != null && !rawCategory.isEmpty()) {
                 formattedCategory = rawCategory.substring(0, 1).toUpperCase() + rawCategory.substring(1).toLowerCase();
             }
-            dto.setObjectTitle(formattedCategory + " • " + (obj.getCity() != null ? obj.getCity() + ", " : "") + obj.getAddress());            
+            String objectTitle = formattedCategory + " • " + (obj.getCity() != null ? obj.getCity() + ", " : "") + obj.getAddress();            
             
+            String objectImageUrl = null;
             try {
                 String urls = obj.getImagesUrls();
                 if (urls != null && !urls.isEmpty() && !urls.equals("[]")) {
                     String cleanString = urls.replace("[", "").replace("]", "").replace("\"", "");
-                    String firstImage = cleanString.split(",")[0].trim();
-                    dto.setObjectImageUrl(firstImage);
+                    objectImageUrl = cleanString.split(",")[0].trim();
                 }
-            } catch (Exception e) { dto.setObjectImageUrl(null); }
+            } catch (Exception e) { }
 
+            String lastMessage = null;
+            LocalDateTime lastMessageAt = null;
             List<Message> msgs = messageRepository.findByChatRoomIdOrderByCreatedAtAsc(chat.getId());
             if (!msgs.isEmpty()) {
                 Message last = msgs.get(msgs.size() - 1);
                 if (last.getMessageType() == Message.MessageType.OFFER) {
-                    dto.setLastMessage("Предложение о сделке: " + last.getOfferAmount() + " " + (last.getOfferCurrency() != null ? last.getOfferCurrency() : ""));
+                    lastMessage = "Предложение о сделке: " + last.getOfferAmount() + " " + (last.getOfferCurrency() != null ? last.getOfferCurrency() : "");
                 } else {
-                    dto.setLastMessage(last.getContent());
+                    lastMessage = last.getContent();
                 }
-                dto.setLastMessageAt(last.getCreatedAt());
+                lastMessageAt = last.getCreatedAt();
             }
 
-            dto.setUnreadCount(messageRepository.countUnreadMessages(chat.getId(), userId));
-            return dto;
+            long unreadCount = messageRepository.countUnreadMessages(chat.getId(), userId);
+
+            return new ChatRoomDto(
+                chat.getId(),
+                opponent.getName(),
+                opponent.getId(),
+                objectTitle,
+                obj.getId(),
+                objectImageUrl,
+                lastMessage,
+                lastMessageAt,
+                unreadCount,
+                priceUsd,
+                null // priceByn
+            );
         }).collect(Collectors.toList());
     }
 
@@ -433,33 +434,21 @@ public class ChatService {
     }
 
     private MessageDto mapToMessageDto(Message m) {
-        MessageDto dto = new MessageDto();
-        dto.setId(m.getId());
-        dto.setChatRoomId(m.getChatRoom().getId());
-        dto.setSenderId(m.getSender().getId());
-        dto.setSenderName(m.getSender().getName());
-        dto.setContent(m.getContent());
-        dto.setCreatedAt(m.getCreatedAt());
-        dto.setRead(m.isRead());
-        
-        if (m.getMessageType() != null) {
-            dto.setMessageType(m.getMessageType().name());
-        }
-        
-        dto.setOfferAmount(m.getOfferAmount());
-        dto.setOfferCurrency(m.getOfferCurrency());
-        
-        if (m.getOfferContractType() != null) {
-            dto.setOfferContractType(m.getOfferContractType().name());
-        }
-        
-        dto.setOfferStartDate(m.getOfferStartDate());
-        dto.setOfferEndDate(m.getOfferEndDate());
-        
-        if (m.getOfferStatus() != null) {
-            dto.setOfferStatus(m.getOfferStatus().name());
-        }
-        
-        return dto;
+        return new MessageDto(
+            m.getId(),
+            m.getChatRoom().getId(),
+            m.getSender().getId(),
+            m.getSender().getName(),
+            m.getContent(),
+            m.getCreatedAt(),
+            m.isRead(),
+            m.getMessageType() != null ? m.getMessageType().name() : null,
+            m.getOfferAmount(),
+            m.getOfferStatus() != null ? m.getOfferStatus().name() : null,
+            m.getOfferCurrency(),
+            m.getOfferContractType() != null ? m.getOfferContractType().name() : null,
+            m.getOfferStartDate(),
+            m.getOfferEndDate()
+        );
     }
 }

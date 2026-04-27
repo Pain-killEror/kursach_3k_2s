@@ -40,23 +40,35 @@ public class WebSocketChatController {
     @Transactional
     public void sendMessage(@DestinationVariable UUID chatId, @Payload MessageDto messageDto) {
         ChatRoom chat = chatRoomRepository.findById(chatId).orElseThrow();
-        User sender = userRepository.findById(messageDto.getSenderId()).orElseThrow();
+        User sender = userRepository.findById(messageDto.senderId()).orElseThrow();
 
         Message message = new Message();
         message.setChatRoom(chat);
         message.setSender(sender);
-        message.setContent(messageDto.getContent());
+        message.setContent(messageDto.content());
         messageRepository.save(message);
 
         chat.setLastMessageAt(message.getCreatedAt());
         chatRoomRepository.save(chat);
 
-        messageDto.setId(message.getId());
-        messageDto.setSenderName(sender.getName());
-        messageDto.setCreatedAt(message.getCreatedAt());
-        messageDto.setRead(false);
+        MessageDto responseDto = new MessageDto(
+            message.getId(),
+            chat.getId(),
+            sender.getId(),
+            sender.getName(),
+            message.getContent(),
+            message.getCreatedAt(),
+            false,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null
+        );
 
-        messagingTemplate.convertAndSend("/topic/chat/" + chatId, messageDto);
+        messagingTemplate.convertAndSend("/topic/chat/" + chatId, responseDto);
     }
 
     // ==========================================
@@ -69,12 +81,12 @@ public class WebSocketChatController {
             // Передаем новые поля: валюту, тип контракта и даты
             MessageDto result = chatService.sendOffer(
                     chatId, 
-                    payload.getSenderId(), 
-                    payload.getOfferAmount(),
-                    payload.getOfferCurrency(),
-                    payload.getOfferContractType(),
-                    payload.getOfferStartDate(),
-                    payload.getOfferEndDate()
+                    payload.senderId(), 
+                    payload.offerAmount(),
+                    payload.offerCurrency(),
+                    payload.offerContractType(),
+                    payload.offerStartDate(),
+                    payload.offerEndDate()
             );
             messagingTemplate.convertAndSend("/topic/chat/" + chatId, result);
         } catch (Exception e) {
@@ -85,7 +97,7 @@ public class WebSocketChatController {
     @MessageMapping("/chat/{chatId}/cancelOffer")
     public void cancelOffer(@DestinationVariable UUID chatId, @Payload MessageDto payload) {
         try {
-            MessageDto result = chatService.cancelOffer(payload.getId(), payload.getSenderId());
+            MessageDto result = chatService.cancelOffer(payload.id(), payload.senderId());
             messagingTemplate.convertAndSend("/topic/chat/" + chatId, result);
         } catch (Exception e) {
             sendErrorMessage(chatId, e.getMessage());
@@ -95,7 +107,7 @@ public class WebSocketChatController {
     @MessageMapping("/chat/{chatId}/rejectOffer")
     public void rejectOffer(@DestinationVariable UUID chatId, @Payload MessageDto payload) {
         try {
-            MessageDto result = chatService.rejectOffer(payload.getId(), payload.getSenderId());
+            MessageDto result = chatService.rejectOffer(payload.id(), payload.senderId());
             messagingTemplate.convertAndSend("/topic/chat/" + chatId, result);
         } catch (Exception e) {
             sendErrorMessage(chatId, e.getMessage());
@@ -105,7 +117,7 @@ public class WebSocketChatController {
     @MessageMapping("/chat/{chatId}/acceptOffer")
     public void acceptOffer(@DestinationVariable UUID chatId, @Payload MessageDto payload) {
         try {
-            MessageDto result = chatService.acceptOffer(payload.getId(), payload.getSenderId());
+            MessageDto result = chatService.acceptOffer(payload.id(), payload.senderId());
             messagingTemplate.convertAndSend("/topic/chat/" + chatId, result);
         } catch (Exception e) {
             // Если даты уже заняты (для краткосрочки), поймаем ошибку здесь и отправим в чат
@@ -115,9 +127,9 @@ public class WebSocketChatController {
 
     // Вспомогательный метод для отправки ошибок в чат (чтобы фронтенд мог их показать)
     private void sendErrorMessage(UUID chatId, String errorMsg) {
-        MessageDto errorDto = new MessageDto();
-        errorDto.setMessageType("ERROR");
-        errorDto.setContent(errorMsg);
+        MessageDto errorDto = new MessageDto(
+            null, null, null, null, errorMsg, null, false, "ERROR", null, null, null, null, null, null
+        );
         messagingTemplate.convertAndSend("/topic/chat/" + chatId, errorDto);
     }
 }

@@ -41,9 +41,7 @@ class AuthControllerIntegrationTest {
                 .andExpect(jsonPath("$.role").value("USER"));
 
         // 2. Логин с только что созданными учетными данными
-        LoginRequest loginRequest = new LoginRequest();
-        loginRequest.setEmail("api@test.com");
-        loginRequest.setPassword("Test1234!");
+        LoginRequest loginRequest = new LoginRequest("api@test.com", "Test1234!");
 
         mockMvc.perform(post("/api/auth/login")
                 .contentType(MediaType.APPLICATION_JSON)
@@ -55,9 +53,7 @@ class AuthControllerIntegrationTest {
 
     @Test
     void login_InvalidCredentials() throws Exception {
-        LoginRequest loginRequest = new LoginRequest();
-        loginRequest.setEmail("notexist@test.com");
-        loginRequest.setPassword("WrongPassword!");
+        LoginRequest loginRequest = new LoginRequest("notexist@test.com", "WrongPassword!");
 
         mockMvc.perform(post("/api/auth/login")
                 .contentType(MediaType.APPLICATION_JSON)

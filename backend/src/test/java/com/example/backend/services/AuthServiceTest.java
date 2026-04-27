@@ -58,8 +58,8 @@ class AuthServiceTest {
         JwtResponse response = authService.login("test@test.com", "password");
 
         assertNotNull(response);
-        assertEquals("mocked_jwt_token", response.getToken());
-        assertEquals(testUser, response.getUser());
+        assertEquals("mocked_jwt_token", response.token());
+        assertEquals(testUser, response.user());
     }
 
     @Test
