@@ -127,8 +127,8 @@ public class InvestmentSmartDefaults {
                 // For land plots, we keep it simple as requested
                 defAppreciationRate = new BigDecimal("5");
                 defRepairCost = BigDecimal.ZERO; 
-                defConstructionCost = BigDecimal.ZERO; 
-                defExpectedSalePrice = price.multiply(new BigDecimal("1.1")).setScale(0, RoundingMode.HALF_UP);
+                defConstructionCost = new BigDecimal("50000"); // Realistic construction default
+                defExpectedSalePrice = price.add(defConstructionCost).multiply(new BigDecimal("1.3")).setScale(0, RoundingMode.HALF_UP);
                 defMaintenancePct = new BigDecimal("0.5");
                 // Explicitly zero-out apartment fields
                 defMonthlyRent = BigDecimal.ZERO;
@@ -206,16 +206,16 @@ public class InvestmentSmartDefaults {
                 req.legalFeesPct() != null ? req.legalFeesPct() : new BigDecimal("2"),
                 req.repairCost() != null ? req.repairCost() : defRepairCost,
                 req.furnitureCost() != null ? req.furnitureCost() : defFurnitureCost,
-                req.monthlyRent() != null ? req.monthlyRent() : defMonthlyRent,
+                req.monthlyRent() != null && req.monthlyRent().compareTo(BigDecimal.ZERO) != 0 ? req.monthlyRent() : defMonthlyRent,
                 req.vacancyRate() != null ? req.vacancyRate() : defVacancyRate,
-                req.dailyRate() != null ? req.dailyRate() : defDailyRate,
+                req.dailyRate() != null && req.dailyRate().compareTo(BigDecimal.ZERO) != 0 ? req.dailyRate() : defDailyRate,
                 req.occupancyRate() != null ? req.occupancyRate() : defOccupancyRate,
                 req.cleaningCost() != null ? req.cleaningCost() : defCleaningCost,
                 req.platformFeePct() != null ? req.platformFeePct() : defPlatformFeePct,
-                req.expectedSalePrice() != null ? req.expectedSalePrice() : defExpectedSalePrice,
+                req.expectedSalePrice() != null && req.expectedSalePrice().compareTo(BigDecimal.ZERO) != 0 ? req.expectedSalePrice() : defExpectedSalePrice,
                 req.flipDurationMonths() > 0 ? req.flipDurationMonths() : defFlipDurationMonths,
                 req.agentFeePct() != null ? req.agentFeePct() : defAgentFeePct,
-                req.constructionCost() != null ? req.constructionCost() : defConstructionCost,
+                req.constructionCost() != null && req.constructionCost().compareTo(BigDecimal.ZERO) != 0 ? req.constructionCost() : defConstructionCost,
                 req.buildSellDuration() > 0 ? req.buildSellDuration() : defBuildSellDuration,
                 req.appreciationRate() != null ? req.appreciationRate() : defAppreciationRate,
                 req.investmentHorizon() > 0 ? req.investmentHorizon() : 10,

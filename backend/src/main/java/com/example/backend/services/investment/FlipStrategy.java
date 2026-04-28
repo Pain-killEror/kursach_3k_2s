@@ -38,7 +38,7 @@ public class FlipStrategy implements InvestmentStrategy {
         BigDecimal holdingCostMortgage = ((BigDecimal) mortgage.get("monthlyPayment")).multiply(durationMonths);
         
         BigDecimal agentFeePct = InvestmentMathUtils.getOrDefault(request.agentFeePct(), new BigDecimal("3"));
-        BigDecimal expectedSalePrice = InvestmentMathUtils.getOrDefault(request.expectedSalePrice(), propPrice.multiply(new BigDecimal("1.2")));
+        BigDecimal expectedSalePrice = request.expectedSalePrice();
         BigDecimal agentFee = expectedSalePrice.multiply(InvestmentMathUtils.safeDivide(agentFeePct, new BigDecimal("100")));
 
         BigDecimal propertyTaxRate = taxRates.getOrDefault("PROPERTY_TAX_RATE", BigDecimal.ZERO);
@@ -69,7 +69,7 @@ public class FlipStrategy implements InvestmentStrategy {
             .incomeTaxLabel("Налог")
             .annualIncomeTax(incomeTax)
             .totalAnnualTax(incomeTax.add(propertyTax))
-            .futurePropertyValue(request.expectedSalePrice())
+            .futurePropertyValue(expectedSalePrice)
             .capitalGain(grossProfit)
             .totalProfit(netProfit)
             .netProfit(netProfit)

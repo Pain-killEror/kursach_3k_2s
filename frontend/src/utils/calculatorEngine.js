@@ -60,7 +60,12 @@ export function getStrategiesForType(objectType) {
  * возвращает разумные значения по умолчанию для полей ввода.
  */
 export function getSmartDefaults(object, strategy) {
-    const type = object?.type || 'Квартира';
+    // Align with backend type detection
+    let type = object?.type || 'Квартира';
+    const category = (object?.category || '').toUpperCase();
+    if (category === 'УЧАСТОК') type = 'Участок';
+    else if (category === 'КОММЕРЦИЯ' || category === 'COMMERCIAL') type = 'Коммерция';
+
     const attrs = parseAttributes(object?.attributes);
     const price = Number(object?.priceTotal) || 0;
     const area = Number(object?.areaTotal) || 50;
@@ -187,10 +192,9 @@ export function getSmartDefaults(object, strategy) {
         const purpose = attrs.land_purpose || 'ИЖС';
         defaults.appreciationRate = purpose === 'Коммерция' ? 8 : 5;
 
-        // Стоимость строительства на ИЖС ~$600-800/м²
-        const buildCostPerM2 = purpose === 'ИЖС' ? 700 : 500;
-        defaults.constructionCost = Math.round(buildCostPerM2 * 120); // Допустим 120м² дом
-        defaults.expectedSalePrice = Math.round(price + defaults.constructionCost * 1.3);
+        // Стоимость строительства на участке ~$50k по умолчанию
+        defaults.constructionCost = 50000;
+        defaults.expectedSalePrice = Math.round((price + defaults.constructionCost) * 1.3);
 
         // Доп. расходы если нет коммуникаций
         let connectionCost = 0;

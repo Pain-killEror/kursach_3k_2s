@@ -49,7 +49,7 @@ public class RealEstateObjectService {
         this.chatRoomRepository = chatRoomRepository;
     }
 
-    @Cacheable(value = "objects", key = "{#city, #categories, #minPrice, #maxPrice, #minArea, #maxArea, #transactionType, #rentType, #attributes}")
+    @Cacheable(value = "objects", key = "{#city, #categories, #minPrice, #maxPrice, #minArea, #maxArea, #transactionType, #rentType, #attributes, #pageable.pageNumber, #pageable.pageSize}")
     public Page<RealEstateObject> getAllObjects(
             String city,
             List<String> categories,
