@@ -70,8 +70,11 @@ public class BuyAndHoldStrategy implements InvestmentStrategy {
             .futurePropertyValue(futureValue)
             .capitalGain(capitalGain)
             .totalProfit(netProfit)
+            .netProfit(netProfit)
             .totalROI(roi)
+            .roi(roi)
             .annualizedROI(annualizedROI)
+            .horizon(horizon)
             .yearlyForecast(new ArrayList<>())
             .build();
     }

@@ -72,8 +72,11 @@ public class FlipStrategy implements InvestmentStrategy {
             .futurePropertyValue(request.expectedSalePrice())
             .capitalGain(grossProfit)
             .totalProfit(netProfit)
+            .netProfit(netProfit)
             .totalROI(roi)
+            .roi(roi)
             .annualizedROI(annualizedROI)
+            .durationMonths(durationMonths)
             .yearlyForecast(new ArrayList<>())
             .build();
     }

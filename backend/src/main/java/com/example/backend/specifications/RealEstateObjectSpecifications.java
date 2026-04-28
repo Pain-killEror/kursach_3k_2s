@@ -74,13 +74,24 @@ public class RealEstateObjectSpecifications {
                 ));
             }
 
-            // 3. Фильтрация по rentType (через JSON атрибут rent_type)
+            // 3. Фильтрация по rentType (через JSON атрибут type_rent)
             if (rentType != null && !rentType.isEmpty()) {
-                predicates.add(cb.equal(
-                    cb.function("JSON_UNQUOTE", String.class, 
-                        cb.function("JSON_EXTRACT", String.class, root.get("attributes"), cb.literal("$.rent_type"))),
-                    rentType
-                ));
+                jakarta.persistence.criteria.Expression<String> typeRentExpr = cb.function("JSON_UNQUOTE", String.class, 
+                        cb.function("JSON_EXTRACT", String.class, root.get("attributes"), cb.literal("$.type_rent")));
+                
+                if ("SHORT_TERM".equals(rentType)) {
+                    predicates.add(cb.or(
+                        cb.equal(cb.lower(typeRentExpr), "посуточно"),
+                        cb.equal(cb.lower(typeRentExpr), "краткосрочно"),
+                        cb.like(cb.lower(typeRentExpr), "%посуточно%"),
+                        cb.like(cb.lower(typeRentExpr), "%краткосрочно%")
+                    ));
+                } else if ("LONG_TERM".equals(rentType)) {
+                    predicates.add(cb.or(
+                        cb.equal(cb.lower(typeRentExpr), "долгосрочно"),
+                        cb.like(cb.lower(typeRentExpr), "%долгосрочно%")
+                    ));
+                }
             }
 
             // 4. Фильтрация по произвольным атрибутам

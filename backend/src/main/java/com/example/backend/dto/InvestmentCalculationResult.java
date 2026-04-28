@@ -50,8 +50,12 @@ public class InvestmentCalculationResult {
     private BigDecimal capitalGain;
     private BigDecimal totalCashFlowOverHorizon;
     private BigDecimal totalProfit;
+    private BigDecimal netProfit; // Duplicates totalProfit for frontend compatibility
     private BigDecimal totalROI;
+    private BigDecimal roi; // Duplicates totalROI for frontend compatibility
     private BigDecimal annualizedROI;
+    private BigDecimal durationMonths;
+    private Integer horizon;
 
     private List<Map<String, Object>> yearlyForecast;
 
@@ -125,11 +129,31 @@ public class InvestmentCalculationResult {
     public BigDecimal getTotalCashFlowOverHorizon() { return totalCashFlowOverHorizon; }
     public void setTotalCashFlowOverHorizon(BigDecimal totalCashFlowOverHorizon) { this.totalCashFlowOverHorizon = totalCashFlowOverHorizon; }
     public BigDecimal getTotalProfit() { return totalProfit; }
-    public void setTotalProfit(BigDecimal totalProfit) { this.totalProfit = totalProfit; }
+    public void setTotalProfit(BigDecimal totalProfit) { 
+        this.totalProfit = totalProfit;
+        this.netProfit = totalProfit; // Sync
+    }
+    public BigDecimal getNetProfit() { return netProfit; }
+    public void setNetProfit(BigDecimal netProfit) { 
+        this.netProfit = netProfit; 
+        this.totalProfit = netProfit; // Sync
+    }
     public BigDecimal getTotalROI() { return totalROI; }
-    public void setTotalROI(BigDecimal totalROI) { this.totalROI = totalROI; }
+    public void setTotalROI(BigDecimal totalROI) { 
+        this.totalROI = totalROI;
+        this.roi = totalROI; // Sync
+    }
+    public BigDecimal getRoi() { return roi; }
+    public void setRoi(BigDecimal roi) { 
+        this.roi = roi;
+        this.totalROI = roi; // Sync
+    }
     public BigDecimal getAnnualizedROI() { return annualizedROI; }
     public void setAnnualizedROI(BigDecimal annualizedROI) { this.annualizedROI = annualizedROI; }
+    public BigDecimal getDurationMonths() { return durationMonths; }
+    public void setDurationMonths(BigDecimal durationMonths) { this.durationMonths = durationMonths; }
+    public Integer getHorizon() { return horizon; }
+    public void setHorizon(Integer horizon) { this.horizon = horizon; }
     public List<Map<String, Object>> getYearlyForecast() { return yearlyForecast; }
     public void setYearlyForecast(List<Map<String, Object>> yearlyForecast) { this.yearlyForecast = yearlyForecast; }
 
@@ -168,8 +192,12 @@ public class InvestmentCalculationResult {
         public InvestmentCalculationResultBuilder capitalGain(BigDecimal v) { result.setCapitalGain(v); return this; }
         public InvestmentCalculationResultBuilder totalCashFlowOverHorizon(BigDecimal v) { result.setTotalCashFlowOverHorizon(v); return this; }
         public InvestmentCalculationResultBuilder totalProfit(BigDecimal v) { result.setTotalProfit(v); return this; }
+        public InvestmentCalculationResultBuilder netProfit(BigDecimal v) { result.setNetProfit(v); return this; }
         public InvestmentCalculationResultBuilder totalROI(BigDecimal v) { result.setTotalROI(v); return this; }
+        public InvestmentCalculationResultBuilder roi(BigDecimal v) { result.setRoi(v); return this; }
         public InvestmentCalculationResultBuilder annualizedROI(BigDecimal v) { result.setAnnualizedROI(v); return this; }
+        public InvestmentCalculationResultBuilder durationMonths(BigDecimal v) { result.setDurationMonths(v); return this; }
+        public InvestmentCalculationResultBuilder horizon(Integer v) { result.setHorizon(v); return this; }
         public InvestmentCalculationResultBuilder yearlyForecast(List<Map<String, Object>> v) { result.setYearlyForecast(v); return this; }
 
         public InvestmentCalculationResult build() {

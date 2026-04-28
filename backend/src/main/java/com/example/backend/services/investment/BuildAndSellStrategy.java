@@ -62,7 +62,7 @@ public class BuildAndSellStrategy implements InvestmentStrategy {
 
         return InvestmentCalculationResult.builder()
             .totalPurchaseCost(propPrice.add(legalFees))
-            .totalRenovation(totalConstruction) // Showing construction as "renovation" for UI consistency or we can update DTO
+            .totalRenovation(totalConstruction) // Showing construction as "renovation" for UI consistency
             .totalOwnFunds(totalOwnFunds)
             .legalFees(legalFees)
             .mortgageInfo(mortgage)
@@ -74,8 +74,11 @@ public class BuildAndSellStrategy implements InvestmentStrategy {
             .futurePropertyValue(request.expectedSalePrice())
             .capitalGain(grossProfit)
             .totalProfit(netProfit)
+            .netProfit(netProfit)
             .totalROI(roi)
+            .roi(roi)
             .annualizedROI(annualizedROI)
+            .durationMonths(durationMonths)
             .yearlyForecast(new ArrayList<>())
             .build();
     }

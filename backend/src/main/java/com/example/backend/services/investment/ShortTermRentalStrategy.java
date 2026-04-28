@@ -82,6 +82,40 @@ public class ShortTermRentalStrategy implements InvestmentStrategy {
         BigDecimal cashOnCash = InvestmentMathUtils.safeDivide(annualCashFlow, totalOwnFunds).multiply(new BigDecimal("100"));
 
         
+        int horizon = request.investmentHorizon() > 0 ? request.investmentHorizon() : 10;
+        BigDecimal appreciationRate = InvestmentMathUtils.getOrDefault(request.appreciationRate(), new BigDecimal("5"));
+        BigDecimal appRate = InvestmentMathUtils.safeDivide(appreciationRate, new BigDecimal("100"));
+        BigDecimal futurePropertyValue = propPrice.multiply(BigDecimal.ONE.add(appRate).pow(horizon)).setScale(2, RoundingMode.HALF_UP);
+        BigDecimal capitalGain = futurePropertyValue.subtract(propPrice);
+        
+        BigDecimal totalCashFlowOverHorizon = annualCashFlow.multiply(new BigDecimal(horizon));
+        
+        BigDecimal remainingBalance = BigDecimal.ZERO;
+        if (request.useMortgage()) {
+             BigDecimal mortgageRate = InvestmentMathUtils.getOrDefault(request.mortgageRate(), new BigDecimal("12.5"));
+             BigDecimal r = InvestmentMathUtils.safeDivide(mortgageRate, new BigDecimal("1200"));
+             int n = (request.mortgageTerm() > 0 ? request.mortgageTerm() : 15) * 12;
+             int pm = Math.min(horizon * 12, n);
+             BigDecimal loan = (BigDecimal) mortgage.get("loanAmount");
+             
+             if (r.compareTo(BigDecimal.ZERO) > 0) {
+                 BigDecimal factorN = BigDecimal.ONE.add(r).pow(n);
+                 BigDecimal factorPM = BigDecimal.ONE.add(r).pow(pm);
+                 
+                 BigDecimal num = factorN.subtract(factorPM);
+                 BigDecimal den = factorN.subtract(BigDecimal.ONE);
+                 remainingBalance = loan.multiply(InvestmentMathUtils.safeDivide(num, den)).setScale(2, RoundingMode.HALF_UP);
+             } else {
+                 remainingBalance = loan.subtract(loan.multiply(InvestmentMathUtils.safeDivide(new BigDecimal(pm), new BigDecimal(n))));
+             }
+             if (remainingBalance.compareTo(BigDecimal.ZERO) < 0) remainingBalance = BigDecimal.ZERO;
+        }
+        
+        BigDecimal equityAtEnd = futurePropertyValue.subtract(remainingBalance);
+        BigDecimal totalProfit = equityAtEnd.add(totalCashFlowOverHorizon).subtract(totalOwnFunds);
+        BigDecimal totalROI = InvestmentMathUtils.safeDivide(totalProfit, totalOwnFunds).multiply(new BigDecimal("100"));
+        BigDecimal annualizedROI = InvestmentMathUtils.safeDivide(totalROI, new BigDecimal(horizon));
+
         return InvestmentCalculationResult.builder()
             .totalPurchaseCost(InvestmentMathUtils.round0(totalPurchaseCost))
             .totalRenovation(InvestmentMathUtils.round0(totalRenovation))
@@ -107,6 +141,15 @@ public class ShortTermRentalStrategy implements InvestmentStrategy {
             .monthlyCashFlow(InvestmentMathUtils.round2(monthlyCashFlow))
             .capRate(InvestmentMathUtils.round2(capRate))
             .cashOnCash(InvestmentMathUtils.round2(cashOnCash))
+            .futurePropertyValue(InvestmentMathUtils.round0(futurePropertyValue))
+            .capitalGain(InvestmentMathUtils.round0(capitalGain))
+            .totalCashFlowOverHorizon(InvestmentMathUtils.round0(totalCashFlowOverHorizon))
+            .totalProfit(InvestmentMathUtils.round0(totalProfit))
+            .netProfit(InvestmentMathUtils.round0(totalProfit))
+            .totalROI(InvestmentMathUtils.round2(totalROI))
+            .roi(InvestmentMathUtils.round2(totalROI))
+            .annualizedROI(InvestmentMathUtils.round2(annualizedROI))
+            .horizon(horizon)
             .yearlyForecast(new ArrayList<>())
             .build();
     }

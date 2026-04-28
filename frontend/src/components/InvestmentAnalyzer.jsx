@@ -176,7 +176,7 @@ const InvestmentAnalyzer = ({ object, taxRates, formatPrice, currency, convertPr
     const isBuildSell = strategy === 'BUILD_SELL';
     const entityType = taxRates?.entityType || 'INDIVIDUAL';
 
-    const fp = (v) => formatPrice(v);
+    const fp = (v) => formatPrice(v || 0);
     const currSymbol = currency === 'BYN' ? 'BYN' : '$';
 
     return (
@@ -476,26 +476,26 @@ const InvestmentAnalyzer = ({ object, taxRates, formatPrice, currency, convertPr
 
                         {/* --- Чистая прибыль (для флипа/купить-продать) --- */}
                         {(isFlip || isBuildSell) && (
-                            <div className={`cf-highlight ${results.netProfit < 0 ? 'negative' : ''}`}>
+                            <div className={`cf-highlight ${(results.netProfit || 0) < 0 ? 'negative' : ''}`}>
                                 <div className="cf-item">
                                     <span className="cf-label">Чистая прибыль</span>
-                                    <span className={`cf-value ${results.netProfit >= 0 ? 'positive' : 'negative'}`}>
+                                    <span className={`cf-value ${(results.netProfit || 0) >= 0 ? 'positive' : 'negative'}`}>
                                         {fp(results.netProfit)}
                                     </span>
                                 </div>
                                 <div className="cf-item">
                                     <span className="cf-label">Срок</span>
-                                    <span className="cf-value positive">{results.durationMonths} мес</span>
+                                    <span className="cf-value positive">{results.durationMonths || 0} мес</span>
                                 </div>
                             </div>
                         )}
 
                         {/* --- Для купить и держать --- */}
                         {isBuyHold && (
-                            <div className={`cf-highlight ${results.netProfit < 0 ? 'negative' : ''}`}>
+                            <div className={`cf-highlight ${(results.netProfit || 0) < 0 ? 'negative' : ''}`}>
                                 <div className="cf-item">
-                                    <span className="cf-label">Прибыль за {results.horizon} лет</span>
-                                    <span className={`cf-value ${results.netProfit >= 0 ? 'positive' : 'negative'}`}>
+                                    <span className="cf-label">Прибыль за {results.horizon || 0} лет</span>
+                                    <span className={`cf-value ${(results.netProfit || 0) >= 0 ? 'positive' : 'negative'}`}>
                                         {fp(results.netProfit)}
                                     </span>
                                 </div>
@@ -526,16 +526,16 @@ const InvestmentAnalyzer = ({ object, taxRates, formatPrice, currency, convertPr
                         {/* --- Метрики для флипа --- */}
                         {(isFlip || isBuildSell) && (
                             <div className="metrics-grid">
-                                <MetricTile label="ROI" value={`${results.roi}%`} quality={assessMetricQuality('roi', results.roi)} metricKey="totalROI" onInfo={setInfoModal} />
-                                <MetricTile label="Годовая ROI" value={`${results.annualizedROI}%`} quality={assessMetricQuality('annualizedROI', results.annualizedROI)} metricKey="annualizedROI" onInfo={setInfoModal} />
+                                <MetricTile label="ROI" value={`${results.roi || 0}%`} quality={assessMetricQuality('roi', results.roi)} metricKey="totalROI" onInfo={setInfoModal} />
+                                <MetricTile label="Годовая ROI" value={`${results.annualizedROI || 0}%`} quality={assessMetricQuality('annualizedROI', results.annualizedROI)} metricKey="annualizedROI" onInfo={setInfoModal} />
                             </div>
                         )}
 
                         {/* --- Метрики для купить и держать --- */}
                         {isBuyHold && (
                             <div className="metrics-grid">
-                                <MetricTile label="ROI" value={`${results.roi}%`} quality={assessMetricQuality('roi', results.roi)} metricKey="totalROI" onInfo={setInfoModal} />
-                                <MetricTile label="Годовая ROI" value={`${results.annualizedROI}%`} quality={assessMetricQuality('annualizedROI', results.annualizedROI)} metricKey="annualizedROI" onInfo={setInfoModal} />
+                                <MetricTile label="ROI" value={`${results.roi || 0}%`} quality={assessMetricQuality('roi', results.roi)} metricKey="totalROI" onInfo={setInfoModal} />
+                                <MetricTile label="Годовая ROI" value={`${results.annualizedROI || 0}%`} quality={assessMetricQuality('annualizedROI', results.annualizedROI)} metricKey="annualizedROI" onInfo={setInfoModal} />
                             </div>
                         )}
 

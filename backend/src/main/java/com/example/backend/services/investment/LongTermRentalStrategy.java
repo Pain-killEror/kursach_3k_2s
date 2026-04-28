@@ -149,8 +149,11 @@ public class LongTermRentalStrategy implements InvestmentStrategy {
             .capitalGain(InvestmentMathUtils.round0(capitalGain))
             .totalCashFlowOverHorizon(InvestmentMathUtils.round0(totalCashFlowOverHorizon))
             .totalProfit(InvestmentMathUtils.round0(totalProfit))
+            .netProfit(InvestmentMathUtils.round0(totalProfit))
             .totalROI(InvestmentMathUtils.round2(totalROI))
+            .roi(InvestmentMathUtils.round2(totalROI))
             .annualizedROI(InvestmentMathUtils.round2(annualizedROI))
+            .horizon(horizon)
             .yearlyForecast(new ArrayList<>())
             .build();
     }
