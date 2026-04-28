@@ -86,25 +86,29 @@ const InvestmentAnalyzer = ({ object, taxRates, formatPrice, currency, convertPr
 
     // Применяем дефолты при смене стратегии/объекта
     useEffect(() => {
-        setRepairCost(defaults.repairCost);
-        setFurnitureCost(defaults.furnitureCost);
-        setMonthlyRent(defaults.monthlyRent);
-        setVacancyRate(defaults.vacancyRate);
-        setDailyRate(defaults.dailyRate);
-        setOccupancyRate(defaults.occupancyRate);
-        setCleaningCost(defaults.cleaningCost);
-        setPlatformFeePct(defaults.platformFeePct);
-        setExpectedSalePrice(defaults.expectedSalePrice);
-        setFlipDurationMonths(defaults.flipDurationMonths);
-        setAgentFeePct(defaults.agentFeePct);
-        setConstructionCost(defaults.constructionCost);
-        setBuildSellDuration(defaults.buildSellDuration);
-        setAppreciationRate(defaults.appreciationRate);
-        setMaintenancePct(defaults.maintenancePct);
-        setUtilityCost(defaults.utilityCost);
-        setInsuranceCost(defaults.insuranceCost);
-        setManagementFeePct(defaults.managementFeePct);
-        setLegalFeesPct(defaults.legalFeesPct);
+        // Only update if current value is 0 (uninitialized or explicitly reset)
+        setRepairCost(prev => (Number(prev) === 0 ? defaults.repairCost : prev));
+        setFurnitureCost(prev => (Number(prev) === 0 ? defaults.furnitureCost : prev));
+        setMonthlyRent(prev => (Number(prev) === 0 ? defaults.monthlyRent : prev));
+        setVacancyRate(prev => (Number(prev) === 0 ? defaults.vacancyRate : prev));
+        setDailyRate(prev => (Number(prev) === 0 ? defaults.dailyRate : prev));
+        setOccupancyRate(prev => (Number(prev) === 0 ? defaults.occupancyRate : prev));
+        setCleaningCost(prev => (Number(prev) === 0 ? defaults.cleaningCost : prev));
+        setPlatformFeePct(prev => (Number(prev) === 0 ? defaults.platformFeePct : prev));
+        setExpectedSalePrice(prev => (Number(prev) === 0 ? defaults.expectedSalePrice : prev));
+        setFlipDurationMonths(prev => (Number(prev) === 0 ? defaults.flipDurationMonths : prev));
+        setAgentFeePct(prev => (Number(prev) === 0 ? defaults.agentFeePct : prev));
+        setConstructionCost(prev => (Number(prev) === 0 ? defaults.constructionCost : prev));
+        setBuildSellDuration(prev => (Number(prev) === 0 ? defaults.buildSellDuration : prev));
+        setAppreciationRate(prev => (Number(prev) === 0 ? defaults.appreciationRate : prev));
+        setMaintenancePct(prev => (Number(prev) === 0 ? defaults.maintenancePct : prev));
+        setUtilityCost(prev => (Number(prev) === 0 ? defaults.utilityCost : prev));
+        setInsuranceCost(prev => (Number(prev) === 0 ? defaults.insuranceCost : prev));
+        setManagementFeePct(prev => (Number(prev) === 0 ? defaults.managementFeePct : prev));
+        setLegalFeesPct(prev => (Number(prev) === 0 ? defaults.legalFeesPct : prev));
+        
+        // Reset mortgage to false when switching strategy to show "own funds" profitability first
+        setUseMortgage(false);
     }, [defaults]);
 
     // ---- РАСЧЁТ НА БЭКЕНДЕ ----

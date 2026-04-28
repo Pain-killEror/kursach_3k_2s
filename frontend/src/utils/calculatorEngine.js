@@ -60,11 +60,16 @@ export function getStrategiesForType(objectType) {
  * возвращает разумные значения по умолчанию для полей ввода.
  */
 export function getSmartDefaults(object, strategy) {
-    // Align with backend type detection
-    let type = object?.type || 'Квартира';
-    const category = (object?.category || '').toUpperCase();
-    if (category === 'УЧАСТОК') type = 'Участок';
-    else if (category === 'КОММЕРЦИЯ' || category === 'COMMERCIAL') type = 'Коммерция';
+    const cat = (object?.category || '').toUpperCase();
+    let type = 'Квартира'; 
+    
+    if (cat.includes('УЧАСТОК') || cat.includes('PLOT')) type = 'Участок';
+    else if (cat.includes('ДОМ') || cat.includes('HOUSE')) type = 'Дом';
+    else if (cat.includes('ОФИС') || cat.includes('OFFICE')) type = 'Офис';
+    else if (cat.includes('КОММЕРЦИЯ') || cat.includes('COMMERCIAL')) type = 'Коммерция';
+    else if (cat.includes('СКЛАД') || cat.includes('WAREHOUSE')) type = 'Склад';
+    else if (cat.includes('ГАРАЖ') || cat.includes('GARAGE')) type = 'Гараж';
+    else if (cat.includes('КВАРТИР') || cat.includes('APARTMENT')) type = 'Квартира';
 
     const attrs = parseAttributes(object?.attributes);
     const price = Number(object?.priceTotal) || 0;
@@ -72,60 +77,38 @@ export function getSmartDefaults(object, strategy) {
     const pricePerM2 = price / (area || 1);
 
     const defaults = {
-        // Финансирование
         useMortgage: false,
         downPaymentPct: 30,
-        mortgageRate: 12.5,    // Средняя ставка в Беларуси
+        mortgageRate: 12.5,
         mortgageTerm: 15,
-
-        // Расходы на покупку
-        legalFeesPct: 2,       // Нотариус, оценка, регистрация
-
-        // Ремонт
+        legalFeesPct: 2,
         repairCost: 0,
         furnitureCost: 0,
-
-        // Доходы (аренда)
         monthlyRent: 0,
         vacancyRate: 5,
-
-        // Посуточная
         dailyRate: 0,
         occupancyRate: 65,
         cleaningCost: 15,
         platformFeePct: 15,
-
-        // Флиппинг
         expectedSalePrice: 0,
         flipDurationMonths: 4,
         agentFeePct: 3,
-
-        // Построить и продать
         constructionCost: 0,
         buildSellDuration: 12,
-
-        // Купить и держать
         appreciationRate: 5,
-
-        // Операционные расходы
-        maintenancePct: 1,     // % от стоимости в год на обслуживание
-        utilityCost: 0,        // Коммуналка на собственнике руб/мес
+        maintenancePct: 1,
+        utilityCost: 0,
         insuranceCost: 0,
-        managementFeePct: 0,   // Управляющая компания (% от аренды)
-
-        // Горизонт
+        managementFeePct: 0,
         investmentHorizon: 10,
-
-        // Юрлицо
         useLegalUSN: false,
     };
 
     // --- Подсказки для КВАРТИР ---
     if (type === 'Квартира') {
         const rooms = attrs.rooms_count || 1;
-        const renovation = attrs.renovation_state || object?.category || '';
+        const renovation = attrs.renovation_state || '';
 
-        // Ремонт на основе состояния
         const repairPerM2 = {
             'Черновая отделка': 350,
             'Предчистовая': 250,
@@ -134,31 +117,24 @@ export function getSmartDefaults(object, strategy) {
             'Хороший ремонт': 20,
             'Элитный ремонт': 0,
         };
-        defaults.repairCost = Math.round((repairPerM2[renovation] || 100) * area);
+        defaults.repairCost = Math.max(Math.round((repairPerM2[renovation] || 100) * area), area * 50);
 
-        // Аренда на основе комнат (средние по Минску, USD)
         const rentByRooms = { 1: 350, 2: 450, 3: 550, 4: 700, 5: 850 };
-        defaults.monthlyRent = rentByRooms[Math.min(rooms, 5)] || 400;
+        defaults.monthlyRent = Math.max(rentByRooms[Math.min(rooms, 5)] || 400, area * 10);
 
-        // Посуточная
         const dailyByRooms = { 1: 35, 2: 50, 3: 65, 4: 80 };
         defaults.dailyRate = dailyByRooms[Math.min(rooms, 4)] || 40;
 
-        // Балкон +3% к аренде
-        if (attrs.has_balcony) {
-            defaults.monthlyRent = Math.round(defaults.monthlyRent * 1.03);
-        }
+        if (attrs.has_balcony) defaults.monthlyRent = Math.round(defaults.monthlyRent * 1.03);
 
-        // Этаж: 1-й и последний — скидка
         const floor = object?.floor;
         const floorsTotal = object?.floorsTotal;
         if (floor === 1 || (floor && floorsTotal && floor === floorsTotal)) {
             defaults.monthlyRent = Math.round(defaults.monthlyRent * 0.95);
         }
 
-        // Мебель
         if (['Черновая отделка', 'Предчистовая', 'Плохой ремонт'].includes(renovation)) {
-            defaults.furnitureCost = Math.round(area * 30); // ~$30/м²
+            defaults.furnitureCost = Math.round(area * 30);
         }
 
         defaults.utilityCost = 50 + rooms * 15;
@@ -168,69 +144,48 @@ export function getSmartDefaults(object, strategy) {
 
     // --- Подсказки для ДОМОВ ---
     if (type === 'Дом') {
-        const houseType = attrs.house_type || object?.category || '';
+        const houseType = attrs.house_type || '';
         const heating = attrs.heating_type || 'Газ';
 
         const repairMap = { 'Старый дом': 280, 'Таунхаус': 100, 'Коттедж': 60 };
-        defaults.repairCost = Math.round((repairMap[houseType] || 150) * area);
+        defaults.repairCost = Math.max(Math.round((repairMap[houseType] || 150) * area), area * 50);
 
-        defaults.monthlyRent = Math.round(pricePerM2 * area * 0.004); // ~0.4% от стоимости
-        if (defaults.monthlyRent < 300) defaults.monthlyRent = 300;
-
-        // Отопление влияет на коммуналку
+        defaults.monthlyRent = Math.max(Math.round(pricePerM2 * area * 0.004), 300);
         const heatingCost = { 'Газ': 80, 'Электричество': 150, 'Твердотопливный': 60 };
         defaults.utilityCost = heatingCost[heating] || 100;
 
         defaults.dailyRate = Math.round(defaults.monthlyRent / 20);
         defaults.expectedSalePrice = Math.round(price * 1.25);
         defaults.insuranceCost = Math.round(price * 0.002);
-        defaults.maintenancePct = 1.5; // Дома требуют больше обслуживания
+        defaults.maintenancePct = 1.5;
     }
 
     // --- Подсказки для УЧАСТКОВ ---
     if (type === 'Участок') {
-        const purpose = attrs.land_purpose || 'ИЖС';
-        defaults.appreciationRate = purpose === 'Коммерция' ? 8 : 5;
-
-        // Стоимость строительства на участке ~$50k по умолчанию
+        defaults.appreciationRate = (attrs.land_purpose || '').includes('КОММЕР') ? 8 : 5;
         defaults.constructionCost = 50000;
         defaults.expectedSalePrice = Math.round((price + defaults.constructionCost) * 1.3);
-
-        // Доп. расходы если нет коммуникаций
-        let connectionCost = 0;
-        if (!attrs.has_electricity) connectionCost += 2000;
-        if (!attrs.has_gas) connectionCost += 3000;
-        defaults.repairCost = connectionCost;
+        defaults.monthlyRent = 0;
     }
 
     // --- Подсказки для КОММЕРЦИИ ---
     if (type === 'Коммерция') {
-        const retailType = attrs.retail_type || object?.category || '';
-
-        // Коммерция: ~$12-20/м²/мес
-        const rentPerM2 = retailType === 'Стрит-ритейл' ? 18 : 14;
+        const rentPerM2 = (attrs.retail_type || '').includes('Стрит') ? 35 : 25;
         defaults.monthlyRent = Math.round(rentPerM2 * area);
-        defaults.vacancyRate = retailType === 'Стрит-ритейл' ? 8 : 5;
-
+        defaults.vacancyRate = (attrs.retail_type || '').includes('Стрит') ? 8 : 5;
         defaults.utilityCost = Math.round(area * 1.5);
         defaults.expectedSalePrice = Math.round(price * 1.15);
         defaults.maintenancePct = 0.8;
         defaults.insuranceCost = Math.round(price * 0.002);
-        defaults.repairCost = Math.round(area * 50);
+        defaults.repairCost = Math.max(Math.round(area * 70), area * 50);
     }
 
     // --- Подсказки для ОФИСОВ ---
     if (type === 'Офис') {
-        const officeClass = attrs.business_center_class || object?.category || 'B';
-
-        // Офисы: $8-25/м²/мес по классу
-        const rentByClass = { 'A': 22, 'B': 14, 'C': 8 };
-        defaults.monthlyRent = Math.round((rentByClass[officeClass] || 12) * area);
-
-        if (attrs.access_24_7) {
-            defaults.monthlyRent = Math.round(defaults.monthlyRent * 1.07);
-        }
-
+        const officeClass = attrs.business_center_class || 'B';
+        const rentByClass = { 'A': 45, 'B': 30, 'C': 20 };
+        defaults.monthlyRent = Math.round((rentByClass[officeClass] || 25) * area);
+        if (attrs.access_24_7) defaults.monthlyRent = Math.round(defaults.monthlyRent * 1.07);
         defaults.vacancyRate = officeClass === 'C' ? 12 : 7;
         defaults.utilityCost = Math.round(area * 1.2);
         defaults.expectedSalePrice = Math.round(price * 1.1);
@@ -240,19 +195,17 @@ export function getSmartDefaults(object, strategy) {
 
     // --- Подсказки для СКЛАДОВ ---
     if (type === 'Склад') {
-        const whType = attrs.warehouse_type || object?.category || '';
+        const whType = attrs.warehouse_type || '';
         const hasRamp = attrs.has_ramp || false;
         const ceilingH = attrs.ceiling_height_m || 4;
-
-        // Склады: $3-8/м²/мес
-        let rentPerM2 = whType === 'Отапливаемый' ? 6 : 3.5;
-        if (hasRamp) rentPerM2 *= 1.15;         // Рампа +15%
-        if (ceilingH >= 10) rentPerM2 *= 1.2;   // Высокие потолки +20% (класс А)
+        let rentPerM2 = whType.includes('Отаплив') ? 6 : 3.5;
+        if (hasRamp) rentPerM2 *= 1.15;
+        if (ceilingH >= 10) rentPerM2 *= 1.2;
         else if (ceilingH >= 6) rentPerM2 *= 1.1;
 
         defaults.monthlyRent = Math.round(rentPerM2 * area);
         defaults.vacancyRate = 10;
-        defaults.utilityCost = whType === 'Отапливаемый' ? Math.round(area * 1.8) : Math.round(area * 0.5);
+        defaults.utilityCost = whType.includes('Отаплив') ? Math.round(area * 1.8) : Math.round(area * 0.5);
         defaults.maintenancePct = 0.5;
         defaults.repairCost = Math.round(area * 15);
         defaults.insuranceCost = Math.round(price * 0.003);
@@ -260,22 +213,36 @@ export function getSmartDefaults(object, strategy) {
 
     // --- Подсказки для ГАРАЖЕЙ ---
     if (type === 'Гараж') {
-        const material = attrs.material || object?.category || 'Кирпичный';
-        const isCovered = attrs.is_covered !== undefined ? attrs.is_covered : true;
-        const hasPit = attrs.has_pit || false;
-
-        // Гаражи: $50-150/мес
-        let baseRent = material === 'Кирпичный' ? 100 : 70;
-        if (isCovered) baseRent = Math.round(baseRent * 1.15);
-        if (hasPit) baseRent = Math.round(baseRent * 1.10);
-
+        const material = attrs.material || 'Кирпичный';
+        let baseRent = material.includes('Кирпич') ? 100 : 70;
+        if (attrs.is_covered) baseRent = Math.round(baseRent * 1.15);
+        if (attrs.has_pit) baseRent = Math.round(baseRent * 1.10);
         defaults.monthlyRent = baseRent;
         defaults.vacancyRate = 5;
         defaults.utilityCost = 15;
-        defaults.repairCost = material === 'Металлический' ? 500 : 300;
+        defaults.repairCost = material.includes('Металл') ? 500 : 300;
         defaults.maintenancePct = 0.3;
         defaults.insuranceCost = Math.round(price * 0.002);
         defaults.appreciationRate = 3;
+    }
+
+    // --- GLOBAL HARD FALLBACKS (if values are still 0) ---
+    if (type !== 'Участок') {
+        if (!defaults.monthlyRent || defaults.monthlyRent <= 0) {
+            const resTypes = ['Квартира', 'Дом'];
+            const commTypes = ['Офис', 'Коммерция', 'Склад'];
+            
+            if (resTypes.includes(type)) {
+                defaults.monthlyRent = Math.round(price * 0.006); // 0.6%
+            } else if (commTypes.includes(type)) {
+                defaults.monthlyRent = Math.round(price * 0.008); // 0.8%
+            } else if (type === 'Гараж') {
+                defaults.monthlyRent = 70;
+            }
+        }
+        if (!defaults.repairCost || defaults.repairCost <= 0) {
+            defaults.repairCost = Math.round(price * 0.05);
+        }
     }
 
     return defaults;
