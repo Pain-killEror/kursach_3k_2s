@@ -24,6 +24,7 @@ const Register = () => {
   const [errors, setErrors] = useState({
     email: '',
     password: '',
+    phoneNumber: '',
     general: ''
   });
 
@@ -43,13 +44,16 @@ const Register = () => {
     if (e.target.name === 'password' || e.target.name === 'confirmPassword') {
       setErrors(prev => ({ ...prev, password: '', general: '' }));
     }
+    if (e.target.name === 'phoneNumber') {
+      setErrors(prev => ({ ...prev, phoneNumber: '' }));
+    }
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
 
-    const currentErrors = { email: '', password: '', general: '' };
+    const currentErrors = { email: '', password: '', phoneNumber: '', general: '' };
     let hasError = false;
 
     // 1. ЛОКАЛЬНАЯ ПРОВЕРКА: Совпадают ли пароли?
@@ -58,7 +62,16 @@ const Register = () => {
       hasError = true;
     }
 
-    // 2. СЕРВЕРНАЯ ПРОВЕРКА: Занята ли почта?
+    // 2. ЛОКАЛЬНАЯ ПРОВЕРКА: Телефон (только цифры, 8–15 символов)
+    if (formData.phoneNumber) {
+      const digits = formData.phoneNumber.replace(/\D/g, '');
+      if (digits.length < 8 || digits.length > 15) {
+        currentErrors.phoneNumber = 'Номер должен содержать от 8 до 15 цифр';
+        hasError = true;
+      }
+    }
+
+    // 3. СЕРВЕРНАЯ ПРОВЕРКА: Занята ли почта?
     try {
       await api.get('/auth/check-email', { params: { email: formData.email } });
     } catch (err) {
@@ -100,12 +113,6 @@ const Register = () => {
         <p className="auth-subtitle" style={{ marginBottom: '12px', fontSize: '0.85rem' }}>
           Создайте аккаунт
         </p>
-
-        {errors.general && (
-          <div className="error-message" style={{ padding: '8px', marginBottom: '12px', fontSize: '0.8rem' }}>
-            {errors.general}
-          </div>
-        )}
 
         <form onSubmit={handleSubmit} className="auth-form" style={{ gap: '10px' }}>
 
@@ -176,7 +183,7 @@ const Register = () => {
             )}
           </div>
 
-          <div className="input-group" style={{ gap: '3px' }}>
+          <div className="input-group" style={{ gap: '3px', position: 'relative' }}>
             <label style={{ fontSize: '0.85rem' }}>Номер телефона</label>
             <input
               type="tel"
@@ -185,8 +192,35 @@ const Register = () => {
               onChange={handleChange}
               placeholder="+375 (44) 000-00-00"
               required
-              style={{ padding: '10px 12px' }}
+              style={{
+                padding: '10px 12px',
+                border: errors.phoneNumber ? '1px solid #ef4444' : '1px solid #3f3f46',
+                outline: 'none',
+                width: '100%',
+                transition: 'border-color 0.3s ease'
+              }}
             />
+            {errors.phoneNumber && (
+              <div style={{
+                position: 'absolute',
+                left: 'calc(100% + 12px)',
+                top: '32px',
+                background: '#ef4444',
+                color: 'white',
+                padding: '6px 10px',
+                borderRadius: '6px',
+                fontSize: '0.75rem',
+                whiteSpace: 'nowrap',
+                boxShadow: '0 4px 6px rgba(0,0,0,0.3)',
+                zIndex: 10
+              }}>
+                <div style={{
+                  position: 'absolute', left: '-5px', top: '50%', transform: 'translateY(-50%)',
+                  borderTop: '5px solid transparent', borderBottom: '5px solid transparent', borderRight: '5px solid #ef4444'
+                }}></div>
+                {errors.phoneNumber}
+              </div>
+            )}
           </div>
 
           <div className="input-group" style={{ gap: '3px', position: 'relative' }}>
@@ -270,6 +304,12 @@ const Register = () => {
           <button type="submit" className="auth-button" disabled={loading} style={{ marginTop: '5px', padding: '10px' }}>
             {loading ? 'Регистрация...' : 'Зарегистрироваться'}
           </button>
+
+          {errors.general && (
+            <div style={{ marginTop: '10px', color: '#ef4444', fontSize: '0.8rem', textAlign: 'center', padding: '8px', background: 'rgba(239,68,68,0.08)', borderRadius: '6px', border: '1px solid rgba(239,68,68,0.2)' }}>
+              {errors.general}
+            </div>
+          )}
         </form>
 
         <p className="auth-footer" style={{ marginTop: '15px', fontSize: '0.85rem' }}>

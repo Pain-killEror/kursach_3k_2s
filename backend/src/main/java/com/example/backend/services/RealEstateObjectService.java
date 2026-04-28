@@ -1,10 +1,8 @@
 package com.example.backend.services;
 
-import com.example.backend.entities.ChatRoom;
 import com.example.backend.entities.ObjectStatus;
 import com.example.backend.entities.RealEstateObject;
 import com.example.backend.entities.User;
-import com.example.backend.repositories.ChatRoomRepository;
 import com.example.backend.repositories.RealEstateObjectRepository;
 import com.example.backend.repositories.UserRepository;
 import com.example.backend.exceptions.ResourceNotFoundException;
@@ -26,7 +24,6 @@ import java.io.IOException;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
-import java.util.stream.Collectors;
 
 @Service
 public class RealEstateObjectService {
@@ -35,18 +32,15 @@ public class RealEstateObjectService {
     private final UserRepository userRepository;
     private final FileService fileService;
     private final ObjectMapper objectMapper;
-    private final ChatRoomRepository chatRoomRepository; // Подключаем репозиторий чатов для проверки прав
 
-    public RealEstateObjectService(RealEstateObjectRepository repository, 
-                                   UserRepository userRepository, 
-                                   FileService fileService, 
-                                   ObjectMapper objectMapper,
-                                   ChatRoomRepository chatRoomRepository) {
+    public RealEstateObjectService(RealEstateObjectRepository repository,
+                                   UserRepository userRepository,
+                                   FileService fileService,
+                                   ObjectMapper objectMapper) {
         this.repository = repository;
         this.userRepository = userRepository;
         this.fileService = fileService;
         this.objectMapper = objectMapper;
-        this.chatRoomRepository = chatRoomRepository;
     }
 
     @Cacheable(value = "objects", key = "{#city, #categories, #minPrice, #maxPrice, #minArea, #maxArea, #transactionType, #rentType, #attributes, #pageable.pageNumber, #pageable.pageSize}")
@@ -82,7 +76,7 @@ public class RealEstateObjectService {
                 .orElseThrow(() -> new ResourceNotFoundException("Объект не найден"));
 
         // 1. Если объект видим — отдаем всем
-        if (obj.getIsVisible() != null && obj.getIsVisible()) {
+        if (Boolean.TRUE.equals(obj.getIsVisible())) {
             return obj;
         }
 
@@ -102,29 +96,21 @@ public class RealEstateObjectService {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Объект скрыт");
         }
 
-        // ВАЖНО: Создаем финальную переменную для использования в лямбде ниже
         final UUID currentUserId = tempUserId;
 
-        // 3. ПРОВЕРКА ПРАВ
+        // 3. СТРОГАЯ ПРОВЕРКА ПРАВ: только владелец ИЛИ текущий жилец/покупатель
+        // Участники старых чатов НАМЕРЕННО заблокированы — объект уже продан/сдан
         
         // Владелец
         if (obj.getUser() != null && obj.getUser().getId().equals(currentUserId)) return obj;
-        
-        // Жилец
+
+        // Текущий жилец (арендатор который въехал, или покупатель после сделки)
         if (obj.getCurrentOccupant() != null && obj.getCurrentOccupant().getId().equals(currentUserId)) return obj;
 
-        // Участник переписки
-        List<ChatRoom> objectChats = chatRoomRepository.findByRealEstateObjectId(objectId);
-        
-        // Теперь здесь используется currentUserId, которая не меняется (final)
-        boolean hasChat = objectChats.stream().anyMatch(chat -> 
-            (chat.getInvestor() != null && chat.getInvestor().getId().equals(currentUserId)) || 
-            (chat.getSeller() != null && chat.getSeller().getId().equals(currentUserId))
+        throw new ResponseStatusException(
+            HttpStatus.FORBIDDEN,
+            "Доступ запрещён: объект был продан или сдан в аренду. Обратитесь к владельцу."
         );
-
-        if (hasChat) return obj;
-
-        throw new ResponseStatusException(HttpStatus.FORBIDDEN, "У вас нет доступа к этому объекту");
     }
 
     @Transactional

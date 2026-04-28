@@ -1,11 +1,15 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import api from '../api/axios';
 import './Admin.css';
 
 const Admin = () => {
     const navigate = useNavigate();
     const [activeTab, setActiveTab] = useState('users'); // 'users', 'objects', 'settings'
+
+    const [searchParams, setSearchParams] = useSearchParams();
+    const highlightUserId = searchParams.get('highlightUserId');
+    const [highlightedId, setHighlightedId] = useState(null);
 
     const [isMenuOpen, setIsMenuOpen] = useState(false);
     const dropdownRef = useRef(null);
@@ -90,8 +94,16 @@ const Admin = () => {
     }, [debouncedUserSearch, userPage, userSortBy, userSortDir]);
 
     useEffect(() => {
-        if (activeTab === 'users') fetchUsers();
-    }, [fetchUsers, activeTab]);
+        if (activeTab === 'users') {
+            fetchUsers().then(() => {
+                if (highlightUserId) {
+                    setHighlightedId(highlightUserId);
+                    // Убираем подсветку через 5 секунд
+                    setTimeout(() => setHighlightedId(null), 5000);
+                }
+            });
+        }
+    }, [fetchUsers, activeTab, highlightUserId]);
 
     // Обработка клика по заголовку столбца (Сортировка)
     const handleUserSort = (column) => {
@@ -405,7 +417,11 @@ const Admin = () => {
                             </thead>
                             <tbody>
                                 {users.map(u => (
-                                    <tr key={u.id}>
+                                    <tr 
+                                        key={u.id} 
+                                        style={highlightedId === u.id ? { backgroundColor: 'rgba(142, 68, 173, 0.3)', transition: 'background-color 0.5s ease' } : {}}
+                                        id={`user-row-${u.id}`}
+                                    >
                                         <td><b>{u.name}</b></td>
                                         <td>{u.email}</td>
                                         <td>{u.phoneNumber || '—'}</td>
@@ -519,11 +535,19 @@ const Admin = () => {
                                         <td>{o.address}</td>
                                         <td>{o.priceTotal} {o.currency}</td>
                                         <td>
-                                            <span style={{
-                                                padding: '4px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 'bold',
-                                                backgroundColor: o.ownerRole === 'INVESTOR' ? '#e1bee7' : (o.ownerRole === 'SELLER' ? '#c8e6c9' : '#eee'),
-                                                color: o.ownerRole === 'INVESTOR' ? '#4a148c' : (o.ownerRole === 'SELLER' ? '#1b5e20' : '#333')
-                                            }}>
+                                            <span 
+                                                onClick={() => {
+                                                    setActiveTab('users');
+                                                    setSearchParams({ highlightUserId: o.user?.id });
+                                                }}
+                                                style={{
+                                                    padding: '4px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 'bold',
+                                                    backgroundColor: o.ownerRole === 'INVESTOR' ? '#e1bee7' : (o.ownerRole === 'SELLER' ? '#c8e6c9' : '#eee'),
+                                                    color: o.ownerRole === 'INVESTOR' ? '#4a148c' : (o.ownerRole === 'SELLER' ? '#1b5e20' : '#333'),
+                                                    cursor: 'pointer'
+                                                }}
+                                                title="Перейти к пользователю"
+                                            >
                                                 {o.ownerRole}
                                             </span>
                                         </td>

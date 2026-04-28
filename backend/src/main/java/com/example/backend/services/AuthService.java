@@ -71,6 +71,13 @@ public class AuthService {
             user.setPasswordHash(passwordEncoder.encode(user.getPasswordHash()));
         }
 
+        if (user.getPhoneNumber() != null && !user.getPhoneNumber().isEmpty()) {
+            String digits = user.getPhoneNumber().replaceAll("\\D", "");
+            if (digits.length() < 8 || digits.length() > 15) {
+                throw new RuntimeException("Номер телефона должен содержать от 8 до 15 цифр");
+            }
+        }
+
         return userRepository.save(user);
     }
 }

@@ -34,6 +34,17 @@ const REAL_ESTATE_CONFIG = {
     }
 };
 
+// Матрица доступных типов сделки для каждого вида недвижимости
+const DEAL_TYPE_MATRIX = {
+    'Квартира':  ['SALE', 'LONG_RENT', 'SHORT_RENT'],
+    'Дом':       ['SALE', 'LONG_RENT', 'SHORT_RENT'],
+    'Участок':   ['SALE'],
+    'Коммерция': ['SALE', 'RENT'],
+    'Офис':      ['SALE', 'RENT'],
+    'Склад':     ['SALE', 'RENT'],
+    'Гараж':     ['SALE', 'RENT'],
+};
+
 const BELARUS_CITIES = [
     'г. Минск', 'Минская область', 'г. Брест', 'Брестская область',
     'г. Витебск', 'Витебская область', 'г. Гомель', 'Гомельская область',
@@ -110,9 +121,13 @@ const AddObject = () => {
     const handleTypeChange = (e) => {
         const newType = e.target.value;
         setErrors({});
+        const allowedDeals = DEAL_TYPE_MATRIX[newType] || ['SALE'];
+        // Если текущий тип сделки не поддерживается для нового типа — сбрасываем на первый доступный
+        const newDealType = allowedDeals.includes(formData.deal_type) ? formData.deal_type : allowedDeals[0];
         setFormData(prev => ({
             ...prev,
             type: newType,
+            deal_type: newDealType,
             category: REAL_ESTATE_CONFIG[newType].subcategories[0],
             rooms_count: '1',
             area_living: '',
@@ -164,6 +179,7 @@ const AddObject = () => {
         switch (formData.deal_type) {
             case 'LONG_RENT': return 'Стоимость / месяц';
             case 'SHORT_RENT': return 'Стоимость / сутки';
+            case 'RENT': return 'Стоимость аренды';
             case 'SALE':
             default: return 'Стоимость';
         }
@@ -418,6 +434,8 @@ const AddObject = () => {
             attributesObj.type_rent = 'долгосрочная аренда';
         } else if (formData.deal_type === 'SHORT_RENT') {
             attributesObj.type_rent = 'краткосрочная аренда';
+        } else if (formData.deal_type === 'RENT') {
+            attributesObj.type_rent = 'общая аренда';
         }
 
         if (formData.type === 'Квартира') attributesObj.renovation_state = formData.category;
@@ -541,9 +559,71 @@ const AddObject = () => {
                 <div className="form-section">
                     <h3>Тип сделки</h3>
                     <div className="deal-type-selector">
-                        <button type="button" className={`deal-type-btn ${formData.deal_type === 'SALE' ? 'active' : ''}`} onClick={() => handleDealTypeChange('SALE')} disabled={isSubmitting}>Продажа</button>
-                        <button type="button" className={`deal-type-btn ${formData.deal_type === 'LONG_RENT' ? 'active' : ''}`} onClick={() => handleDealTypeChange('LONG_RENT')} disabled={isSubmitting}>Долгосрочная аренда</button>
-                        <button type="button" className={`deal-type-btn ${formData.deal_type === 'SHORT_RENT' ? 'active' : ''}`} onClick={() => handleDealTypeChange('SHORT_RENT')} disabled={isSubmitting}>Краткосрочная аренда</button>
+                        {/* Кнопка Продажа — доступна всегда */}
+                        <button
+                            type="button"
+                            className={`deal-type-btn ${formData.deal_type === 'SALE' ? 'active' : ''}`}
+                            onClick={() => handleDealTypeChange('SALE')}
+                            disabled={isSubmitting}
+                        >
+                            Продажа
+                        </button>
+
+                        {/* Долгосрочная аренда */}
+                        {DEAL_TYPE_MATRIX[formData.type]?.includes('LONG_RENT') ? (
+                            <button
+                                type="button"
+                                className={`deal-type-btn ${formData.deal_type === 'LONG_RENT' ? 'active' : ''}`}
+                                onClick={() => handleDealTypeChange('LONG_RENT')}
+                                disabled={isSubmitting}
+                            >
+                                Долгосрочная аренда
+                            </button>
+                        ) : !DEAL_TYPE_MATRIX[formData.type]?.includes('RENT') ? (
+                            <button
+                                type="button"
+                                className="deal-type-btn"
+                                disabled
+                                title={`Для объекта «${formData.type}» аренда недоступна`}
+                                style={{ opacity: 0.4, cursor: 'not-allowed' }}
+                            >
+                                Долгосрочная аренда
+                            </button>
+                        ) : null}
+
+                        {/* Общая аренда (для Склада, Коммерции и т.д.) */}
+                        {DEAL_TYPE_MATRIX[formData.type]?.includes('RENT') && (
+                            <button
+                                type="button"
+                                className={`deal-type-btn ${formData.deal_type === 'RENT' ? 'active' : ''}`}
+                                onClick={() => handleDealTypeChange('RENT')}
+                                disabled={isSubmitting}
+                            >
+                                Аренда
+                            </button>
+                        )}
+
+                        {/* Краткосрочная аренда */}
+                        {DEAL_TYPE_MATRIX[formData.type]?.includes('SHORT_RENT') ? (
+                            <button
+                                type="button"
+                                className={`deal-type-btn ${formData.deal_type === 'SHORT_RENT' ? 'active' : ''}`}
+                                onClick={() => handleDealTypeChange('SHORT_RENT')}
+                                disabled={isSubmitting}
+                            >
+                                Краткосрочная аренда
+                            </button>
+                        ) : !DEAL_TYPE_MATRIX[formData.type]?.includes('RENT') ? (
+                            <button
+                                type="button"
+                                className="deal-type-btn"
+                                disabled
+                                title={`Для объекта «${formData.type}» посуточная аренда недоступна`}
+                                style={{ opacity: 0.4, cursor: 'not-allowed' }}
+                            >
+                                Краткосрочная аренда
+                            </button>
+                        ) : null}
                     </div>
 
                     <h3>Основная информация</h3>

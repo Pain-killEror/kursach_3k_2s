@@ -393,6 +393,7 @@ public class ChatService {
             case TERMINATION:
                 object.setCurrentOccupant(null);
                 object.setAvailableFrom(LocalDateTime.now().plusDays(30));
+                object.setIsVisible(true);
                 objectRepository.save(object);
                 
                 sItem.setStatus("ACTIVE");

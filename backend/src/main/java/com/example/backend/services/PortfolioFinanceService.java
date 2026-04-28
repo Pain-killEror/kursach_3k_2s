@@ -168,17 +168,56 @@ public class PortfolioFinanceService {
         List<PortfolioItem> items = itemRepository.findAllByPortfolio_User_Id(userId);
         
         return items.stream().map(item -> {
-            // 1. Достаем стоимость покупки объекта
-            BigDecimal purchasePrice = item.getInvestedAmount() != null ? item.getInvestedAmount() : BigDecimal.ZERO;
+            boolean hasPurchaseTx = false;
+            BigDecimal transactionsBalance = BigDecimal.ZERO;
             
-            // 2. Считаем баланс по транзакциям (доходы минус расходы)
-            BigDecimal transactionsBalance = item.getTransactions().stream()
-                .map(t -> t.getType() == FlowType.INCOME ? t.getAmount() : t.getAmount().negate())
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
+            for (PortfolioTransaction t : item.getTransactions()) {
+                if (t.getCategory() == com.example.backend.entities.enums.TransactionCategory.PURCHASE) {
+                    hasPurchaseTx = true;
+                }
                 
-            // 3. РЕАЛЬНЫЙ БАЛАНС: Баланс транзакций МИНУС цена покупки
-            BigDecimal currentBalance = transactionsBalance.subtract(purchasePrice);
+                String text = t.getTitle() != null ? t.getTitle() : "";
+                if (t.getDescription() != null) text += t.getDescription();
+                boolean isRentMarker = text.startsWith("🔵");
+                boolean isSaleMarker = text.startsWith("🟢");
+                
+                if (!isRentMarker && !isSaleMarker) {
+                    if (t.getType() == FlowType.INCOME) {
+                        transactionsBalance = transactionsBalance.add(t.getAmount());
+                    } else if (t.getType() == FlowType.EXPENSE) {
+                        transactionsBalance = transactionsBalance.subtract(t.getAmount());
+                    }
+                }
+            }
+
+            boolean isTenant = false;
+            boolean isRentStrategy = item.getStrategyName() != null && item.getStrategyName().toLowerCase().contains("аренд");
             
+            if (isRentStrategy && item.getRealEstateObject() != null && item.getRealEstateObject().getCurrentOccupant() != null) {
+                if (item.getRealEstateObject().getCurrentOccupant().getId().equals(userId)) {
+                    isTenant = true;
+                }
+            }
+
+            BigDecimal purchasePrice = item.getInvestedAmount() != null ? item.getInvestedAmount() : BigDecimal.ZERO;
+            BigDecimal effectivePurchasePrice = purchasePrice;
+            
+            if (!hasPurchaseTx && !isTenant) {
+                if (isRentStrategy) {
+                    effectivePurchasePrice = BigDecimal.ZERO;
+                }
+            }
+            
+            if (isTenant) {
+                effectivePurchasePrice = BigDecimal.ZERO;
+            }
+            
+            if (hasPurchaseTx) {
+                effectivePurchasePrice = BigDecimal.ZERO; // Уже учтено в транзакциях
+            }
+
+            BigDecimal currentBalance = isTenant ? BigDecimal.ZERO : transactionsBalance.subtract(effectivePurchasePrice);
+
             String objectTitle = null;
             String objectCategory = null;
             String objectAddress = null;
@@ -197,15 +236,15 @@ public class PortfolioFinanceService {
                 objectCategory,
                 objectAddress,
                 objectTitle,
-                null, // customName
-                null, // totalInvested (можно рассчитать если нужно)
-                null, // totalIncome
+                null, 
+                null, 
+                null, 
                 currentBalance,
-                null, // breakEvenPrice
-                null, // expectedProfit
+                null, 
+                null, 
                 purchasePrice,
-                null, // additionalInvestments
-                null  // transactions
+                null, 
+                null  
             );
         }).collect(Collectors.toList());
     }

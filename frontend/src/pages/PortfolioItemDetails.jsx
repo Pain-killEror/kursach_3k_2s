@@ -141,7 +141,7 @@ const PortfolioItemDetails = () => {
             }
 
             // В баланс идут реальные деньги (и Покупки, и Продажи, и ручные траты)
-            if (!isRentMarker) {
+            if (!isRentMarker && !isSaleMarker) {
                 if (tx.type === 'INCOME') income += Number(tx.amount || 0);
                 if (tx.type === 'EXPENSE') expense += Number(tx.amount || 0);
             }
@@ -149,21 +149,38 @@ const PortfolioItemDetails = () => {
 
         // Усиленная проверка: если статус 'SOLD' в любом из полей бэка, либо есть транзакция продажи
         const isSold = summary.status === 'SOLD' || summary.objectStatus === 'SOLD' || hasSaleMarker;
-
-        // ВАЖНО: Дублируем цену покупки в Расходы (если человек купил, и бэкенд не прислал это как транзакцию)
-        if (!isTenant && !isSold && summary.purchasePrice && Number(summary.purchasePrice) > 0 && !hasPurchaseTransaction) {
-            expense += Number(summary.purchasePrice);
+        const isOwner = user && summary.ownerRole && user.role === summary.ownerRole; // грубая прикидка, лучше проверять ID, но ID нет в summary напрямую.
+        // Более точная проверка Owner: если не арендатор, и мы не в стратегии покупки (или если объект наш).
+        // Если landlord (арендодатель), то Куплено за = 0 (если не покупал).
+        let effectivePurchasePrice = Number(summary.purchasePrice || 0);
+        
+        if (!hasPurchaseTransaction && !isTenant) {
+            // Если нет транзакции покупки, проверяем нужно ли добавлять в расходы
+            // Арендодатель "не покупал", если нет транзакции покупки. Сбрасываем цену покупки для него.
+            if (isRentStrategy && !isTenant) {
+                effectivePurchasePrice = 0;
+            }
         }
 
+        // Если не арендатор, добавляем покупку в расходы (для инвестора)
+        if (!isTenant && effectivePurchasePrice > 0 && !hasPurchaseTransaction) {
+            expense += effectivePurchasePrice;
+        }
+
+        // Для арендатора баланс = 0 (расходы арендатора не влияют на "инвестиционный" баланс, если так задумано, или влияют, но изначально 0)
+        // Но по ТЗ "Для АРЕНДАТОРА: Баланс = 0", однако его платежи идут в минус. Если строго 0:
+        const finalBalance = isTenant ? 0 : (income - expense);
+
         return {
-            balance: income - expense,
+            balance: finalBalance,
             income,
             expense,
             isTenant,
             isSold,
-            isRentStrategy
+            isRentStrategy,
+            effectivePurchasePrice
         };
-    }, [summary]);
+    }, [summary, user]);
 
     // Сортировка транзакций для Истории
     const sortedAndGroupedTransactions = useMemo(() => {
@@ -233,11 +250,23 @@ const PortfolioItemDetails = () => {
             if (isRentMarker) tree[y].months[m].days[d].hasRentStart = true;
         };
 
-        // ВАЖНО: Добавляем виртуальную запись о покупке, чтобы таблица отображалась сразу со старта
+        // ВАЖНО: Добавляем виртуальную запись о покупке
         const hasPurchaseTransaction = (summary.transactions || []).some(tx => tx.category === 'PURCHASE');
-        if (!stats.isTenant && !stats.isSold && summary.purchasePrice && Number(summary.purchasePrice) > 0 && !hasPurchaseTransaction) {
-            const pDate = (summary.purchaseDate || summary.createdAt || new Date().toISOString()).split('T')[0];
-            addRecord(pDate, summary.purchasePrice, 'USD', 'EXPENSE', 'PURCHASE', 'Покупка объекта');
+        if (!stats.isTenant && stats.effectivePurchasePrice > 0 && !hasPurchaseTransaction) {
+            // Строго дата из БД
+            const pDate = (summary.purchaseDate || summary.itemCreatedAt || summary.createdAt)?.split('T')[0];
+            if (pDate) {
+                addRecord(pDate, stats.effectivePurchasePrice, 'USD', 'EXPENSE', 'PURCHASE', 'Покупка объекта');
+            }
+        }
+
+        // Для арендатора: Сводка периодов видна сразу с меткой "Начало заезда"
+        if (stats.isTenant) {
+            const rentStartTx = (summary.transactions || []).find(tx => (tx.description || tx.title || '').startsWith('🔵'));
+            if (!rentStartTx && summary.createdAt) {
+                const rDate = summary.createdAt.split('T')[0];
+                addRecord(rDate, 0, 'USD', 'EXPENSE', 'OTHER', '🔵 Начало заезда');
+            }
         }
 
         if (summary.transactions) {
@@ -312,10 +341,11 @@ const PortfolioItemDetails = () => {
     const getCostLabel = () => {
         if (stats.isSold) return 'Продано за';
         if (stats.isTenant) return 'Оценка объекта';
+        if (stats.isRentStrategy && !stats.isTenant) return 'Куплено за'; 
         return 'Куплено за';
     };
 
-    const displayCostValue = stats.isSold && stats.income > 0 ? stats.income : summary?.purchasePrice;
+    const displayCostValue = stats.isSold && stats.income > 0 ? stats.income : (stats.effectivePurchasePrice > 0 ? stats.effectivePurchasePrice : 0);
 
     if (loading) return <div className="p-loader">Загрузка аналитики...</div>;
     if (!summary) return <div>Объект не найден</div>;
@@ -406,10 +436,10 @@ const PortfolioItemDetails = () => {
                                     {stats.isRentStrategy ? (
                                         <>
                                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
-                                                <h3 className="card-title" style={{ margin: 0 }}>📈 Расчет окупаемости аренды</h3>
+                                                <h3 className="card-title" style={{ margin: 0 }}>📈 Рекомендуемая цена аренды</h3>
                                             </div>
                                             <p style={{ color: '#a1a1aa', fontSize: '12px', margin: '0 0 15px 0', lineHeight: '1.4' }}>
-                                                Расчет срока окупаемости вложенных в объект средств (включая покупку и ремонт) при указанной целевой ставке за месяц.
+                                                Расчет срока окупаемости вложенных средств (включая покупку и ремонт) при целевой ставке за месяц.
                                             </p>
 
                                             {targetMonthlyRent > 0 ? (
@@ -510,6 +540,7 @@ const PortfolioItemDetails = () => {
                     </div>
 
                     <div className="transactions-section">
+                        {/* Форма добавления операции: заблокирована если объект ПРОДАН */}
                         {!stats.isSold && (
                             <div className="card-glass add-tx-card">
                                 <h3 className="card-title">Добавить операцию</h3>
@@ -682,7 +713,7 @@ const PortfolioItemDetails = () => {
 
                                                         {dData.hasSale && <span style={{ background: '#30d158', color: '#000', padding: '2px 6px', borderRadius: '4px', fontSize: '10px', marginLeft: '5px', fontWeight: 'bold' }}>Продажа объекта</span>}
                                                         {dData.hasPurchase && <span style={{ background: '#007aff', color: 'white', padding: '2px 6px', borderRadius: '4px', fontSize: '10px', marginLeft: '5px' }}>Покупка объекта</span>}
-                                                        {dData.hasRentStart && <span style={{ background: '#0a84ff', color: 'white', padding: '2px 6px', borderRadius: '4px', fontSize: '10px', marginLeft: '5px' }}>{stats.isTenant ? 'Заезд' : 'Начало сдачи'}</span>}
+                                                        {dData.hasRentStart && <span style={{ background: '#0a84ff', color: 'white', padding: '2px 6px', borderRadius: '4px', fontSize: '10px', marginLeft: '5px' }}>{stats.isTenant ? 'Начало заезда' : 'Начало сдачи'}</span>}
                                                     </div>
                                                     <div style={{ color: '#32d74b', textAlign: 'right', opacity: 0.8 }}>{dData.income > 0 ? `+${formatPrice(dData.income)}` : ''}</div>
                                                     <div style={{ color: '#ff453a', textAlign: 'right', opacity: 0.8 }}>{dData.expense > 0 ? `-${formatPrice(dData.expense)}` : ''}</div>
