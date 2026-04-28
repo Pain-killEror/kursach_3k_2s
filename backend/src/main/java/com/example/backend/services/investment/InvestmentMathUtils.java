@@ -8,6 +8,16 @@ import java.util.Map;
 public class InvestmentMathUtils {
 
     public static Map<String, Object> calculateMortgage(BigDecimal propertyPrice, BigDecimal downPaymentPct, BigDecimal annualRate, int termYears) {
+        if (propertyPrice == null || propertyPrice.compareTo(BigDecimal.ZERO) == 0) {
+            Map<String, Object> emptyResult = new HashMap<>();
+            emptyResult.put("downPayment", BigDecimal.ZERO);
+            emptyResult.put("loanAmount", BigDecimal.ZERO);
+            emptyResult.put("monthlyPayment", BigDecimal.ZERO);
+            emptyResult.put("totalPayment", BigDecimal.ZERO);
+            emptyResult.put("totalInterest", BigDecimal.ZERO);
+            return emptyResult;
+        }
+        
         BigDecimal downPayment = propertyPrice.multiply(downPaymentPct.divide(new BigDecimal("100"), 4, RoundingMode.HALF_UP));
         BigDecimal loanAmount = propertyPrice.subtract(downPayment);
 

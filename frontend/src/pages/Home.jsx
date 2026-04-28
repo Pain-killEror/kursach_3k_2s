@@ -254,12 +254,14 @@ const Home = () => {
           page: currentPage,
           size: 30,
           city: filters.city || null,
-          category: filters.categories.length === 1 ? filters.categories[0] : null,
+          categories: filters.categories.length > 0 ? filters.categories.join(',') : null,
           minPrice: filters.minPrice || null,
           maxPrice: filters.maxPrice || null,
           minArea: filters.minArea || null,
           maxArea: filters.maxArea || null,
-          transactionType: transactionType !== 'ALL' ? transactionType : null
+          transactionType: transactionType !== 'ALL' ? transactionType : null,
+          rentType: rentType !== 'ALL' ? rentType : null,
+          ...filters.attributes
         };
         const response = await api.get('/objects', { params });
         setDisplayedObjects(response.data.content);

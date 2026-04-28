@@ -15,12 +15,20 @@ public class ShortTermRentalStrategy implements InvestmentStrategy {
 
     @Override
     public InvestmentCalculationResult calculate(InvestmentCalculationRequest request, RealEstateObject object, Map<String, BigDecimal> taxRates) {
-        BigDecimal propPrice = BigDecimal.valueOf(object.getPriceTotal().doubleValue());
-        BigDecimal legalFees = propPrice.multiply(request.legalFeesPct().divide(new BigDecimal("100"), 4, RoundingMode.HALF_UP));
+        BigDecimal propPrice = object.getPriceTotal() != null ? object.getPriceTotal() : BigDecimal.ZERO;
+        BigDecimal legalFeesPct = InvestmentMathUtils.getOrDefault(request.legalFeesPct(), new BigDecimal("2"));
+        BigDecimal legalFees = propPrice.multiply(InvestmentMathUtils.safeDivide(legalFeesPct, new BigDecimal("100")));
         BigDecimal totalPurchaseCost = propPrice.add(legalFees);
-        BigDecimal totalRenovation = request.repairCost().add(request.furnitureCost());
+        BigDecimal repairCost = InvestmentMathUtils.getOrDefault(request.repairCost(), BigDecimal.ZERO);
+        BigDecimal furnitureCost = InvestmentMathUtils.getOrDefault(request.furnitureCost(), BigDecimal.ZERO);
+        BigDecimal totalRenovation = repairCost.add(furnitureCost);
 
-        Map<String, Object> mortgage = InvestmentMathUtils.calculateMortgage(propPrice, request.downPaymentPct(), request.mortgageRate(), request.mortgageTerm());
+        Map<String, Object> mortgage = InvestmentMathUtils.calculateMortgage(
+            propPrice, 
+            InvestmentMathUtils.getOrDefault(request.downPaymentPct(), new BigDecimal("30")), 
+            InvestmentMathUtils.getOrDefault(request.mortgageRate(), new BigDecimal("12.5")), 
+            request.mortgageTerm() > 0 ? request.mortgageTerm() : 15
+        );
         
         BigDecimal totalOwnFunds;
         if (request.useMortgage()) {
@@ -30,35 +38,45 @@ public class ShortTermRentalStrategy implements InvestmentStrategy {
         }
 
         BigDecimal daysPerYear = new BigDecimal("365");
-        BigDecimal occupiedDays = daysPerYear.multiply(request.occupancyRate().divide(new BigDecimal("100"), 4, RoundingMode.HALF_UP));
-        BigDecimal grossAnnualIncome = request.dailyRate().multiply(occupiedDays);
+        BigDecimal occupancyRate = InvestmentMathUtils.getOrDefault(request.occupancyRate(), new BigDecimal("65"));
+        BigDecimal occupiedDays = daysPerYear.multiply(InvestmentMathUtils.safeDivide(occupancyRate, new BigDecimal("100")));
+        BigDecimal dailyRate = InvestmentMathUtils.getOrDefault(request.dailyRate(), BigDecimal.ZERO);
+        BigDecimal grossAnnualIncome = dailyRate.multiply(occupiedDays);
         
-        BigDecimal platformFees = grossAnnualIncome.multiply(request.platformFeePct().divide(new BigDecimal("100"), 4, RoundingMode.HALF_UP));
+        BigDecimal platformFeePct = InvestmentMathUtils.getOrDefault(request.platformFeePct(), new BigDecimal("15"));
+        BigDecimal platformFees = grossAnnualIncome.multiply(InvestmentMathUtils.safeDivide(platformFeePct, new BigDecimal("100")));
+        
         BigDecimal avgStayDays = new BigDecimal("2.5");
         BigDecimal turnovers = InvestmentMathUtils.safeDivide(occupiedDays, avgStayDays);
-        BigDecimal totalCleaningCost = turnovers.multiply(request.cleaningCost());
+        BigDecimal cleaningCost = InvestmentMathUtils.getOrDefault(request.cleaningCost(), BigDecimal.ZERO);
+        BigDecimal totalCleaningCost = turnovers.multiply(cleaningCost);
         
         BigDecimal effectiveGrossIncome = grossAnnualIncome.subtract(platformFees).subtract(totalCleaningCost);
 
-        BigDecimal annualMaintenance = propPrice.multiply(request.maintenancePct().divide(new BigDecimal("100"), 4, RoundingMode.HALF_UP));
-        BigDecimal annualUtilities = request.utilityCost().multiply(new BigDecimal("12"));
-        BigDecimal annualInsurance = request.insuranceCost();
-        BigDecimal annualManagement = effectiveGrossIncome.multiply(request.managementFeePct().divide(new BigDecimal("100"), 4, RoundingMode.HALF_UP));
+        BigDecimal maintenancePct = InvestmentMathUtils.getOrDefault(request.maintenancePct(), new BigDecimal("1"));
+        BigDecimal annualMaintenance = propPrice.multiply(InvestmentMathUtils.safeDivide(maintenancePct, new BigDecimal("100")));
+        BigDecimal utilityCost = InvestmentMathUtils.getOrDefault(request.utilityCost(), BigDecimal.ZERO);
+        BigDecimal annualUtilities = utilityCost.multiply(new BigDecimal("12"));
+        BigDecimal annualInsurance = InvestmentMathUtils.getOrDefault(request.insuranceCost(), BigDecimal.ZERO);
+        BigDecimal managementFeePct = InvestmentMathUtils.getOrDefault(request.managementFeePct(), BigDecimal.ZERO);
+        BigDecimal annualManagement = effectiveGrossIncome.multiply(InvestmentMathUtils.safeDivide(managementFeePct, new BigDecimal("100")));
 
         BigDecimal propertyTaxRate = taxRates.getOrDefault("PROPERTY_TAX_RATE", BigDecimal.ZERO);
-        BigDecimal annualPropertyTax = propPrice.multiply(propertyTaxRate.divide(new BigDecimal("100"), 4, RoundingMode.HALF_UP));
+        BigDecimal annualPropertyTax = propPrice.multiply(InvestmentMathUtils.safeDivide(propertyTaxRate, new BigDecimal("100")));
 
         BigDecimal totalOperatingExpenses = annualMaintenance.add(annualUtilities).add(annualInsurance).add(annualManagement).add(annualPropertyTax);
         BigDecimal noi = effectiveGrossIncome.subtract(totalOperatingExpenses);
 
         BigDecimal incomeTaxRate = taxRates.getOrDefault("INCOME_TAX_RATE", new BigDecimal("13"));
-        BigDecimal annualIncomeTax = noi.compareTo(BigDecimal.ZERO) > 0 ? noi.multiply(incomeTaxRate.divide(new BigDecimal("100"), 4, RoundingMode.HALF_UP)) : BigDecimal.ZERO;
+        BigDecimal annualIncomeTax = noi.compareTo(BigDecimal.ZERO) > 0 
+                ? noi.multiply(InvestmentMathUtils.safeDivide(incomeTaxRate, new BigDecimal("100"))) 
+                : BigDecimal.ZERO;
         
         BigDecimal totalAnnualTax = annualIncomeTax.add(annualPropertyTax);
 
         BigDecimal annualDebtService = ((BigDecimal) mortgage.get("monthlyPayment")).multiply(new BigDecimal("12"));
         BigDecimal annualCashFlow = noi.subtract(annualIncomeTax).subtract(annualDebtService);
-        BigDecimal monthlyCashFlow = annualCashFlow.divide(new BigDecimal("12"), 2, RoundingMode.HALF_UP);
+        BigDecimal monthlyCashFlow = InvestmentMathUtils.safeDivide(annualCashFlow, new BigDecimal("12"));
 
         BigDecimal capRate = InvestmentMathUtils.safeDivide(noi, totalPurchaseCost).multiply(new BigDecimal("100"));
         BigDecimal cashOnCash = InvestmentMathUtils.safeDivide(annualCashFlow, totalOwnFunds).multiply(new BigDecimal("100"));

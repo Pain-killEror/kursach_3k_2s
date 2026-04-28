@@ -9,22 +9,25 @@ import org.springframework.data.jpa.domain.Specification;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 public class RealEstateObjectSpecifications {
 
     public static Specification<RealEstateObject> filterBy(
             String city,
-            String category,
+            List<String> categories,
             BigDecimal minPrice,
             BigDecimal maxPrice,
             BigDecimal minArea,
             BigDecimal maxArea,
-            ObjectStatus transactionType) {
+            ObjectStatus transactionType,
+            String rentType,
+            Map<String, String> attributes) {
 
         return (root, query, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
 
-            // 1. Обязательная фильтрация: видимость и статус пользователя (как было в findAllVisible)
+            // 1. Обязательная фильтрация: видимость и статус пользователя
             predicates.add(cb.or(
                     cb.isNull(root.get("isVisible")),
                     cb.equal(root.get("isVisible"), true)
@@ -40,8 +43,8 @@ public class RealEstateObjectSpecifications {
                 predicates.add(cb.equal(root.get("city"), city));
             }
 
-            if (category != null && !category.isEmpty()) {
-                predicates.add(cb.equal(root.get("category"), category));
+            if (categories != null && !categories.isEmpty()) {
+                predicates.add(root.get("category").in(categories));
             }
 
             if (minPrice != null) {
@@ -61,19 +64,52 @@ public class RealEstateObjectSpecifications {
             }
 
             if (transactionType != null) {
-                // Если тип сделки указан, фильтруем по objectStatus
-                // УЧАСТОК обычно не имеет статуса сделки в классическом понимании, но если он указан в фильтрах,
-                // мы всё равно применяем статус, если он есть.
                 predicates.add(cb.equal(root.get("objectStatus"), transactionType));
             } else {
-                // По умолчанию показываем только те, что в продаже или аренде (не проданные/сданные)
-                // Но если пользователь хочет видеть всё, это можно изменить.
-                // В оригинальном коде была логика: obj.category === 'УЧАСТОК' || obj.objectStatus === 'FOR_SALE' || obj.objectStatus === 'FOR_RENT'
+                // По умолчанию показываем только те, что в продаже или аренде
                 predicates.add(cb.or(
                         cb.equal(root.get("category"), "УЧАСТОК"),
                         cb.equal(root.get("objectStatus"), ObjectStatus.FOR_SALE),
                         cb.equal(root.get("objectStatus"), ObjectStatus.FOR_RENT)
                 ));
+            }
+
+            // 3. Фильтрация по rentType (через JSON атрибут rent_type)
+            if (rentType != null && !rentType.isEmpty()) {
+                predicates.add(cb.equal(
+                    cb.function("JSON_UNQUOTE", String.class, 
+                        cb.function("JSON_EXTRACT", String.class, root.get("attributes"), cb.literal("$.rent_type"))),
+                    rentType
+                ));
+            }
+
+            // 4. Фильтрация по произвольным атрибутам
+            if (attributes != null && !attributes.isEmpty()) {
+                attributes.forEach((key, value) -> {
+                    if (value != null && !value.isEmpty()) {
+                        // Обработка диапазонов (min/max)
+                        if (key.endsWith("_min")) {
+                            String attrName = key.replace("_min", "");
+                            predicates.add(cb.greaterThanOrEqualTo(
+                                cb.function("JSON_EXTRACT", BigDecimal.class, root.get("attributes"), cb.literal("$." + attrName)),
+                                new BigDecimal(value)
+                            ));
+                        } else if (key.endsWith("_max")) {
+                            String attrName = key.replace("_max", "");
+                            predicates.add(cb.lessThanOrEqualTo(
+                                cb.function("JSON_EXTRACT", BigDecimal.class, root.get("attributes"), cb.literal("$." + attrName)),
+                                new BigDecimal(value)
+                            ));
+                        } else {
+                            // Обычное сравнение
+                            predicates.add(cb.equal(
+                                cb.function("JSON_UNQUOTE", String.class, 
+                                    cb.function("JSON_EXTRACT", String.class, root.get("attributes"), cb.literal("$." + key))),
+                                value
+                            ));
+                        }
+                    }
+                });
             }
 
             return cb.and(predicates.toArray(new Predicate[0]));

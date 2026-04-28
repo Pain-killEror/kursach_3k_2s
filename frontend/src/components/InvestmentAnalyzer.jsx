@@ -113,7 +113,10 @@ const InvestmentAnalyzer = ({ object, taxRates, formatPrice, currency, convertPr
             if (!object?.id) return;
             setIsCalculating(true);
             
-            const parseVal = (v) => (v === '' || v === null || v === undefined) ? null : Number(v);
+            const parseVal = (v) => {
+                const num = (v === '' || v === null || v === undefined) ? null : Number(v);
+                return (num !== null && isNaN(num)) ? null : num;
+            };
             
             try {
                 const requestData = {

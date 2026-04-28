@@ -6,19 +6,21 @@ import com.example.backend.entities.RealEstateObject;
 import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
-import java.math.RoundingMode;
 import java.util.ArrayList;
 import java.util.Map;
 
-@Component("FLIP")
-public class FlipStrategy implements InvestmentStrategy {
+@Component("BUILD_SELL")
+public class BuildAndSellStrategy implements InvestmentStrategy {
     @Override
     public InvestmentCalculationResult calculate(InvestmentCalculationRequest request, RealEstateObject object, Map<String, BigDecimal> taxRates) {
         BigDecimal propPrice = object.getPriceTotal() != null ? object.getPriceTotal() : BigDecimal.ZERO;
         BigDecimal legalFeesPct = InvestmentMathUtils.getOrDefault(request.legalFeesPct(), new BigDecimal("2"));
         BigDecimal legalFees = propPrice.multiply(InvestmentMathUtils.safeDivide(legalFeesPct, new BigDecimal("100")));
-        BigDecimal totalRenovation = InvestmentMathUtils.getOrDefault(request.repairCost(), BigDecimal.ZERO)
-                .add(InvestmentMathUtils.getOrDefault(request.furnitureCost(), BigDecimal.ZERO));
+        
+        // Use constructionCost instead of repairCost as requested
+        BigDecimal constructionCost = InvestmentMathUtils.getOrDefault(request.constructionCost(), BigDecimal.ZERO);
+        BigDecimal furnitureCost = InvestmentMathUtils.getOrDefault(request.furnitureCost(), BigDecimal.ZERO);
+        BigDecimal totalConstruction = constructionCost.add(furnitureCost);
         
         Map<String, Object> mortgage = InvestmentMathUtils.calculateMortgage(
             propPrice, 
@@ -29,23 +31,23 @@ public class FlipStrategy implements InvestmentStrategy {
         
         BigDecimal totalOwnFunds;
         if (request.useMortgage()) {
-            totalOwnFunds = ((BigDecimal) mortgage.get("downPayment")).add(totalRenovation).add(legalFees);
+            totalOwnFunds = ((BigDecimal) mortgage.get("downPayment")).add(totalConstruction).add(legalFees);
         } else {
-            totalOwnFunds = propPrice.add(legalFees).add(totalRenovation);
+            totalOwnFunds = propPrice.add(legalFees).add(totalConstruction);
         }
 
-        BigDecimal durationMonths = new BigDecimal(request.flipDurationMonths() > 0 ? request.flipDurationMonths() : 4);
+        BigDecimal durationMonths = new BigDecimal(request.buildSellDuration() > 0 ? request.buildSellDuration() : 12);
         BigDecimal holdingCostMortgage = ((BigDecimal) mortgage.get("monthlyPayment")).multiply(durationMonths);
         
         BigDecimal agentFeePct = InvestmentMathUtils.getOrDefault(request.agentFeePct(), new BigDecimal("3"));
-        BigDecimal expectedSalePrice = InvestmentMathUtils.getOrDefault(request.expectedSalePrice(), propPrice.multiply(new BigDecimal("1.2")));
+        BigDecimal expectedSalePrice = InvestmentMathUtils.getOrDefault(request.expectedSalePrice(), propPrice.multiply(new BigDecimal("1.5")));
         BigDecimal agentFee = expectedSalePrice.multiply(InvestmentMathUtils.safeDivide(agentFeePct, new BigDecimal("100")));
 
         BigDecimal propertyTaxRate = taxRates.getOrDefault("PROPERTY_TAX_RATE", BigDecimal.ZERO);
         BigDecimal propertyTax = propPrice.multiply(InvestmentMathUtils.safeDivide(propertyTaxRate, new BigDecimal("100")))
                 .multiply(InvestmentMathUtils.safeDivide(durationMonths, new BigDecimal("12")));
 
-        BigDecimal grossProfit = expectedSalePrice.subtract(propPrice).subtract(totalRenovation).subtract(legalFees)
+        BigDecimal grossProfit = expectedSalePrice.subtract(propPrice).subtract(totalConstruction).subtract(legalFees)
                 .subtract(agentFee).subtract(holdingCostMortgage).subtract(propertyTax);
 
         BigDecimal incomeTaxRate = taxRates.getOrDefault("INCOME_TAX_RATE", new BigDecimal("13"));
@@ -60,7 +62,7 @@ public class FlipStrategy implements InvestmentStrategy {
 
         return InvestmentCalculationResult.builder()
             .totalPurchaseCost(propPrice.add(legalFees))
-            .totalRenovation(totalRenovation)
+            .totalRenovation(totalConstruction) // Showing construction as "renovation" for UI consistency or we can update DTO
             .totalOwnFunds(totalOwnFunds)
             .legalFees(legalFees)
             .mortgageInfo(mortgage)

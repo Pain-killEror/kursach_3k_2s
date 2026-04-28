@@ -24,7 +24,7 @@ public class ChatRoom {
     private User seller;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "object_id", nullable = false)
+    @JoinColumn(name = "real_estate_object_id", nullable = false)
     private RealEstateObject realEstateObject;
 
     @Column(name = "created_at", nullable = false, updatable = false)

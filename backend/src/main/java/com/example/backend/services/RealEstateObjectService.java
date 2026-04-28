@@ -49,19 +49,21 @@ public class RealEstateObjectService {
         this.chatRoomRepository = chatRoomRepository;
     }
 
-    @Cacheable(value = "objects", key = "{#pageable.pageNumber, #pageable.pageSize, #city, #category}")
+    @Cacheable(value = "objects", key = "{#city, #categories, #minPrice, #maxPrice, #minArea, #maxArea, #transactionType, #rentType, #attributes}")
     public Page<RealEstateObject> getAllObjects(
             String city,
-            String category,
+            List<String> categories,
             java.math.BigDecimal minPrice,
             java.math.BigDecimal maxPrice,
             java.math.BigDecimal minArea,
             java.math.BigDecimal maxArea,
             ObjectStatus transactionType,
+            String rentType,
+            java.util.Map<String, String> attributes,
             Pageable pageable) {
         return repository.findAll(
                 com.example.backend.specifications.RealEstateObjectSpecifications.filterBy(
-                        city, category, minPrice, maxPrice, minArea, maxArea, transactionType
+                        city, categories, minPrice, maxPrice, minArea, maxArea, transactionType, rentType, attributes
                 ),
                 pageable
         );

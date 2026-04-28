@@ -130,7 +130,7 @@
             <column name="seller_id" type="BINARY(16)">
                 <constraints nullable="false"/>
             </column>
-            <column name="object_id" type="BINARY(16)">
+            <column name="real_estate_object_id" type="BINARY(16)">
                 <constraints nullable="false"/>
             </column>
             <column name="created_at" type="DATETIME">
@@ -142,7 +142,7 @@
                                  constraintName="fk_chat_investor" referencedTableName="users" referencedColumnNames="id"/>
         <addForeignKeyConstraint baseTableName="chat_rooms" baseColumnNames="seller_id" 
                                  constraintName="fk_chat_seller" referencedTableName="users" referencedColumnNames="id"/>
-        <addForeignKeyConstraint baseTableName="chat_rooms" baseColumnNames="object_id" 
+        <addForeignKeyConstraint baseTableName="chat_rooms" baseColumnNames="real_estate_object_id" 
                                  constraintName="fk_chat_object" referencedTableName="real_estate_objects" referencedColumnNames="id"/>
 
         <!-- 7. Messages Table -->
@@ -194,7 +194,7 @@
             <column name="id" type="BINARY(16)">
                 <constraints primaryKey="true" nullable="false"/>
             </column>
-            <column name="object_id" type="BINARY(16)">
+            <column name="real_estate_object_id" type="BINARY(16)">
                 <constraints nullable="false"/>
             </column>
             <column name="tenant_id" type="BINARY(16)">
@@ -210,7 +210,7 @@
                 <constraints nullable="false"/>
             </column>
         </createTable>
-        <addForeignKeyConstraint baseTableName="rent_bookings" baseColumnNames="object_id" 
+        <addForeignKeyConstraint baseTableName="rent_bookings" baseColumnNames="real_estate_object_id" 
                                  constraintName="fk_booking_object" referencedTableName="real_estate_objects" referencedColumnNames="id"/>
         <addForeignKeyConstraint baseTableName="rent_bookings" baseColumnNames="tenant_id" 
                                  constraintName="fk_booking_tenant" referencedTableName="users" referencedColumnNames="id"/>

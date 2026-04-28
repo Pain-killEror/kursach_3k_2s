@@ -18,7 +18,7 @@ public class RentBooking {
     private UUID id;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "object_id", nullable = false)
+    @JoinColumn(name = "real_estate_object_id", nullable = false)
     @JsonIgnoreProperties({"user", "currentOccupant", "attributes", "description"})
     private RealEstateObject realEstateObject;
 

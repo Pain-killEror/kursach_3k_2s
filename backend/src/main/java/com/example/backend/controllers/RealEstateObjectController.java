@@ -31,14 +31,26 @@ public class RealEstateObjectController {
     @GetMapping
     public ResponseEntity<Page<RealEstateObject>> getAllObjects(
             @RequestParam(required = false) String city,
-            @RequestParam(required = false) String category,
+            @RequestParam(required = false) List<String> categories,
             @RequestParam(required = false) java.math.BigDecimal minPrice,
             @RequestParam(required = false) java.math.BigDecimal maxPrice,
             @RequestParam(required = false) java.math.BigDecimal minArea,
             @RequestParam(required = false) java.math.BigDecimal maxArea,
             @RequestParam(required = false) com.example.backend.entities.ObjectStatus transactionType,
+            @RequestParam(required = false) String rentType,
+            @RequestParam java.util.Map<String, String> allParams,
             @PageableDefault(size = 30) Pageable pageable) {
-        return ResponseEntity.ok(service.getAllObjects(city, category, minPrice, maxPrice, minArea, maxArea, transactionType, pageable));
+        
+        // Отсеиваем известные параметры, чтобы оставить только атрибуты
+        java.util.Set<String> knownParams = java.util.Set.of(
+            "city", "categories", "category", "minPrice", "maxPrice", "minArea", "maxArea", 
+            "transactionType", "rentType", "page", "size", "sort"
+        );
+        java.util.Map<String, String> attributes = allParams.entrySet().stream()
+            .filter(e -> !knownParams.contains(e.getKey()))
+            .collect(java.util.stream.Collectors.toMap(java.util.Map.Entry::getKey, java.util.Map.Entry::getValue));
+
+        return ResponseEntity.ok(service.getAllObjects(city, categories, minPrice, maxPrice, minArea, maxArea, transactionType, rentType, attributes, pageable));
     }
 
     // НОВЫЙ ВАРИАНТ С ПРОВЕРКОЙ ПРАВ
