@@ -38,13 +38,15 @@ public class User implements java.io.Serializable {
     private String passwordHash;
 
     @Enumerated(EnumType.STRING)
+    @Column(columnDefinition = "varchar(255)")
     private Role role = Role.USER;
 
     @Enumerated(EnumType.STRING)
+    @Column(columnDefinition = "varchar(255)")
     private Status status = Status.ACTIVE;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "entity_type")
+    @Column(name = "entity_type", columnDefinition = "varchar(255)")
     private EntityType entityType;
 
     @Column(name = "created_at", updatable = false)

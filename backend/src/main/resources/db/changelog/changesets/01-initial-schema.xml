@@ -1,0 +1,220 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd">
+
+    <changeSet id="01-initial-schema" author="system">
+        <!-- 1. Users Table -->
+        <createTable tableName="users">
+            <column name="id" type="BINARY(16)">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="name" type="VARCHAR(255)"/>
+            <column name="email" type="VARCHAR(255)"/>
+            <column name="phone_number" type="VARCHAR(20)"/>
+            <column name="password_hash" type="VARCHAR(255)"/>
+            <column name="role" type="VARCHAR(255)"/>
+            <column name="status" type="VARCHAR(255)"/>
+            <column name="entity_type" type="VARCHAR(255)"/>
+            <column name="created_at" type="DATETIME"/>
+        </createTable>
+
+        <!-- 2. Real Estate Objects Table -->
+        <createTable tableName="real_estate_objects">
+            <column name="id" type="BINARY(16)">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="external_id" type="VARCHAR(255)"/>
+            <column name="type" type="VARCHAR(255)"/>
+            <column name="object_status" type="VARCHAR(255)"/>
+            <column name="category" type="VARCHAR(255)"/>
+            <column name="title" type="VARCHAR(255)"/>
+            <column name="description" type="TEXT"/>
+            <column name="city" type="VARCHAR(255)"/>
+            <column name="address" type="VARCHAR(1000)"/>
+            <column name="area_total" type="DECIMAL(19,2)"/>
+            <column name="area_living" type="DECIMAL(19,2)"/>
+            <column name="floor" type="INT"/>
+            <column name="floors_total" type="INT"/>
+            <column name="wall_material" type="VARCHAR(255)"/>
+            <column name="year_built" type="INT"/>
+            <column name="price_total" type="DECIMAL(19,2)"/>
+            <column name="price_per_m2" type="DECIMAL(19,2)"/>
+            <column name="currency" type="VARCHAR(10)"/>
+            <column name="images_urls" type="LONGTEXT"/>
+            <column name="source_url" type="VARCHAR(255)"/>
+            <column name="created_at" type="DATETIME"/>
+            <column name="updated_at" type="DATETIME"/>
+            <column name="attributes" type="JSON"/>
+            <column name="user_id" type="BINARY(16)"/>
+            <column name="is_visible" type="BOOLEAN" defaultValueBoolean="true"/>
+            <column name="current_occupant_id" type="BINARY(16)"/>
+            <column name="available_from" type="DATETIME"/>
+        </createTable>
+        <addForeignKeyConstraint baseTableName="real_estate_objects" baseColumnNames="user_id" 
+                                 constraintName="fk_object_user" referencedTableName="users" referencedColumnNames="id"/>
+        <addForeignKeyConstraint baseTableName="real_estate_objects" baseColumnNames="current_occupant_id" 
+                                 constraintName="fk_object_occupant" referencedTableName="users" referencedColumnNames="id"/>
+
+        <!-- 3. Portfolios Table -->
+        <createTable tableName="portfolios">
+            <column name="id" type="BINARY(16)">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="name" type="VARCHAR(255)"/>
+            <column name="user_id" type="BINARY(16)"/>
+        </createTable>
+        <addForeignKeyConstraint baseTableName="portfolios" baseColumnNames="user_id" 
+                                 constraintName="fk_portfolio_user" referencedTableName="users" referencedColumnNames="id"/>
+
+        <!-- 4. Portfolio Items Table -->
+        <createTable tableName="portfolio_items">
+            <column name="id" type="BINARY(16)">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="invested_amount" type="DECIMAL(19,2)"/>
+            <column name="purchase_date" type="DATE"/>
+            <column name="strategy_name" type="VARCHAR(255)"/>
+            <column name="target_amount" type="DECIMAL(19,2)"/>
+            <column name="exit_tax_rate" type="DECIMAL(19,2)"/>
+            <column name="status" type="VARCHAR(255)"/>
+            <column name="portfolio_id" type="BINARY(16)"/>
+            <column name="real_estate_object_id" type="BINARY(16)"/>
+            <column name="object_id" type="BINARY(16)"/> <!-- Legacy column for backup compatibility -->
+        </createTable>
+        <addForeignKeyConstraint baseTableName="portfolio_items" baseColumnNames="portfolio_id" 
+                                 constraintName="fk_item_portfolio" referencedTableName="portfolios" referencedColumnNames="id"/>
+        <addForeignKeyConstraint baseTableName="portfolio_items" baseColumnNames="real_estate_object_id" 
+                                 constraintName="fk_item_object" referencedTableName="real_estate_objects" referencedColumnNames="id"/>
+
+        <!-- 5. Portfolio Transactions Table -->
+        <createTable tableName="portfolio_transactions">
+            <column name="id" type="BINARY(16)">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="portfolio_item_id" type="BINARY(16)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="title" type="VARCHAR(255)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="description" type="TEXT"/>
+            <column name="amount" type="DECIMAL(19,2)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="type" type="VARCHAR(255)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="category" type="VARCHAR(255)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="transaction_date" type="DATE">
+                <constraints nullable="false"/>
+            </column>
+            <column name="created_at" type="DATETIME"/>
+            <column name="currency" type="VARCHAR(10)"/>
+        </createTable>
+        <addForeignKeyConstraint baseTableName="portfolio_transactions" baseColumnNames="portfolio_item_id" 
+                                 constraintName="fk_transaction_item" referencedTableName="portfolio_items" referencedColumnNames="id"/>
+
+        <!-- 6. Chat Rooms Table -->
+        <createTable tableName="chat_rooms">
+            <column name="id" type="BINARY(16)">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="investor_id" type="BINARY(16)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="seller_id" type="BINARY(16)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="object_id" type="BINARY(16)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="created_at" type="DATETIME">
+                <constraints nullable="false"/>
+            </column>
+            <column name="last_message_at" type="DATETIME"/>
+        </createTable>
+        <addForeignKeyConstraint baseTableName="chat_rooms" baseColumnNames="investor_id" 
+                                 constraintName="fk_chat_investor" referencedTableName="users" referencedColumnNames="id"/>
+        <addForeignKeyConstraint baseTableName="chat_rooms" baseColumnNames="seller_id" 
+                                 constraintName="fk_chat_seller" referencedTableName="users" referencedColumnNames="id"/>
+        <addForeignKeyConstraint baseTableName="chat_rooms" baseColumnNames="object_id" 
+                                 constraintName="fk_chat_object" referencedTableName="real_estate_objects" referencedColumnNames="id"/>
+
+        <!-- 7. Messages Table -->
+        <createTable tableName="messages">
+            <column name="id" type="BINARY(16)">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="chat_room_id" type="BINARY(16)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="sender_id" type="BINARY(16)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="content" type="TEXT"/>
+            <column name="created_at" type="DATETIME">
+                <constraints nullable="false"/>
+            </column>
+            <column name="is_read" type="BOOLEAN" defaultValueBoolean="false">
+                <constraints nullable="false"/>
+            </column>
+            <column name="message_type" type="VARCHAR(255)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="offer_amount" type="DECIMAL(19,2)"/>
+            <column name="offer_status" type="VARCHAR(255)"/>
+            <column name="offer_currency" type="VARCHAR(3)"/>
+            <column name="offer_contract_type" type="VARCHAR(255)"/>
+            <column name="offer_start_date" type="DATE"/>
+            <column name="offer_end_date" type="DATE"/>
+        </createTable>
+        <addForeignKeyConstraint baseTableName="messages" baseColumnNames="chat_room_id" 
+                                 constraintName="fk_message_chat" referencedTableName="chat_rooms" referencedColumnNames="id"/>
+        <addForeignKeyConstraint baseTableName="messages" baseColumnNames="sender_id" 
+                                 constraintName="fk_message_sender" referencedTableName="users" referencedColumnNames="id"/>
+
+        <!-- 8. Global Settings Table -->
+        <createTable tableName="global_settings">
+            <column name="setting_key" type="VARCHAR(255)">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="setting_value" type="DECIMAL(10,4)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="description" type="TEXT"/>
+        </createTable>
+
+        <!-- 9. Rent Bookings Table -->
+        <createTable tableName="rent_bookings">
+            <column name="id" type="BINARY(16)">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="object_id" type="BINARY(16)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="tenant_id" type="BINARY(16)">
+                <constraints nullable="false"/>
+            </column>
+            <column name="start_date" type="DATE">
+                <constraints nullable="false"/>
+            </column>
+            <column name="end_date" type="DATE">
+                <constraints nullable="false"/>
+            </column>
+            <column name="created_at" type="DATETIME">
+                <constraints nullable="false"/>
+            </column>
+        </createTable>
+        <addForeignKeyConstraint baseTableName="rent_bookings" baseColumnNames="object_id" 
+                                 constraintName="fk_booking_object" referencedTableName="real_estate_objects" referencedColumnNames="id"/>
+        <addForeignKeyConstraint baseTableName="rent_bookings" baseColumnNames="tenant_id" 
+                                 constraintName="fk_booking_tenant" referencedTableName="users" referencedColumnNames="id"/>
+
+    </changeSet>
+
+</databaseChangeLog>

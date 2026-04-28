@@ -36,11 +36,11 @@ public class PortfolioTransaction {
     private BigDecimal amount;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
+    @Column(nullable = false, columnDefinition = "varchar(255)")
     private FlowType type;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false, length = 50)
+    @Column(nullable = false, length = 50, columnDefinition = "varchar(255)")
     private TransactionCategory category;
 
     @Column(name = "transaction_date", nullable = false)

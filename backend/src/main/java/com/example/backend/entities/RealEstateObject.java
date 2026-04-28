@@ -25,7 +25,7 @@ public class RealEstateObject implements java.io.Serializable {
     private String type;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "object_status")
+    @Column(name = "object_status", columnDefinition = "varchar(255)")
     private ObjectStatus objectStatus = ObjectStatus.FOR_SALE;
 
     private String category;

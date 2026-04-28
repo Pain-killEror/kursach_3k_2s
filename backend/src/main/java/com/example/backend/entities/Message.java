@@ -38,14 +38,14 @@ public class Message {
     private boolean isRead = false;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "message_type", nullable = false)
+    @Column(name = "message_type", nullable = false, columnDefinition = "varchar(255)")
     private MessageType messageType = MessageType.TEXT;
 
     @Column(name = "offer_amount")
     private BigDecimal offerAmount;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "offer_status")
+    @Column(name = "offer_status", columnDefinition = "varchar(255)")
     private OfferStatus offerStatus;
 
     // --- НОВЫЕ ПОЛЯ ДЛЯ ДОГОВОРОВ АРЕНДЫ И ПРОДАЖИ ---
@@ -54,7 +54,7 @@ public class Message {
     private String offerCurrency;
 
     @Enumerated(EnumType.STRING)
-    @Column(name = "offer_contract_type")
+    @Column(name = "offer_contract_type", columnDefinition = "varchar(255)")
     private OfferContractType offerContractType;
 
     @Column(name = "offer_start_date")
