@@ -11,7 +11,8 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 @Entity
 @Table(name = "real_estate_objects")
 @JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
-public class RealEstateObject {
+public class RealEstateObject implements java.io.Serializable {
+    private static final long serialVersionUID = 1L;
 
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)

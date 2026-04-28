@@ -20,6 +20,8 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.server.ResponseStatusException;
 import org.springframework.http.HttpStatus;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import java.io.IOException;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -47,6 +49,7 @@ public class RealEstateObjectService {
         this.chatRoomRepository = chatRoomRepository;
     }
 
+    @Cacheable(value = "objects", key = "{#pageable.pageNumber, #pageable.pageSize, #city, #category}")
     public Page<RealEstateObject> getAllObjects(
             String city,
             String category,
@@ -65,6 +68,7 @@ public class RealEstateObjectService {
     }
 
     // Стандартный метод (оставляем для внутреннего использования бэкенда)
+    @Cacheable(value = "objectDetails", key = "#id")
     public RealEstateObject getObjectById(UUID id) {
         return repository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Объект не найден с ID: " + id));
@@ -122,6 +126,7 @@ public class RealEstateObjectService {
     }
 
     @Transactional
+    @CacheEvict(value = {"objects", "objectDetails"}, allEntries = true)
     public RealEstateObject createObject(RealEstateObject obj, UUID userId, MultipartFile[] images) throws IOException {
         User owner = userRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("Пользователь (владелец) не найден"));
