@@ -36,13 +36,13 @@ const REAL_ESTATE_CONFIG = {
 
 // Матрица доступных типов сделки для каждого вида недвижимости
 const DEAL_TYPE_MATRIX = {
-    'Квартира':  ['SALE', 'LONG_RENT', 'SHORT_RENT'],
-    'Дом':       ['SALE', 'LONG_RENT', 'SHORT_RENT'],
-    'Участок':   ['SALE'],
+    'Квартира': ['SALE', 'LONG_RENT', 'SHORT_RENT'],
+    'Дом': ['SALE', 'LONG_RENT', 'SHORT_RENT'],
+    'Участок': ['SALE'],
     'Коммерция': ['SALE', 'RENT'],
-    'Офис':      ['SALE', 'RENT'],
-    'Склад':     ['SALE', 'RENT'],
-    'Гараж':     ['SALE', 'RENT'],
+    'Офис': ['SALE', 'RENT'],
+    'Склад': ['SALE', 'RENT'],
+    'Гараж': ['SALE', 'RENT'],
 };
 
 const BELARUS_CITIES = [
@@ -916,7 +916,6 @@ const AddObject = () => {
                                 <select name="currency" value={formData.currency} onChange={handleChange} disabled={isSubmitting}>
                                     <option value="USD">USD ($)</option>
                                     <option value="BYN">BYN (Br)</option>
-                                    <option value="EUR">EUR (€)</option>
                                 </select>
                             </div>
                         )}
