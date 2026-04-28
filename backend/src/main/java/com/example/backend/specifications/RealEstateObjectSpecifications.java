@@ -79,17 +79,21 @@ public class RealEstateObjectSpecifications {
                 jakarta.persistence.criteria.Expression<String> typeRentExpr = cb.function("JSON_UNQUOTE", String.class, 
                         cb.function("JSON_EXTRACT", String.class, root.get("attributes"), cb.literal("$.type_rent")));
                 
+                // Дополнительно проверяем ключ "type rent" с пробелом, если первый вернул null
+                jakarta.persistence.criteria.Expression<String> typeRentSpaceExpr = cb.function("JSON_UNQUOTE", String.class, 
+                        cb.function("JSON_EXTRACT", String.class, root.get("attributes"), cb.literal("$.\"type rent\"")));
+
                 if ("SHORT_TERM".equals(rentType)) {
                     predicates.add(cb.or(
-                        cb.equal(cb.lower(typeRentExpr), "посуточно"),
-                        cb.equal(cb.lower(typeRentExpr), "краткосрочно"),
+                        cb.like(cb.lower(typeRentExpr), "%краткосрочн%"),
+                        cb.like(cb.lower(typeRentSpaceExpr), "%краткосрочн%"),
                         cb.like(cb.lower(typeRentExpr), "%посуточно%"),
-                        cb.like(cb.lower(typeRentExpr), "%краткосрочно%")
+                        cb.like(cb.lower(typeRentSpaceExpr), "%посуточно%")
                     ));
                 } else if ("LONG_TERM".equals(rentType)) {
                     predicates.add(cb.or(
-                        cb.equal(cb.lower(typeRentExpr), "долгосрочно"),
-                        cb.like(cb.lower(typeRentExpr), "%долгосрочно%")
+                        cb.like(cb.lower(typeRentExpr), "%долгосрочн%"),
+                        cb.like(cb.lower(typeRentSpaceExpr), "%долгосрочн%")
                     ));
                 }
             }
