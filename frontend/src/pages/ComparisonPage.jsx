@@ -4,6 +4,7 @@ import api from '../api/axios';
 import { useCurrency } from '../context/CurrencyContext';
 import './ComparisonPage.css';
 
+
 const API_BASE_URL = "http://localhost:8080";
 
 /* ===================================================================================
@@ -460,48 +461,68 @@ const ComparisonPage = () => {
     if (loading) return <div className="compare-loader"><div className="spinner"></div>Загрузка аналитики...</div>;
     if (error) return <div className="error-message">{error}</div>;
 
+    const handleLogout = () => {
+        localStorage.clear();
+        navigate('/login');
+    };
     /* ===================================================================================
        6. РЕНДЕР
        =================================================================================== */
     return (
         <div className="compare-page-wrapper">
             {/* --- ХЕДЕР --- */}
-            <header className="home-header compare-header">
-                <div className="brand" onClick={() => navigate('/')}>💎 InvestHub</div>
-                <div className="currency-selector compare-currency">
-                    <select value={currency} onChange={(e) => setCurrency(e.target.value)}>
-                        <option value="USD">USD ($)</option>
-                        <option value="BYN">BYN (Br)</option>
-                    </select>
+            <header className="home-header">
+                <div className="brand" onClick={() => navigate('/')} style={{ cursor: 'pointer' }}>
+                    💎 InvestHub
                 </div>
-                {user?.role === 'USER' && (
-                    <button className="sell-property-btn" onClick={() => navigate('/add-object')}>+ Продать недвижимость</button>
-                )}
-                <div className="user-profile-container" ref={dropdownRef}>
-                    <div className="avatar-wrapper" onClick={() => setIsMenuOpen(!isMenuOpen)}>
-                        <div className="user-nickname">{user?.name || 'Гость'}</div>
-                        <div className="avatar-circle">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle>
-                            </svg>
-                        </div>
-                        {totalUnread > 0 && <span className="unread-dot"></span>}
+
+                <div className="header-actions">
+                    {/* Этот блок .currency-selector теперь будет выглядеть как на главной */}
+                    <div className="currency-selector">
+                        <select value={currency} onChange={(e) => setCurrency(e.target.value)}>
+                            <option value="USD">USD ($)</option>
+                            <option value="BYN">BYN (Br)</option>
+                        </select>
                     </div>
-                    {isMenuOpen && (
-                        <div className="user-dropdown-menu">
-                            <div className="dropdown-header">
-                                <p className="d-name">{user?.name}</p>
-                                <p className="d-email">{user?.email}</p>
-                                <p className="d-role">{user?.role}</p>
-                            </div>
-                            <button className="dropdown-item" onClick={() => navigate('/portfolio')}>Мой портфель</button>
-                            <button className="dropdown-item chats-item" onClick={() => navigate('/chats')}>
-                                <span>Чаты</span>
-                                {totalUnread > 0 && <span className="menu-badge">{totalUnread}</span>}
-                            </button>
-                            <button className="dropdown-item logout" onClick={handleLogout}>Выйти</button>
-                        </div>
-                    )}
+
+                    <div className="user-profile-container" ref={dropdownRef}>
+                        {user ? (
+                            <>
+                                <div className="avatar-wrapper" onClick={() => setIsMenuOpen(!isMenuOpen)}>
+                                    <div className="user-nickname">{user.name}</div>
+                                    <div className="avatar-circle">
+                                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                                            <circle cx="12" cy="7" r="4"></circle>
+                                        </svg>
+                                    </div>
+                                    {totalUnread > 0 && <span className="unread-dot"></span>}
+                                </div>
+
+                                {isMenuOpen && (
+                                    <div className="user-dropdown-menu">
+                                        <div className="dropdown-header">
+                                            <p className="d-name">{user.name}</p>
+                                            <p className="d-email">{user.email}</p>
+                                            <p className="d-role">{user.role}</p>
+                                        </div>
+                                        <button className="dropdown-item" onClick={() => { setIsMenuOpen(false); navigate('/portfolio'); }}>
+                                            Мой портфель
+                                        </button>
+                                        <button className="dropdown-item chats-item" onClick={() => { setIsMenuOpen(false); navigate('/chats'); }}>
+                                            <span>Чаты</span>
+                                            {totalUnread > 0 && <span className="menu-badge">{totalUnread}</span>}
+                                        </button>
+                                        <button className="dropdown-item logout" onClick={handleLogout}>
+                                            Выйти
+                                        </button>
+                                    </div>
+                                )}
+                            </>
+                        ) : (
+                            <button className="login-btn" onClick={() => navigate('/login')}>Войти</button>
+                        )}
+                    </div>
                 </div>
             </header>
 
