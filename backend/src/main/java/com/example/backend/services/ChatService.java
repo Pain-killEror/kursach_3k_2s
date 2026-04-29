@@ -317,7 +317,6 @@ public class ChatService {
                 sItem.setStatus("SOLD");
                 portfolioItemRepository.save(sItem);
 
-                object.setUser(buyer); 
                 object.setCurrentOccupant(buyer);
                 object.setObjectStatus(ObjectStatus.SOLD);
                 object.setIsVisible(false);

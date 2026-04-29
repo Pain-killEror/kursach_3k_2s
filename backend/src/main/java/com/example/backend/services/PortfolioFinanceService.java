@@ -95,39 +95,91 @@ public class PortfolioFinanceService {
             .findAllByPortfolioItem_IdOrderByTransactionDateDesc(portfolioItemId);
 
         BigDecimal purchasePrice = item.getInvestedAmount() != null ? item.getInvestedAmount() : BigDecimal.ZERO;
-        BigDecimal additionalInvestments = BigDecimal.ZERO;
-        BigDecimal totalIncome = BigDecimal.ZERO;
 
-        for (PortfolioTransaction t : transactions) {
-            if (t.getType() == FlowType.EXPENSE) {
-                additionalInvestments = additionalInvestments.add(t.getAmount());
-            } else if (t.getType() == FlowType.INCOME) {
-                totalIncome = totalIncome.add(t.getAmount());
+        // ОПРЕДЕЛЯЕМ РОЛЬ:
+        // 1) Основная логика по ТЗ: portfolio.user.id == realEstateObject.user.id
+        // 2) fallback для уже существующих сделок: ранее в SALE делалось object.setUser(buyer),
+        //    из-за чего realEstateObject.user "уехал" на покупателя.
+        //    Если объект SOLD и realEstateObject.user совпадает с currentOccupant — считаем оригинальным
+        //    того, кто НЕ является currentOccupant.
+        boolean isOriginalOwner = false;
+        if (item.getPortfolio() != null && item.getPortfolio().getUser() != null && item.getRealEstateObject() != null) {
+            UUID portfolioUserId = item.getPortfolio().getUser().getId();
+            UUID objectUserId = item.getRealEstateObject().getUser() != null ? item.getRealEstateObject().getUser().getId() : null;
+
+            UUID currentOccupantId = item.getRealEstateObject().getCurrentOccupant() != null
+                ? item.getRealEstateObject().getCurrentOccupant().getId()
+                : null;
+
+            boolean isSold = item.getRealEstateObject().getObjectStatus() == com.example.backend.entities.ObjectStatus.SOLD;
+
+            if (isSold && currentOccupantId != null && objectUserId != null && objectUserId.equals(currentOccupantId)) {
+                // "user" уже перезаписан на buyer — инвертируем относительно currentOccupant
+                isOriginalOwner = !portfolioUserId.equals(currentOccupantId);
+            } else {
+                isOriginalOwner = objectUserId != null && portfolioUserId.equals(objectUserId);
             }
         }
 
-        // ОПРЕДЕЛЯЕМ РОЛЬ: Создатель объекта (Продавец) или нет (Покупатель)
-        boolean isOriginalOwner = false;
-        if (item.getRealEstateObject() != null && item.getRealEstateObject().getUser() != null) {
-            isOriginalOwner = item.getRealEstateObject().getUser().getId()
-                                  .equals(item.getPortfolio().getUser().getId());
+        // Финансовые составляющие:
+        // - Доходы: INCOME
+        // - Расходы на ремонт/услуги: EXPENSE кроме PURCHASE
+        // - Цена покупки (реальная, если она добавлена транзакцией PURCHASE): EXPENSE с категорией PURCHASE
+        BigDecimal totalIncome = BigDecimal.ZERO;
+        BigDecimal operatingExpense = BigDecimal.ZERO; // ремонт/услуги
+        BigDecimal purchaseTxExpense = BigDecimal.ZERO; // real PURCHASE transactions
+        boolean hasManualPurchaseTx = false;
+
+        for (PortfolioTransaction t : transactions) {
+            BigDecimal amount = t.getAmount() != null ? t.getAmount() : BigDecimal.ZERO;
+
+            if (t.getType() == FlowType.INCOME) {
+                totalIncome = totalIncome.add(amount);
+            } else if (t.getType() == FlowType.EXPENSE) {
+                if (t.getCategory() == com.example.backend.entities.enums.TransactionCategory.PURCHASE) {
+                    purchaseTxExpense = purchaseTxExpense.add(amount);
+                    hasManualPurchaseTx = true;
+                } else {
+                    operatingExpense = operatingExpense.add(amount);
+                }
+            }
         }
 
-        // БАЛАНС: 
-        // Если Продавец: Доход - Расходы
-        // Если Покупатель: Доход - (Цена покупки + Расходы)
-        BigDecimal costBasis = isOriginalOwner ? BigDecimal.ZERO : purchasePrice;
-        BigDecimal currentBalance = totalIncome.subtract(costBasis.add(additionalInvestments));
+        // Баланс:
+        // - Продавец: Доходы - Расходы на ремонт/услуги
+        // - Покупатель: Доходы - (Цена покупки + Расходы на ремонт/услуги)
+        //   Цена покупки берется:
+        //   - из реальных PURCHASE-транзакций, если они есть
+        //   - иначе из purchasePrice (investedAmount)
+        BigDecimal effectivePurchaseExpense = isOriginalOwner
+            ? BigDecimal.ZERO
+            : (hasManualPurchaseTx ? purchaseTxExpense : purchasePrice);
+
+        BigDecimal currentBalance = totalIncome.subtract(effectivePurchaseExpense.add(operatingExpense));
+        BigDecimal additionalInvestments = operatingExpense; // DTO: ремонт/услуги
+        BigDecimal totalInvested = effectivePurchaseExpense.add(operatingExpense);
 
         BigDecimal taxRate = getSystemTaxRate(item);
-        // ... (остальные расчеты breakEvenPrice и expectedProfit оставляем как были)
-        
+
         return new PortfolioSummaryDto(
-            item.getId(), item.getStrategyName(), item.getTargetAmount(), taxRate, item.getStatus(),
-            item.getRealEstateObject().getCategory(), item.getRealEstateObject().getAddress(), 
-            item.getRealEstateObject().getTitle(), null,
-            costBasis.add(additionalInvestments), totalIncome, currentBalance, 
-            BigDecimal.ZERO, null, purchasePrice, additionalInvestments, transactions, isOriginalOwner
+            item.getId(),
+            item.getStrategyName(),
+            item.getTargetAmount(),
+            taxRate,
+            item.getStatus(),
+            item.getRealEstateObject().getCategory(),
+            item.getRealEstateObject().getAddress(),
+            item.getRealEstateObject().getTitle(),
+            null, // customName
+            totalInvested,
+            totalIncome,
+            currentBalance,
+            BigDecimal.ZERO, // breakEvenPrice
+            null, // expectedProfit
+            purchasePrice,
+            additionalInvestments,
+            transactions,
+            isOriginalOwner
         );
     }
 
@@ -138,24 +190,52 @@ public class PortfolioFinanceService {
         List<PortfolioItem> items = itemRepository.findAllByPortfolio_User_Id(userId);
         
         return items.stream().map(item -> {
-            BigDecimal transactionsBalance = BigDecimal.ZERO;
-            boolean hasPurchaseTx = false;
-            
+            BigDecimal totalIncome = BigDecimal.ZERO;
+            BigDecimal operatingExpense = BigDecimal.ZERO;
+            BigDecimal purchaseTxExpense = BigDecimal.ZERO;
+            boolean hasManualPurchaseTx = false;
+
             for (PortfolioTransaction t : item.getTransactions()) {
-                if (t.getCategory() == com.example.backend.entities.enums.TransactionCategory.PURCHASE) hasPurchaseTx = true;
-                if (t.getType() == FlowType.INCOME) transactionsBalance = transactionsBalance.add(t.getAmount());
-                else if (t.getType() == FlowType.EXPENSE) transactionsBalance = transactionsBalance.subtract(t.getAmount());
+                BigDecimal amount = t.getAmount() != null ? t.getAmount() : BigDecimal.ZERO;
+
+                if (t.getType() == FlowType.INCOME) {
+                    totalIncome = totalIncome.add(amount);
+                } else if (t.getType() == FlowType.EXPENSE) {
+                    if (t.getCategory() == com.example.backend.entities.enums.TransactionCategory.PURCHASE) {
+                        purchaseTxExpense = purchaseTxExpense.add(amount);
+                        hasManualPurchaseTx = true;
+                    } else {
+                        operatingExpense = operatingExpense.add(amount);
+                    }
+                }
             }
 
             boolean isOriginalOwner = false;
-            if (item.getRealEstateObject() != null && item.getRealEstateObject().getUser() != null) {
-                isOriginalOwner = item.getRealEstateObject().getUser().getId().equals(userId);
+            if (item.getPortfolio() != null && item.getPortfolio().getUser() != null && item.getRealEstateObject() != null) {
+                UUID portfolioUserId = item.getPortfolio().getUser().getId();
+                UUID objectUserId = item.getRealEstateObject().getUser() != null ? item.getRealEstateObject().getUser().getId() : null;
+
+                UUID currentOccupantId = item.getRealEstateObject().getCurrentOccupant() != null
+                    ? item.getRealEstateObject().getCurrentOccupant().getId()
+                    : null;
+
+                boolean isSold = item.getRealEstateObject().getObjectStatus() == com.example.backend.entities.ObjectStatus.SOLD;
+
+                if (isSold && currentOccupantId != null && objectUserId != null && objectUserId.equals(currentOccupantId)) {
+                    isOriginalOwner = !portfolioUserId.equals(currentOccupantId);
+                } else {
+                    isOriginalOwner = objectUserId != null && portfolioUserId.equals(objectUserId);
+                }
             }
 
             BigDecimal purchasePrice = item.getInvestedAmount() != null ? item.getInvestedAmount() : BigDecimal.ZERO;
-            // Если он создатель или уже есть ручная транзакция - не вычитаем цену покупки из баланса автоматически
-            BigDecimal effectivePrice = (isOriginalOwner || hasPurchaseTx) ? BigDecimal.ZERO : purchasePrice;
-            BigDecimal currentBalance = transactionsBalance.subtract(effectivePrice);
+            BigDecimal effectivePurchaseExpense = isOriginalOwner
+                ? BigDecimal.ZERO
+                : (hasManualPurchaseTx ? purchaseTxExpense : purchasePrice);
+
+            BigDecimal currentBalance = totalIncome.subtract(effectivePurchaseExpense.add(operatingExpense));
+            BigDecimal totalInvested = effectivePurchaseExpense.add(operatingExpense);
+            BigDecimal additionalInvestments = operatingExpense;
 
             String objectTitle = null, objectCategory = null, objectAddress = null;
             if (item.getRealEstateObject() != null) {
@@ -165,9 +245,24 @@ public class PortfolioFinanceService {
             }
             
             return new PortfolioSummaryDto(
-                item.getId(), item.getStrategyName(), item.getTargetAmount(), item.getExitTaxRate(),
-                item.getStatus(), objectCategory, objectAddress, objectTitle, null, 
-                null, null, currentBalance, null, null, purchasePrice, null, null, isOriginalOwner
+                item.getId(),
+                item.getStrategyName(),
+                item.getTargetAmount(),
+                item.getExitTaxRate(),
+                item.getStatus(),
+                objectCategory,
+                objectAddress,
+                objectTitle,
+                null, // customName
+                totalInvested,
+                totalIncome,
+                currentBalance,
+                null, // breakEvenPrice
+                null, // expectedProfit
+                purchasePrice,
+                additionalInvestments,
+                null, // transactions
+                isOriginalOwner
             );
         }).collect(Collectors.toList());
     }

@@ -146,38 +146,34 @@ const PortfolioItemDetails = () => {
     // ==========================================
     const stats = useMemo(() => {
         // Если данных еще нет, возвращаем пустые значения
-        if (!summary) return { balance: 0, income: 0, expense: 0, capitalExpense: 0, operatingExpense: 0, isSold: false };
+        if (!summary) return { balance: 0, income: 0, expense: 0, capitalExpense: 0, capitalExpenseTotal: 0, effectivePurchasePrice: 0, operatingExpense: 0, isSold: false, isOriginalOwner: false, isRentStrategy: false };
 
         let income = 0;           // Общий доход
         let operatingExpense = 0; // Текущие расходы (ремонт, налоги и т.д.)
-        let capitalExpense = 0;   // Расходы на саму покупку
+        let capitalExpense = 0;   // Реальные расходы на покупку (только реальные PURCHASE-транзакции)
         let isSold = summary.status === 'SOLD' || summary.objectStatus === 'SOLD';
+        const isOriginalOwner = !!summary.isOriginalOwner;
 
         // 1. Считаем только РЕАЛЬНЫЕ транзакции из базы данных
         (summary.transactions || []).forEach(tx => {
             if (tx.type === 'INCOME') {
                 income += Number(tx.amount || 0);
             } else if (tx.type === 'EXPENSE') {
-                if (tx.category === 'PURCHASE') {
-                    capitalExpense += Number(tx.amount || 0); // Если ты сам добавил транзакцию "Покупка"
-                } else {
-                    operatingExpense += Number(tx.amount || 0);
-                }
+                if (tx.category === 'PURCHASE') capitalExpense += Number(tx.amount || 0);
+                else operatingExpense += Number(tx.amount || 0);
             }
         });
 
-        // 2. АВТОМАТИЧЕСКИЙ УЧЕТ ЦЕНЫ ОБЪЕКТА (Разделение ролей)
-        // Если человек НЕ является оригинальным владельцем (т.е. он ПОКУПАТЕЛЬ),
-        // и он еще не добавил транзакцию покупки вручную — прибавляем цену объекта к расходам.
-        const hasManualPurchase = (summary.transactions || []).some(tx => tx.category === 'PURCHASE');
+        // 2. ЭФФЕКТИВНАЯ ЦЕНА ПОКУПКИ (только для покупателя и только если нет ручной PURCHASE)
+        const hasManualPurchase = (summary.transactions || []).some(tx => tx.type === 'EXPENSE' && tx.category === 'PURCHASE');
         const purchasePrice = Number(summary.investedAmount || summary.purchasePrice || 0);
+        const effectivePurchasePrice = (!isOriginalOwner && !hasManualPurchase && purchasePrice > 0) ? purchasePrice : 0;
+        const capitalExpenseTotal = capitalExpense + effectivePurchasePrice;
 
-        if (!summary.isOriginalOwner && !hasManualPurchase && purchasePrice > 0) {
-            capitalExpense += purchasePrice;
-        }
-
-        // Итоговые суммы
-        const totalExpense = operatingExpense + capitalExpense;
+        // Итоговые суммы по ролям:
+        // - Продавец: баланс = Доходы - Расходы на ремонт/услуги (PURCHASE не вычитается)
+        // - Покупатель: баланс = Доходы - (Цена покупки + Расходы)
+        const totalExpense = isOriginalOwner ? operatingExpense : (operatingExpense + capitalExpenseTotal);
         const balance = income - totalExpense;
 
         return {
@@ -185,8 +181,11 @@ const PortfolioItemDetails = () => {
             income,
             expense: totalExpense,
             capitalExpense,
+            capitalExpenseTotal,
+            effectivePurchasePrice,
             operatingExpense,
             isSold,
+            isOriginalOwner,
             isRentStrategy: (summary.strategyName || '').toLowerCase().includes('аренд')
         };
     }, [summary]);
@@ -305,7 +304,7 @@ const PortfolioItemDetails = () => {
         return `${converted.toLocaleString()} ${symbol}`;
     };
 
-    const totalInvestedForCalc = stats.capitalExpense + stats.operatingExpense;
+    const totalInvestedForCalc = stats.isOriginalOwner ? stats.operatingExpense : (stats.capitalExpenseTotal + stats.operatingExpense);
 
     const taxAmount = ((settings.targetAmount || 0) * (summary?.exitTaxRate || 0)) / 100;
     const netDebtSale = totalInvestedForCalc - stats.income;
@@ -381,7 +380,7 @@ const PortfolioItemDetails = () => {
                             <div className="stats-mini-row" style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid #333', paddingTop: '15px' }}>
                                 <div className="stat-item" style={{ textAlign: 'left' }}>
                                     <span style={{ color: '#8e8e93', fontSize: '14px', display: 'block' }}>Капитальные расходы</span>
-                                    <span style={{ fontWeight: 'bold' }}>{formatPrice(stats.capitalExpense)}</span>
+                                    <span style={{ fontWeight: 'bold' }}>{formatPrice(stats.capitalExpenseTotal)}</span>
                                 </div>
                                 <div className="stat-item" style={{ textAlign: 'center' }}>
                                     <span style={{ color: '#8e8e93', fontSize: '14px', display: 'block' }}>Операционные расходы</span>
