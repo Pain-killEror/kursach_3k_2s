@@ -4,6 +4,7 @@ import jakarta.servlet.http.HttpServletResponse;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -23,6 +24,7 @@ import java.util.List;
 
 @Configuration
 @EnableWebSecurity
+@EnableMethodSecurity(prePostEnabled = true)
 public class SecurityConfig {
 
     private final JwtFilter jwtFilter;
@@ -54,16 +56,16 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                 
                 // Публичные эндпоинты
-                .requestMatchers("/api/auth/**", "/uploads/**", "/ws/**", "/error").permitAll() 
+                .requestMatchers("/api/auth/**", "/api/v1/auth/**", "/uploads/**", "/ws/**", "/error").permitAll() 
                 
                 // Просмотр объектов доступен всем (GET запросы на /api/objects и /api/objects/...)
-                .requestMatchers(HttpMethod.GET, "/api/objects/**").permitAll() 
+                .requestMatchers(HttpMethod.GET, "/api/objects/**", "/api/v1/objects/**").permitAll() 
                 
                 // Портфель и транзакции - только для авторизованных
-                .requestMatchers("/api/portfolio/**").authenticated()
+                .requestMatchers("/api/portfolio/**", "/api/v1/portfolio/**").authenticated()
                 
                 // Админка
-                .requestMatchers("/api/admin/**").hasRole("ADMIN")
+                .requestMatchers("/api/admin/**", "/api/v1/admin/**").hasRole("ADMIN")
                 
                 // Все остальные запросы должны быть подтверждены JWT токеном
                 .anyRequest().authenticated()

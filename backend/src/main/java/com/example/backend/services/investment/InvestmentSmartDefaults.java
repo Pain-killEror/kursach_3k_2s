@@ -6,6 +6,11 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Service;
 
+import java.lang.annotation.ElementType;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+import java.lang.annotation.Target;
+import java.lang.reflect.Field;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.Map;
@@ -17,6 +22,65 @@ public class InvestmentSmartDefaults {
 
     public InvestmentSmartDefaults(ObjectMapper objectMapper) {
         this.objectMapper = objectMapper;
+    }
+
+    // Кастомная аннотация + Reflection API:
+    // используется только для извлечения нескольких атрибутов из JSON.
+    @Retention(RetentionPolicy.RUNTIME)
+    @Target(ElementType.FIELD)
+    private @interface AttrKey {
+        String key();
+        String defaultValue();
+    }
+
+    // Модель атрибутов квартиры (поле заполняется reflection-ом).
+    private static class ApartmentAttrs {
+        @AttrKey(key = "rooms_count", defaultValue = "1")
+        private Integer rooms;
+
+        @AttrKey(key = "renovation_state", defaultValue = "")
+        private String renovation;
+
+        @AttrKey(key = "has_balcony", defaultValue = "false")
+        private Boolean hasBalcony;
+    }
+
+    private <T> T mapAnnotatedAttrs(Map<String, Object> attrs, Class<T> clazz) {
+        try {
+            T instance = clazz.getDeclaredConstructor().newInstance();
+
+            for (Field field : clazz.getDeclaredFields()) {
+                AttrKey ann = field.getAnnotation(AttrKey.class);
+                if (ann == null) continue;
+
+                field.setAccessible(true);
+                String key = ann.key();
+                String defaultValue = ann.defaultValue();
+
+                Class<?> type = field.getType();
+                if (type == Integer.class || type == int.class) {
+                    int def = Integer.parseInt(defaultValue);
+                    field.set(instance, getIntAttr(attrs, key, def));
+                } else if (type == String.class) {
+                    field.set(instance, getStringAttr(attrs, key, defaultValue));
+                } else if (type == Boolean.class || type == boolean.class) {
+                    boolean def = Boolean.parseBoolean(defaultValue);
+                    field.set(instance, getBooleanAttr(attrs, key, def));
+                } else if (type == Double.class || type == double.class) {
+                    double def = Double.parseDouble(defaultValue);
+                    field.set(instance, getDoubleAttr(attrs, key, def));
+                }
+            }
+
+            return instance;
+        } catch (Exception e) {
+            // Не ломаем бизнес-логику: если reflection не сработал, вернем пустой объект.
+            try {
+                return clazz.getDeclaredConstructor().newInstance();
+            } catch (Exception ignored) {
+                return null;
+            }
+        }
     }
 
     public InvestmentCalculationRequest enrichWithDefaults(InvestmentCalculationRequest req, RealEstateObject obj) {
@@ -50,8 +114,10 @@ public class InvestmentSmartDefaults {
             BigDecimal defManagementFeePct = BigDecimal.ZERO;
 
             if (category.contains("КВАРТИР") || category.contains("APARTMENT")) {
-                int rooms = getIntAttr(attrs, "rooms_count", 1);
-                String renovation = getStringAttr(attrs, "renovation_state", "");
+                ApartmentAttrs apartmentAttrs = mapAnnotatedAttrs(attrs, ApartmentAttrs.class);
+                int rooms = apartmentAttrs != null && apartmentAttrs.rooms != null ? apartmentAttrs.rooms : 1;
+                String renovation = apartmentAttrs != null && apartmentAttrs.renovation != null ? apartmentAttrs.renovation : "";
+                boolean hasBalcony = apartmentAttrs != null && apartmentAttrs.hasBalcony != null && apartmentAttrs.hasBalcony;
                 
                 int repairPerM2 = switch (renovation) {
                     case "Черновая отделка" -> 350;
@@ -77,7 +143,7 @@ public class InvestmentSmartDefaults {
                 int dIdx = Math.min(Math.max(rooms, 1), 4);
                 defDailyRate = new BigDecimal(dailyByRooms[dIdx]);
 
-                if (getBooleanAttr(attrs, "has_balcony", false)) {
+                if (hasBalcony) {
                     defMonthlyRent = defMonthlyRent.multiply(new BigDecimal("1.03")).setScale(0, RoundingMode.HALF_UP);
                 }
 

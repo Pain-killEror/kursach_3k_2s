@@ -20,7 +20,7 @@ import java.util.Map;
  * на основе его типа (Физлицо / ИП / Юрлицо) из таблицы global_settings.
  */
 @RestController
-@RequestMapping("/api/settings")
+@RequestMapping({"/api/settings", "/api/v1/settings"})
 @CrossOrigin(origins = "http://localhost:5173")
 public class InvestmentCalculatorController {
 

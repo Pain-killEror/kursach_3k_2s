@@ -16,7 +16,7 @@ import java.util.List;
 import java.util.UUID;
 
 @RestController
-@RequestMapping("/api/portfolio")
+@RequestMapping({"/api/portfolio", "/api/v1/portfolio"})
 @CrossOrigin(origins = "*")
 public class PortfolioFinanceController {
 

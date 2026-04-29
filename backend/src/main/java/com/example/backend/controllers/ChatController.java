@@ -13,7 +13,7 @@ import java.util.List;
 import java.util.UUID;
 
 @RestController
-@RequestMapping("/api/chats")
+@RequestMapping({"/api/chats", "/api/v1/chats"})
 public class ChatController {
 
     private final ChatService chatService;

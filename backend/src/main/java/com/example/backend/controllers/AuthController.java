@@ -21,7 +21,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 @RestController
-@RequestMapping("/api/auth")
+@RequestMapping({"/api/auth", "/api/v1/auth"})
 @CrossOrigin(origins = "http://localhost:5173") // Настрой под свой фронтенд
 public class AuthController {
 

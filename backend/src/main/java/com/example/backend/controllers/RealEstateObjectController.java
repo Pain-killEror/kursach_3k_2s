@@ -17,7 +17,7 @@ import java.util.UUID;
 
 @CrossOrigin(origins = "http://localhost:5173")
 @RestController
-@RequestMapping("/api/objects")
+@RequestMapping({"/api/objects", "/api/v1/objects"})
 public class RealEstateObjectController {
 
     private final RealEstateObjectService service;

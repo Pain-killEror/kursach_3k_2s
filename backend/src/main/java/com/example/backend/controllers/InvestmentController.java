@@ -9,7 +9,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
-@RequestMapping("/api/investments")
+@RequestMapping({"/api/investments", "/api/v1/investments"})
 public class InvestmentController {
 
     @Autowired

@@ -10,6 +10,7 @@ import com.example.backend.services.AdminService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import java.security.Principal;
 
@@ -18,8 +19,9 @@ import java.util.Map;
 import java.util.UUID;
 
 @RestController
-@RequestMapping("/api/admin")
+@RequestMapping({"/api/admin", "/api/v1/admin"})
 @CrossOrigin(origins = "http://localhost:5173") // <--- ВОТ ЭТО РЕШАЕТ ОШИБКУ CORS
+@PreAuthorize("hasRole('ADMIN')")
 public class AdminController {
 
     @Autowired
