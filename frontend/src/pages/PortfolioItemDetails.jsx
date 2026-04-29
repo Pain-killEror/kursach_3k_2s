@@ -21,10 +21,18 @@ const MonthNames = [
     'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'
 ];
 
-// Склонение слова "операция" (1 операция, 2 операции, 5 операций)
 const declOfNum = (number, titles) => {
     const cases = [2, 0, 1, 1, 1, 2];
     return titles[(number % 100 > 4 && number % 100 < 20) ? 2 : cases[(number % 10 < 5) ? number % 10 : 5]];
+};
+
+const getLocalDateString = (offsetDays = 0) => {
+    const d = new Date();
+    d.setDate(d.getDate() + offsetDays);
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
 };
 
 const PortfolioItemDetails = () => {
@@ -38,17 +46,22 @@ const PortfolioItemDetails = () => {
     const [totalUnread, setTotalUnread] = useState(0);
     const dropdownRef = useRef(null);
 
+    const [expandedYears, setExpandedYears] = useState({});
+    const [expandedMonths, setExpandedMonths] = useState({});
+
     const user = useMemo(() => {
         try { return JSON.parse(localStorage.getItem('user')) || null; }
         catch (e) { return null; }
     }, []);
 
-    const currentRealDate = new Date();
-    const currentYearStr = currentRealDate.getFullYear().toString();
-    const currentMonthStr = (currentRealDate.getMonth() + 1).toString();
+    const todayDateString = getLocalDateString(0);
 
-    const [expandedYears, setExpandedYears] = useState({ [currentYearStr]: true });
-    const [expandedMonths, setExpandedMonths] = useState({ [`${currentYearStr}-${currentMonthStr}`]: true });
+    const [transaction, setTransaction] = useState({
+        title: '', amount: '', currency: currency || 'USD', type: 'EXPENSE', category: 'MATERIALS', transactionDate: todayDateString
+    });
+
+    const [isEditingSettings, setIsEditingSettings] = useState(false);
+    const [settings, setSettings] = useState({ strategyName: '', targetAmount: '', exitTaxRate: 0 });
 
     useEffect(() => {
         const token = localStorage.getItem('token');
@@ -67,15 +80,6 @@ const PortfolioItemDetails = () => {
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, []);
 
-    const todayDateString = currentRealDate.toISOString().split('T')[0];
-
-    const [transaction, setTransaction] = useState({
-        title: '', amount: '', currency: currency || 'USD', type: 'EXPENSE', category: 'MATERIALS', transactionDate: todayDateString
-    });
-
-    const [isEditingSettings, setIsEditingSettings] = useState(false);
-    const [settings, setSettings] = useState({ strategyName: '', targetAmount: '', exitTaxRate: 0 });
-
     useEffect(() => { loadData(); }, [itemId]);
 
     const loadData = async () => {
@@ -91,8 +95,29 @@ const PortfolioItemDetails = () => {
         finally { setLoading(false); }
     };
 
+    const minTransactionDate = useMemo(() => {
+        if (!summary) return todayDateString;
+        const possibleDates = [summary.purchaseDate, summary.investedDate, summary.objectPurchaseDate, summary.objectCreatedAt, summary.itemCreatedAt, summary.createdAt];
+        for (let d of possibleDates) {
+            if (d && typeof d === 'string') return d.split('T')[0];
+        }
+        return todayDateString;
+    }, [summary]);
+
+    useEffect(() => {
+        if (minTransactionDate && transaction.transactionDate < minTransactionDate) {
+            setTransaction(prev => ({ ...prev, transactionDate: minTransactionDate }));
+        }
+    }, [minTransactionDate]);
+
     const handleAddTransaction = async (e) => {
         e.preventDefault();
+
+        if (transaction.transactionDate < minTransactionDate) {
+            alert(`Ошибка! Нельзя добавить операцию до даты начала отслеживания объекта (${minTransactionDate.split('-').reverse().join('.')})`);
+            return;
+        }
+
         try {
             if (!itemId) return;
             const dataToSend = {
@@ -114,77 +139,61 @@ const PortfolioItemDetails = () => {
     };
 
     // ==========================================
-    // ЛОГИКА И СТАТИСТИКА РОЛЕЙ
+    // ЛОГИКА И СТАТИСТИКА
+    // ==========================================
+    // ==========================================
+    // ЛОГИКА И СТАТИСТИКА (ФИНАНСОВЫЙ РЕЗУЛЬТАТ)
     // ==========================================
     const stats = useMemo(() => {
-        if (!summary) return { balance: 0, income: 0, expense: 0, isTenant: false, isSold: false, isRentStrategy: false };
+        // Если данных еще нет, возвращаем пустые значения
+        if (!summary) return { balance: 0, income: 0, expense: 0, capitalExpense: 0, operatingExpense: 0, isSold: false };
 
-        const strategyLower = (summary.strategyName || '').toLowerCase();
-        const isRentStrategy = strategyLower.includes('аренд');
-        const isTenant = isRentStrategy && summary.role === 'TENANT';
+        let income = 0;           // Общий доход
+        let operatingExpense = 0; // Текущие расходы (ремонт, налоги и т.д.)
+        let capitalExpense = 0;   // Расходы на саму покупку
+        let isSold = summary.status === 'SOLD' || summary.objectStatus === 'SOLD';
 
-        let income = 0;
-        let expense = 0;
-        let hasSaleMarker = false;
-        let hasPurchaseTransaction = false;
-
+        // 1. Считаем только РЕАЛЬНЫЕ транзакции из базы данных
         (summary.transactions || []).forEach(tx => {
-            const txText = tx.description || tx.title || '';
-            const isRentMarker = txText.startsWith('🔵');
-
-            // Если есть факт продажи в истории, фиксируем
-            if (txText.startsWith('🟢') || tx.category === 'SALE_PROCEEDS') {
-                hasSaleMarker = true;
-            }
-            if (tx.category === 'PURCHASE') {
-                hasPurchaseTransaction = true;
-            }
-
-            // В баланс идут реальные деньги (и Покупки, и Продажи, и ручные траты)
-            if (!isRentMarker && !isSaleMarker) {
-                if (tx.type === 'INCOME') income += Number(tx.amount || 0);
-                if (tx.type === 'EXPENSE') expense += Number(tx.amount || 0);
+            if (tx.type === 'INCOME') {
+                income += Number(tx.amount || 0);
+            } else if (tx.type === 'EXPENSE') {
+                if (tx.category === 'PURCHASE') {
+                    capitalExpense += Number(tx.amount || 0); // Если ты сам добавил транзакцию "Покупка"
+                } else {
+                    operatingExpense += Number(tx.amount || 0);
+                }
             }
         });
 
-        // Усиленная проверка: если статус 'SOLD' в любом из полей бэка, либо есть транзакция продажи
-        const isSold = summary.status === 'SOLD' || summary.objectStatus === 'SOLD' || hasSaleMarker;
-        const isOwner = user && summary.ownerRole && user.role === summary.ownerRole; // грубая прикидка, лучше проверять ID, но ID нет в summary напрямую.
-        // Более точная проверка Owner: если не арендатор, и мы не в стратегии покупки (или если объект наш).
-        // Если landlord (арендодатель), то Куплено за = 0 (если не покупал).
-        let effectivePurchasePrice = Number(summary.purchasePrice || 0);
-        
-        if (!hasPurchaseTransaction && !isTenant) {
-            // Если нет транзакции покупки, проверяем нужно ли добавлять в расходы
-            // Арендодатель "не покупал", если нет транзакции покупки. Сбрасываем цену покупки для него.
-            if (isRentStrategy && !isTenant) {
-                effectivePurchasePrice = 0;
-            }
+        // 2. АВТОМАТИЧЕСКИЙ УЧЕТ ЦЕНЫ ОБЪЕКТА (Разделение ролей)
+        // Если человек НЕ является оригинальным владельцем (т.е. он ПОКУПАТЕЛЬ),
+        // и он еще не добавил транзакцию покупки вручную — прибавляем цену объекта к расходам.
+        const hasManualPurchase = (summary.transactions || []).some(tx => tx.category === 'PURCHASE');
+        const purchasePrice = Number(summary.investedAmount || summary.purchasePrice || 0);
+
+        if (!summary.isOriginalOwner && !hasManualPurchase && purchasePrice > 0) {
+            capitalExpense += purchasePrice;
         }
 
-        // Если не арендатор, добавляем покупку в расходы (для инвестора)
-        if (!isTenant && effectivePurchasePrice > 0 && !hasPurchaseTransaction) {
-            expense += effectivePurchasePrice;
-        }
-
-        // Для арендатора баланс = 0 (расходы арендатора не влияют на "инвестиционный" баланс, если так задумано, или влияют, но изначально 0)
-        // Но по ТЗ "Для АРЕНДАТОРА: Баланс = 0", однако его платежи идут в минус. Если строго 0:
-        const finalBalance = isTenant ? 0 : (income - expense);
+        // Итоговые суммы
+        const totalExpense = operatingExpense + capitalExpense;
+        const balance = income - totalExpense;
 
         return {
-            balance: finalBalance,
+            balance,
             income,
-            expense,
-            isTenant,
+            expense: totalExpense,
+            capitalExpense,
+            operatingExpense,
             isSold,
-            isRentStrategy,
-            effectivePurchasePrice
+            isRentStrategy: (summary.strategyName || '').toLowerCase().includes('аренд')
         };
-    }, [summary, user]);
+    }, [summary]);
 
-    // Сортировка транзакций для Истории
     const sortedAndGroupedTransactions = useMemo(() => {
         if (!summary || !summary.transactions) return [];
+
         const sorted = [...summary.transactions].sort((a, b) => {
             const dateA = new Date(a.transactionDate).getTime();
             const dateB = new Date(b.transactionDate).getTime();
@@ -206,103 +215,78 @@ const PortfolioItemDetails = () => {
     }, [summary]);
 
     // ==========================================
-    // СВОДКА ПО ПЕРИОДАМ (Таблица)
+    // СВОДКА ПО ПЕРИОДАМ (ТОЛЬКО РЕАЛЬНЫЕ ДАННЫЕ)
+    // ==========================================
+    // ==========================================
+    // СВОДКА ПО ПЕРИОДАМ (ТОЛЬКО РЕАЛЬНЫЕ ДАННЫЕ)
     // ==========================================
     const hierarchicalData = useMemo(() => {
-        if (!summary) return [];
+        if (!summary || !summary.transactions) return [];
         const tree = {};
 
-        const addRecord = (dateStr, amount, currencyParam, type, category, txText) => {
+        // Вспомогательная функция для добавления записи в дерево (год -> месяц -> день)
+        const addRecord = (dateStr, amount, currencyParam, type, category) => {
             if (!dateStr) return;
-            const parts = dateStr.split('-');
-            if (parts.length !== 3) return;
+            const [y, m, d] = dateStr.split('T')[0].split('-');
+            const monthIdx = parseInt(m, 10).toString();
+            const dayIdx = parseInt(d, 10).toString();
 
-            const y = parts[0];
-            const m = parseInt(parts[1], 10).toString();
-            const d = parseInt(parts[2], 10).toString();
-
-            const isRentMarker = txText.startsWith('🔵');
-            const isSaleMarker = txText.startsWith('🟢');
-
-            const val = (isRentMarker || isSaleMarker) ? 0 : (convertPrice ? convertPrice(Number(amount), currencyParam || 'USD') : Number(amount));
-            const isIncome = type === 'INCOME';
+            const val = convertPrice ? convertPrice(Number(amount), currencyParam || 'USD') : Number(amount);
+            const isInc = type === 'INCOME';
 
             if (!tree[y]) tree[y] = { year: y, income: 0, expense: 0, net: 0, months: {} };
-            if (!tree[y].months[m]) tree[y].months[m] = { month: m, income: 0, expense: 0, net: 0, days: {} };
-            if (!tree[y].months[m].days[d]) {
-                tree[y].months[m].days[d] = {
-                    day: d, income: 0, expense: 0, net: 0, count: 0,
-                    hasPurchase: false, hasSale: false, hasRentStart: false
-                };
+            if (!tree[y].months[monthIdx]) tree[y].months[monthIdx] = { month: monthIdx, income: 0, expense: 0, net: 0, days: {} };
+            if (!tree[y].months[monthIdx].days[dayIdx]) {
+                tree[y].months[monthIdx].days[dayIdx] = { day: dayIdx, income: 0, expense: 0, net: 0, count: 0, hasPurchase: false, hasSale: false };
             }
 
-            tree[y].income += isIncome ? val : 0;
-            tree[y].expense += isIncome ? 0 : val;
-            tree[y].months[m].income += isIncome ? val : 0;
-            tree[y].months[m].expense += isIncome ? 0 : val;
-            tree[y].months[m].days[d].income += isIncome ? val : 0;
-            tree[y].months[m].days[d].expense += isIncome ? 0 : val;
+            tree[y].income += isInc ? val : 0;
+            tree[y].expense += isInc ? 0 : val;
+            tree[y].months[monthIdx].income += isInc ? val : 0;
+            tree[y].months[monthIdx].expense += isInc ? 0 : val;
+            tree[y].months[monthIdx].days[dayIdx].income += isInc ? val : 0;
+            tree[y].months[monthIdx].days[dayIdx].expense += isInc ? val : 0;
+            tree[y].months[monthIdx].days[dayIdx].count += 1;
 
-            if (!isRentMarker && !isSaleMarker) tree[y].months[m].days[d].count += 1;
-
-            if (category === 'PURCHASE') tree[y].months[m].days[d].hasPurchase = true;
-            if (isSaleMarker || category === 'SALE_PROCEEDS') tree[y].months[m].days[d].hasSale = true;
-            if (isRentMarker) tree[y].months[m].days[d].hasRentStart = true;
+            if (category === 'PURCHASE') tree[y].months[monthIdx].days[dayIdx].hasPurchase = true;
+            if (category === 'SALE_PROCEEDS') tree[y].months[monthIdx].days[dayIdx].hasSale = true;
         };
 
-        // ВАЖНО: Добавляем виртуальную запись о покупке
-        const hasPurchaseTransaction = (summary.transactions || []).some(tx => tx.category === 'PURCHASE');
-        if (!stats.isTenant && stats.effectivePurchasePrice > 0 && !hasPurchaseTransaction) {
-            // Строго дата из БД
-            const pDate = (summary.purchaseDate || summary.itemCreatedAt || summary.createdAt)?.split('T')[0];
-            if (pDate) {
-                addRecord(pDate, stats.effectivePurchasePrice, 'USD', 'EXPENSE', 'PURCHASE', 'Покупка объекта');
-            }
-        }
+        // МЫ УБРАЛИ ОТСЮДА АВТОМАТИЧЕСКИЕ ВЫЗОВЫ addRecord ДЛЯ ПОКУПКИ
+        // Теперь только то, что реально было в транзакциях:
+        summary.transactions.forEach(tx => {
+            addRecord(tx.transactionDate, tx.amount, tx.currency || 'USD', tx.type, tx.category);
+        });
 
-        // Для арендатора: Сводка периодов видна сразу с меткой "Начало заезда"
-        if (stats.isTenant) {
-            const rentStartTx = (summary.transactions || []).find(tx => (tx.description || tx.title || '').startsWith('🔵'));
-            if (!rentStartTx && summary.createdAt) {
-                const rDate = summary.createdAt.split('T')[0];
-                addRecord(rDate, 0, 'USD', 'EXPENSE', 'OTHER', '🔵 Начало заезда');
-            }
-        }
-
-        if (summary.transactions) {
-            summary.transactions.forEach(tx => {
-                const txText = tx.description || tx.title || '';
-                const dateStr = tx.transactionDate ? tx.transactionDate.split('T')[0] : '';
-                addRecord(dateStr, tx.amount, tx.currency || 'USD', tx.type, tx.category, txText);
-            });
-        }
-
+        // Превращаем объект в массив и сортируем по датам (от новых к старым)
         return Object.values(tree).map(yData => {
             yData.net = yData.income - yData.expense;
             yData.months = Object.values(yData.months).map(mData => {
                 mData.net = mData.income - mData.expense;
-                mData.days = Object.values(mData.days).map(dData => {
-                    dData.net = dData.income - dData.expense;
-                    return dData;
-                }).sort((a, b) => Number(b.day) - Number(a.day));
+                mData.days = Object.values(mData.days).sort((a, b) => Number(b.day) - Number(a.day));
                 return mData;
             }).sort((a, b) => Number(b.month) - Number(a.month));
             return yData;
         }).sort((a, b) => Number(b.year) - Number(a.year));
-    }, [summary, convertPrice, currency, stats]);
+    }, [summary, convertPrice]); // Убрали лишние зависимости, оставили только нужные
+
+    useEffect(() => {
+        if (hierarchicalData.length > 0) {
+            const latestYear = hierarchicalData[0].year;
+            const latestMonth = hierarchicalData[0].months[0]?.month;
+            setExpandedYears({ [latestYear]: true });
+            if (latestMonth) {
+                setExpandedMonths({ [`${latestYear}-${latestMonth}`]: true });
+            }
+        }
+    }, [hierarchicalData]);
 
     const toggleYear = (y) => setExpandedYears(prev => ({ ...prev, [y]: !prev[y] }));
     const toggleMonth = (y, m) => setExpandedMonths(prev => ({ ...prev, [`${y}-${m}`]: !prev[`${y}-${m}`] }));
 
     const formatDateSeparator = (dateString) => {
-        const todayDate = new Date();
-        const yesterdayDate = new Date();
-        yesterdayDate.setDate(yesterdayDate.getDate() - 1);
-        const today = todayDate.toISOString().split('T')[0];
-        const yesterday = yesterdayDate.toISOString().split('T')[0];
-
-        if (dateString === today) return 'Сегодня';
-        if (dateString === yesterday) return 'Вчера';
+        if (dateString === todayDateString) return 'Сегодня';
+        if (dateString === getLocalDateString(-1)) return 'Вчера';
         const parts = dateString.split('-');
         if (parts.length === 3) return `${parts[2]}.${parts[1]}.${parts[0]}`;
         return dateString;
@@ -321,13 +305,7 @@ const PortfolioItemDetails = () => {
         return `${converted.toLocaleString()} ${symbol}`;
     };
 
-    // ==========================================
-    // МАТЕМАТИКА ЭКОНОМИКИ
-    // ==========================================
-    // Так как stats.expense теперь включает в себя цену покупки (для покупателя), 
-    // используем её напрямую или добавляем базу только если продан
-    const basePrice = Number(summary?.purchasePrice || 0);
-    const totalInvestedForCalc = stats.isSold ? (basePrice + stats.expense) : stats.expense;
+    const totalInvestedForCalc = stats.capitalExpense + stats.operatingExpense;
 
     const taxAmount = ((settings.targetAmount || 0) * (summary?.exitTaxRate || 0)) / 100;
     const netDebtSale = totalInvestedForCalc - stats.income;
@@ -337,15 +315,6 @@ const PortfolioItemDetails = () => {
 
     const targetMonthlyRent = Number(settings.targetAmount || 0);
     const monthsToBreakEven = targetMonthlyRent > 0 ? (netDebtSale > 0 ? (netDebtSale / targetMonthlyRent) : 0) : 0;
-
-    const getCostLabel = () => {
-        if (stats.isSold) return 'Продано за';
-        if (stats.isTenant) return 'Оценка объекта';
-        if (stats.isRentStrategy && !stats.isTenant) return 'Куплено за'; 
-        return 'Куплено за';
-    };
-
-    const displayCostValue = stats.isSold && stats.income > 0 ? stats.income : (stats.effectivePurchasePrice > 0 ? stats.effectivePurchasePrice : 0);
 
     if (loading) return <div className="p-loader">Загрузка аналитики...</div>;
     if (!summary) return <div>Объект не найден</div>;
@@ -411,16 +380,12 @@ const PortfolioItemDetails = () => {
 
                             <div className="stats-mini-row" style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid #333', paddingTop: '15px' }}>
                                 <div className="stat-item" style={{ textAlign: 'left' }}>
-                                    <span style={{ color: '#8e8e93', fontSize: '14px', display: 'block' }}>
-                                        {getCostLabel()}
-                                    </span>
-                                    <span style={{ fontWeight: 'bold' }}>{formatPrice(displayCostValue)}</span>
+                                    <span style={{ color: '#8e8e93', fontSize: '14px', display: 'block' }}>Капитальные расходы</span>
+                                    <span style={{ fontWeight: 'bold' }}>{formatPrice(stats.capitalExpense)}</span>
                                 </div>
                                 <div className="stat-item" style={{ textAlign: 'center' }}>
-                                    <span style={{ color: '#8e8e93', fontSize: '14px', display: 'block' }}>
-                                        {stats.isTenant ? 'Мои траты (аренда)' : 'Расходы'}
-                                    </span>
-                                    <span style={{ fontWeight: 'bold', color: '#ff453a' }}>{formatPrice(stats.expense)}</span>
+                                    <span style={{ color: '#8e8e93', fontSize: '14px', display: 'block' }}>Операционные расходы</span>
+                                    <span style={{ fontWeight: 'bold', color: '#ff453a' }}>{formatPrice(stats.operatingExpense)}</span>
                                 </div>
                                 <div className="stat-item" style={{ textAlign: 'right' }}>
                                     <span style={{ color: '#8e8e93', fontSize: '14px', display: 'block' }}>Доход</span>
@@ -429,8 +394,7 @@ const PortfolioItemDetails = () => {
                             </div>
                         </div>
 
-                        {/* СКРЫВАЕМ БЛОКИ СТРАТЕГИИ И ЭКОНОМИКИ ЕСЛИ ОБЪЕКТ ПРОДАН ИЛИ ПОЛЬЗОВАТЕЛЬ АРЕНДАТОР */}
-                        {(!stats.isSold && !stats.isTenant) && (
+                        {(!stats.isSold) && (
                             <>
                                 <div className="card-glass economy-card" style={{ marginTop: '20px' }}>
                                     {stats.isRentStrategy ? (
@@ -475,7 +439,7 @@ const PortfolioItemDetails = () => {
                                             </div>
 
                                             <p style={{ color: '#a1a1aa', fontSize: '12px', margin: '0 0 15px 0', lineHeight: '1.4' }}>
-                                                Расчет для вашей Целевой цены продажи с учетом стоимости объекта и всех расходов.
+                                                Расчет для вашей Целевой цены продажи с учетом всех ваших расходов.
                                             </p>
 
                                             {settings.targetAmount > 0 ? (
@@ -507,7 +471,7 @@ const PortfolioItemDetails = () => {
 
                                             <div style={{ marginTop: '15px', background: 'rgba(255, 159, 10, 0.1)', borderLeft: '3px solid #ff9f0a', padding: '10px 15px', borderRadius: '0 8px 8px 0' }}>
                                                 <div style={{ fontSize: '13px', color: '#ff9f0a', fontWeight: '600', marginBottom: '4px' }}>Точка безубыточности: {formatPrice(breakEvenPriceSale)}</div>
-                                                <div style={{ fontSize: '11px', color: '#a1a1aa' }}>Минимальная цена продажи, чтобы после уплаты налога ({summary.exitTaxRate}%) отбить стоимость объекта и все расходов.</div>
+                                                <div style={{ fontSize: '11px', color: '#a1a1aa' }}>Минимальная цена продажи, чтобы после уплаты налога ({summary.exitTaxRate}%) отбить все расходы.</div>
                                             </div>
                                         </>
                                     )}
@@ -540,7 +504,6 @@ const PortfolioItemDetails = () => {
                     </div>
 
                     <div className="transactions-section">
-                        {/* Форма добавления операции: заблокирована если объект ПРОДАН */}
                         {!stats.isSold && (
                             <div className="card-glass add-tx-card">
                                 <h3 className="card-title">Добавить операцию</h3>
@@ -560,8 +523,13 @@ const PortfolioItemDetails = () => {
                                         </select>
                                     </div>
                                     <div className="form-row" style={{ display: 'flex', gap: '10px' }}>
-                                        <select className="dark-select" value={transaction.category} onChange={e => setTransaction({ ...transaction, category: e.target.value })} style={{ flex: 2 }}>
-                                            {!stats.isTenant && <option value="PURCHASE">Покупка объекта</option>}
+                                        <select
+                                            className="dark-select"
+                                            value={transaction.category}
+                                            onChange={e => setTransaction({ ...transaction, category: e.target.value })}
+                                            style={{ flex: 2 }}
+                                        >
+                                            <option value="PURCHASE">Покупка объекта</option>
                                             <option value="MATERIALS">Материалы</option>
                                             <option value="LABOR">Рабочие / Услуги</option>
                                             <option value="TAX">Налоги / Сборы</option>
@@ -570,7 +538,16 @@ const PortfolioItemDetails = () => {
                                             <option value="SALE_PROCEEDS">Выручка от продажи</option>
                                             <option value="OTHER">Прочее</option>
                                         </select>
-                                        <input className="dark-input" type="date" max={todayDateString} value={transaction.transactionDate} onChange={e => setTransaction({ ...transaction, transactionDate: e.target.value })} required style={{ flex: 1 }} title="Дата операции" />
+                                        <input
+                                            className="dark-input"
+                                            type="date"
+                                            min={minTransactionDate}
+                                            max={todayDateString}
+                                            value={transaction.transactionDate}
+                                            onChange={e => setTransaction({ ...transaction, transactionDate: e.target.value })}
+                                            required
+                                            style={{ flex: 1 }}
+                                        />
                                     </div>
                                     <button type="submit" className="btn-add-tx" style={{ background: '#007aff', color: '#fff', border: 'none', padding: '12px', borderRadius: '10px', fontWeight: 'bold', cursor: 'pointer', marginTop: '5px' }}>
                                         Записать операцию
@@ -596,38 +573,10 @@ const PortfolioItemDetails = () => {
                                             );
                                         }
 
-                                        const txText = item.description || item.title || '';
-                                        const isSaleMarker = txText.startsWith('🟢');
-                                        const isRentMarker = txText.startsWith('🔵');
-
-                                        if (isSaleMarker) {
-                                            return (
-                                                <div key={item.id} style={{ margin: '10px 0', padding: '12px 15px', background: 'rgba(48, 209, 88, 0.1)', borderLeft: '4px solid #30d158', borderRadius: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                                    <div>
-                                                        <span style={{ color: '#30d158', fontWeight: 'bold', fontSize: '15px' }}>{txText}</span>
-                                                        <span style={{ fontSize: '12px', color: '#8e8e93', display: 'block', marginTop: '4px' }}>Сделка завершена • {item.createdAt ? formatTime(item.createdAt) : ''}</span>
-                                                    </div>
-                                                    <span style={{ color: '#32d74b', fontWeight: 'bold', fontSize: '16px' }}>+{formatPrice(item.amount)}</span>
-                                                </div>
-                                            );
-                                        }
-
-                                        if (isRentMarker) {
-                                            return (
-                                                <div key={item.id} style={{ margin: '10px 0', padding: '12px 15px', background: 'rgba(10, 132, 255, 0.1)', borderLeft: '4px solid #0a84ff', borderRadius: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                                    <div>
-                                                        <span style={{ color: '#0a84ff', fontWeight: 'bold', fontSize: '15px' }}>{txText}</span>
-                                                        <span style={{ fontSize: '12px', color: '#8e8e93', display: 'block', marginTop: '4px' }}>Фиксация договора • {item.createdAt ? formatTime(item.createdAt) : ''}</span>
-                                                    </div>
-                                                    <span style={{ fontSize: '20px' }}>🔑</span>
-                                                </div>
-                                            );
-                                        }
-
                                         return (
                                             <div key={item.id} className="tx-item" style={{ display: 'flex', justifyContent: 'space-between', padding: '12px 10px', borderBottom: '1px solid #333', borderRadius: '8px', transition: 'background 0.2s', cursor: 'default' }}>
                                                 <div className="tx-main">
-                                                    <span className="tx-title" style={{ fontWeight: '500', display: 'block', fontSize: '15px' }}>{txText}</span>
+                                                    <span className="tx-title" style={{ fontWeight: '500', display: 'block', fontSize: '15px' }}>{item.description || item.title || ''}</span>
                                                     <span style={{ fontSize: '12px', color: '#8e8e93', display: 'flex', gap: '6px', alignItems: 'center', marginTop: '4px' }}>
                                                         <span style={{ background: '#3a3a3c', padding: '2px 6px', borderRadius: '4px', fontSize: '10px' }}>
                                                             {categoryMap[item.category] || item.category}
@@ -713,7 +662,6 @@ const PortfolioItemDetails = () => {
 
                                                         {dData.hasSale && <span style={{ background: '#30d158', color: '#000', padding: '2px 6px', borderRadius: '4px', fontSize: '10px', marginLeft: '5px', fontWeight: 'bold' }}>Продажа объекта</span>}
                                                         {dData.hasPurchase && <span style={{ background: '#007aff', color: 'white', padding: '2px 6px', borderRadius: '4px', fontSize: '10px', marginLeft: '5px' }}>Покупка объекта</span>}
-                                                        {dData.hasRentStart && <span style={{ background: '#0a84ff', color: 'white', padding: '2px 6px', borderRadius: '4px', fontSize: '10px', marginLeft: '5px' }}>{stats.isTenant ? 'Начало заезда' : 'Начало сдачи'}</span>}
                                                     </div>
                                                     <div style={{ color: '#32d74b', textAlign: 'right', opacity: 0.8 }}>{dData.income > 0 ? `+${formatPrice(dData.income)}` : ''}</div>
                                                     <div style={{ color: '#ff453a', textAlign: 'right', opacity: 0.8 }}>{dData.expense > 0 ? `-${formatPrice(dData.expense)}` : ''}</div>

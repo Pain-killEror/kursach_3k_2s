@@ -22,6 +22,7 @@ public record PortfolioSummaryDto(
     BigDecimal expectedProfit,
     BigDecimal purchasePrice,
     BigDecimal additionalInvestments,
-    List<PortfolioTransaction> transactions
+    List<PortfolioTransaction> transactions,
+    boolean isOriginalOwner
 ) {
 }
