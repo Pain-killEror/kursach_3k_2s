@@ -2,6 +2,7 @@ import React, { useEffect, useState, useMemo, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import api from '../api/axios';
 import { useCurrency } from '../context/CurrencyContext';
+import html2pdf from 'html2pdf.js';
 import './PortfolioItemDetails.css';
 import './Home.css';
 
@@ -138,23 +139,26 @@ const PortfolioItemDetails = () => {
         } catch (err) { alert("Ошибка при сохранении настроек"); }
     };
 
-    // ==========================================
-    // ЛОГИКА И СТАТИСТИКА
-    // ==========================================
+    // Вспомогательная функция для форматирования цен
+    const formatPrice = (amount) => {
+        const val = Number(amount) || 0;
+        const converted = convertPrice ? convertPrice(val, 'USD') : val;
+        const symbol = currency === 'BYN' ? 'Br' : '$';
+        return `${converted.toLocaleString()} ${symbol}`;
+    };
+
     // ==========================================
     // ЛОГИКА И СТАТИСТИКА (ФИНАНСОВЫЙ РЕЗУЛЬТАТ)
     // ==========================================
     const stats = useMemo(() => {
-        // Если данных еще нет, возвращаем пустые значения
         if (!summary) return { balance: 0, income: 0, expense: 0, capitalExpense: 0, capitalExpenseTotal: 0, effectivePurchasePrice: 0, operatingExpense: 0, isSold: false, isOriginalOwner: false, isRentStrategy: false };
 
-        let income = 0;           // Общий доход
-        let operatingExpense = 0; // Текущие расходы (ремонт, налоги и т.д.)
-        let capitalExpense = 0;   // Реальные расходы на покупку (только реальные PURCHASE-транзакции)
+        let income = 0;
+        let operatingExpense = 0;
+        let capitalExpense = 0;
         let isSold = summary.status === 'SOLD' || summary.objectStatus === 'SOLD';
         const isOriginalOwner = !!summary.isOriginalOwner;
 
-        // 1. Считаем только РЕАЛЬНЫЕ транзакции из базы данных
         (summary.transactions || []).forEach(tx => {
             if (tx.type === 'INCOME') {
                 income += Number(tx.amount || 0);
@@ -164,28 +168,17 @@ const PortfolioItemDetails = () => {
             }
         });
 
-        // 2. ЭФФЕКТИВНАЯ ЦЕНА ПОКУПКИ (только для покупателя и только если нет ручной PURCHASE)
         const hasManualPurchase = (summary.transactions || []).some(tx => tx.type === 'EXPENSE' && tx.category === 'PURCHASE');
         const purchasePrice = Number(summary.investedAmount || summary.purchasePrice || 0);
         const effectivePurchasePrice = (!isOriginalOwner && !hasManualPurchase && purchasePrice > 0) ? purchasePrice : 0;
         const capitalExpenseTotal = capitalExpense + effectivePurchasePrice;
 
-        // Итоговые суммы по ролям:
-        // - Продавец: баланс = Доходы - Расходы на ремонт/услуги (PURCHASE не вычитается)
-        // - Покупатель: баланс = Доходы - (Цена покупки + Расходы)
         const totalExpense = isOriginalOwner ? operatingExpense : (operatingExpense + capitalExpenseTotal);
         const balance = income - totalExpense;
 
         return {
-            balance,
-            income,
-            expense: totalExpense,
-            capitalExpense,
-            capitalExpenseTotal,
-            effectivePurchasePrice,
-            operatingExpense,
-            isSold,
-            isOriginalOwner,
+            balance, income, expense: totalExpense, capitalExpense, capitalExpenseTotal,
+            effectivePurchasePrice, operatingExpense, isSold, isOriginalOwner,
             isRentStrategy: (summary.strategyName || '').toLowerCase().includes('аренд')
         };
     }, [summary]);
@@ -213,17 +206,10 @@ const PortfolioItemDetails = () => {
         return grouped;
     }, [summary]);
 
-    // ==========================================
-    // СВОДКА ПО ПЕРИОДАМ (ТОЛЬКО РЕАЛЬНЫЕ ДАННЫЕ)
-    // ==========================================
-    // ==========================================
-    // СВОДКА ПО ПЕРИОДАМ (ТОЛЬКО РЕАЛЬНЫЕ ДАННЫЕ)
-    // ==========================================
     const hierarchicalData = useMemo(() => {
         if (!summary || !summary.transactions) return [];
         const tree = {};
 
-        // Вспомогательная функция для добавления записи в дерево (год -> месяц -> день)
         const addRecord = (dateStr, amount, currencyParam, type, category) => {
             if (!dateStr) return;
             const [y, m, d] = dateStr.split('T')[0].split('-');
@@ -251,13 +237,10 @@ const PortfolioItemDetails = () => {
             if (category === 'SALE_PROCEEDS') tree[y].months[monthIdx].days[dayIdx].hasSale = true;
         };
 
-        // МЫ УБРАЛИ ОТСЮДА АВТОМАТИЧЕСКИЕ ВЫЗОВЫ addRecord ДЛЯ ПОКУПКИ
-        // Теперь только то, что реально было в транзакциях:
         summary.transactions.forEach(tx => {
             addRecord(tx.transactionDate, tx.amount, tx.currency || 'USD', tx.type, tx.category);
         });
 
-        // Превращаем объект в массив и сортируем по датам (от новых к старым)
         return Object.values(tree).map(yData => {
             yData.net = yData.income - yData.expense;
             yData.months = Object.values(yData.months).map(mData => {
@@ -267,18 +250,174 @@ const PortfolioItemDetails = () => {
             }).sort((a, b) => Number(b.month) - Number(a.month));
             return yData;
         }).sort((a, b) => Number(b.year) - Number(a.year));
-    }, [summary, convertPrice]); // Убрали лишние зависимости, оставили только нужные
+    }, [summary, convertPrice]);
 
-    useEffect(() => {
-        if (hierarchicalData.length > 0) {
-            const latestYear = hierarchicalData[0].year;
-            const latestMonth = hierarchicalData[0].months[0]?.month;
-            setExpandedYears({ [latestYear]: true });
-            if (latestMonth) {
-                setExpandedMonths({ [`${latestYear}-${latestMonth}`]: true });
+    // Дополнительные расчеты для стратегий
+    const totalInvestedForCalc = stats.isOriginalOwner ? stats.operatingExpense : (stats.capitalExpenseTotal + stats.operatingExpense);
+    const taxAmount = ((settings.targetAmount || 0) * (summary?.exitTaxRate || 0)) / 100;
+    const netDebtSale = totalInvestedForCalc - stats.income;
+    const expectedProfitSale = (settings.targetAmount || 0) - taxAmount - totalInvestedForCalc + stats.income;
+    const taxRateMult = 1 - ((summary?.exitTaxRate || 0) / 100);
+    const breakEvenPriceSale = taxRateMult > 0 ? (netDebtSale > 0 ? (netDebtSale / taxRateMult) : 0) : 0;
+
+    const targetMonthlyRent = Number(settings.targetAmount || 0);
+    const monthsToBreakEven = targetMonthlyRent > 0 ? (netDebtSale > 0 ? (netDebtSale / targetMonthlyRent) : 0) : 0;
+
+
+    // ==========================================
+    // ФУНКЦИЯ ГЕНЕРАЦИИ ЧИСТОГО PDF ОТЧЕТА
+    // ==========================================
+    const handleDownloadPdf = () => {
+        // Создаем временный контейнер (div) в памяти
+        const container = document.createElement('div');
+        container.style.padding = '30px';
+        container.style.fontFamily = 'Arial, sans-serif';
+        container.style.color = '#000'; // Строго черный текст
+        container.style.backgroundColor = '#fff'; // Строго белый фон
+
+        // Задаем базовые стили для ячеек таблицы
+        const thStyle = 'padding: 12px; border: 1px solid #ccc; background-color: #f4f4f4; text-align: left; font-weight: bold; width: 45%; font-size: 14px;';
+        const tdStyle = 'padding: 12px; border: 1px solid #ccc; text-align: left; font-size: 14px;';
+
+        // Собираем HTML-строку отчета
+        let htmlStr = `
+            <div style="text-align: center; margin-bottom: 40px; border-bottom: 2px solid #000; padding-bottom: 20px;">
+                <h1 style="margin: 0 0 10px 0; font-size: 24px; text-transform: uppercase;">Финансовый отчет по объекту</h1>
+                <h2 style="margin: 0 0 5px 0; color: #333; font-size: 20px;">${summary?.objectTitle || 'Объект без названия'}</h2>
+                <p style="margin: 0; color: #666; font-size: 14px;">${summary?.objectAddress || 'Адрес не указан'}</p>
+            </div>
+
+            <h3 style="margin-bottom: 10px; font-size: 16px;">Общая финансовая сводка</h3>
+            <table style="width: 100%; border-collapse: collapse; margin-bottom: 30px;">
+                <tr>
+                    <td style="${thStyle}">Статус</td>
+                    <td style="${tdStyle}">${stats.isSold ? 'Продано' : (summary?.objectCategory || 'В портфеле')}</td>
+                </tr>
+                <tr>
+                    <td style="${thStyle}">Текущий финансовый результат (Баланс)</td>
+                    <td style="${tdStyle}; font-weight: bold; font-size: 16px; color: ${stats.balance >= 0 ? '#10b981' : '#ef4444'};">
+                        ${stats.balance > 0 ? '+' : ''}${formatPrice(stats.balance)}
+                    </td>
+                </tr>
+                <tr>
+                    <td style="${thStyle}">Общие капитальные расходы</td>
+                    <td style="${tdStyle}">${formatPrice(stats.capitalExpenseTotal)}</td>
+                </tr>
+                <tr>
+                    <td style="${thStyle}">Операционные расходы (ремонт, услуги)</td>
+                    <td style="${tdStyle}">${formatPrice(stats.operatingExpense)}</td>
+                </tr>
+                <tr>
+                    <td style="${thStyle}">Суммарный доход</td>
+                    <td style="${tdStyle}">${formatPrice(stats.income)}</td>
+                </tr>
+            </table>
+        `;
+
+        if (!stats.isSold) {
+            htmlStr += `
+                <h3 style="margin-bottom: 10px; font-size: 16px;">Стратегия инвестирования</h3>
+                <table style="width: 100%; border-collapse: collapse; margin-bottom: 30px;">
+                    <tr>
+                        <td style="${thStyle}">Выбранная стратегия</td>
+                        <td style="${tdStyle}">${summary?.strategyName || 'Не установлена'}</td>
+                    </tr>
+             `;
+            if (stats.isRentStrategy) {
+                htmlStr += `
+                    <tr>
+                        <td style="${thStyle}">Целевая ставка аренды (в месяц)</td>
+                        <td style="${tdStyle}">${targetMonthlyRent > 0 ? formatPrice(targetMonthlyRent) : 'Не задана'}</td>
+                    </tr>
+                    <tr>
+                        <td style="${thStyle}">Расчетный срок окупаемости</td>
+                        <td style="${tdStyle}">${monthsToBreakEven > 0 ? Math.ceil(monthsToBreakEven) + ' мес.' : 'Уже окупилось!'}</td>
+                    </tr>
+                 `;
+            } else {
+                htmlStr += `
+                    <tr>
+                        <td style="${thStyle}">Целевая цена продажи</td>
+                        <td style="${tdStyle}">${settings.targetAmount > 0 ? formatPrice(settings.targetAmount) : 'Не задана'}</td>
+                    </tr>
+                    <tr>
+                        <td style="${thStyle}">Прогнозируемый налог (${summary?.exitTaxRate || 0}%)</td>
+                        <td style="${tdStyle}">${formatPrice(taxAmount)}</td>
+                    </tr>
+                    <tr>
+                        <td style="${thStyle}">Точка безубыточности</td>
+                        <td style="${tdStyle}">${formatPrice(breakEvenPriceSale)}</td>
+                    </tr>
+                    <tr>
+                        <td style="${thStyle}">Ожидаемая чистая прибыль</td>
+                        <td style="${tdStyle}; font-weight: bold; color: ${expectedProfitSale >= 0 ? '#10b981' : '#ef4444'};">
+                            ${expectedProfitSale >= 0 ? '+' : ''}${formatPrice(expectedProfitSale)}
+                        </td>
+                    </tr>
+                 `;
             }
+            htmlStr += `</table>`;
         }
-    }, [hierarchicalData]);
+
+        // Берем последние 15 транзакций для истории
+        if (summary?.transactions && summary.transactions.length > 0) {
+            htmlStr += `
+               <h3 style="margin-bottom: 10px; font-size: 16px;">История последних операций</h3>
+               <table style="width: 100%; border-collapse: collapse; font-size: 12px;">
+                   <thead>
+                       <tr>
+                           <th style="padding: 10px; border: 1px solid #ccc; background-color: #f4f4f4; text-align: left;">Дата</th>
+                           <th style="padding: 10px; border: 1px solid #ccc; background-color: #f4f4f4; text-align: left;">Категория</th>
+                           <th style="padding: 10px; border: 1px solid #ccc; background-color: #f4f4f4; text-align: left;">Описание</th>
+                           <th style="padding: 10px; border: 1px solid #ccc; background-color: #f4f4f4; text-align: right;">Сумма</th>
+                       </tr>
+                   </thead>
+                   <tbody>
+            `;
+
+            const recentTxs = [...summary.transactions]
+                .sort((a, b) => new Date(b.transactionDate).getTime() - new Date(a.transactionDate).getTime())
+                .slice(0, 15);
+
+            recentTxs.forEach(tx => {
+                const txDate = tx.transactionDate ? tx.transactionDate.split('T')[0].split('-').reverse().join('.') : '';
+                const txCat = categoryMap[tx.category] || tx.category;
+                const txAmt = `${tx.type === 'INCOME' ? '+' : '-'}${formatPrice(tx.amount)}`;
+                const amtColor = tx.type === 'INCOME' ? '#10b981' : '#ef4444';
+
+                htmlStr += `
+                   <tr>
+                       <td style="padding: 10px; border: 1px solid #ccc;">${txDate}</td>
+                       <td style="padding: 10px; border: 1px solid #ccc;">${txCat}</td>
+                       <td style="padding: 10px; border: 1px solid #ccc;">${tx.title || ''}</td>
+                       <td style="padding: 10px; border: 1px solid #ccc; text-align: right; color: ${amtColor}; font-weight: bold;">${txAmt}</td>
+                   </tr>
+                `;
+            });
+            htmlStr += `</tbody></table>`;
+        }
+
+        // Подвал отчета
+        const reportDate = new Date().toLocaleDateString('ru-RU');
+        htmlStr += `
+            <div style="margin-top: 50px; font-size: 12px; color: #888; text-align: right;">
+                <p>Сгенерировано в системе InvestHub: ${reportDate}</p>
+            </div>
+        `;
+
+        container.innerHTML = htmlStr;
+
+        // Конфигурация html2pdf
+        const opt = {
+            margin: 0.5,
+            filename: `Отчет_${summary?.objectTitle || 'объект'}.pdf`,
+            image: { type: 'jpeg', quality: 0.98 },
+            html2canvas: { scale: 2 }, // Фон будет белый по умолчанию
+            jsPDF: { unit: 'in', format: 'a4', orientation: 'portrait' }
+        };
+
+        html2pdf().set(opt).from(container).save();
+    };
 
     const toggleYear = (y) => setExpandedYears(prev => ({ ...prev, [y]: !prev[y] }));
     const toggleMonth = (y, m) => setExpandedMonths(prev => ({ ...prev, [`${y}-${m}`]: !prev[`${y}-${m}`] }));
@@ -296,24 +435,6 @@ const PortfolioItemDetails = () => {
         const date = new Date(isoString);
         return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     };
-
-    const formatPrice = (amount) => {
-        const val = Number(amount) || 0;
-        const converted = convertPrice ? convertPrice(val, 'USD') : val;
-        const symbol = currency === 'BYN' ? 'Br' : '$';
-        return `${converted.toLocaleString()} ${symbol}`;
-    };
-
-    const totalInvestedForCalc = stats.isOriginalOwner ? stats.operatingExpense : (stats.capitalExpenseTotal + stats.operatingExpense);
-
-    const taxAmount = ((settings.targetAmount || 0) * (summary?.exitTaxRate || 0)) / 100;
-    const netDebtSale = totalInvestedForCalc - stats.income;
-    const expectedProfitSale = (settings.targetAmount || 0) - taxAmount - totalInvestedForCalc + stats.income;
-    const taxRateMult = 1 - ((summary?.exitTaxRate || 0) / 100);
-    const breakEvenPriceSale = taxRateMult > 0 ? (netDebtSale > 0 ? (netDebtSale / taxRateMult) : 0) : 0;
-
-    const targetMonthlyRent = Number(settings.targetAmount || 0);
-    const monthsToBreakEven = targetMonthlyRent > 0 ? (netDebtSale > 0 ? (netDebtSale / targetMonthlyRent) : 0) : 0;
 
     if (loading) return <div className="p-loader">Загрузка аналитики...</div>;
     if (!summary) return <div>Объект не найден</div>;
@@ -351,9 +472,13 @@ const PortfolioItemDetails = () => {
             </header>
 
             <main className="portfolio-container" style={{ maxWidth: '1200px', margin: '0 auto', padding: '5px 20px' }}>
-                <div className="portfolio-navigation" style={{ marginBottom: '15px', marginTop: '0' }}>
+                <div className="portfolio-navigation" style={{ marginBottom: '15px', marginTop: '0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <button className="btn-back" onClick={() => navigate('/portfolio')} style={{ background: '#2c2c2e', padding: '8px 16px', borderRadius: '10px', color: '#fff', border: 'none', cursor: 'pointer' }}>
                         ← К списку объектов
+                    </button>
+                    {/* КНОПКА ГЕНЕРАЦИИ PDF */}
+                    <button className="btn-pdf" onClick={handleDownloadPdf} style={{ background: '#ff453a', padding: '8px 16px', borderRadius: '10px', color: '#fff', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', fontWeight: 'bold' }}>
+                        📄 Скачать PDF отчет
                     </button>
                 </div>
 
