@@ -240,16 +240,12 @@
 
 .adv-toggle-btn.partial-active {
   background-color: #d0e6ff;
-  /* Тускло-голубой цвет */
   color: #0056b3;
-  /* Темно-голубой текст */
   border: 1px solid #8ab4f8;
-  /* Мягкая голубая рамка */
 }
 
 .adv-toggle-btn.partial-active:hover {
   background-color: #baddff;
-  /* Чуть темнее при наведении */
 }
 
 /* Кнопка сброса */
@@ -257,7 +253,6 @@
   height: 48px;
   width: 48px;
   flex-shrink: 0;
-  /* Делаем кнопку квадратной */
   padding: 0;
   background: rgba(255, 69, 58, 0.1);
   border: 1px solid rgba(255, 69, 58, 0.2);
@@ -266,12 +261,8 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  /* Строго по центру */
   cursor: pointer;
   transition: all 0.3s;
-
-  /* Если хочешь, чтобы она прижималась вправо к краю экрана, оставь margin-left: auto; 
-     Если хочешь, чтобы стояла вплотную к соседнему селекту — удали эту строку */
   margin-left: auto;
 }
 
@@ -398,7 +389,6 @@
   right: 0;
   bottom: 0;
   background-color: var(--accent-red);
-  /* КРАСНЫЙ (ВЫКЛ) */
   transition: .4s;
   border-radius: 34px;
 }
@@ -418,7 +408,6 @@
 
 input:checked+.slider {
   background-color: var(--accent-green);
-  /* ЗЕЛЕНЫЙ (ВКЛ) */
 }
 
 input:checked+.slider:before {
@@ -480,36 +469,118 @@ input:checked+.slider:before {
   width: 50px;
   height: 50px;
   background-color: #2ecc71;
-  /* Цвет в стиле вашей кнопки "Продать" */
   color: white;
   border: none;
   border-radius: 50%;
   cursor: pointer;
   box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
   z-index: 1000;
-
-  /* Состояние скрытости */
   opacity: 0;
   visibility: hidden;
   transform: translateY(20px);
   transition: opacity 0.3s ease, transform 0.3s ease, visibility 0.3s ease, background-color 0.2s;
-
-  /* Центрируем иконку внутри */
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
-/* Состояние видимости */
 .scroll-to-top-btn.visible {
   opacity: 1;
   visibility: visible;
   transform: translateY(0);
 }
 
-/* Наведение мыши */
 .scroll-to-top-btn:hover {
   background-color: #27ae60;
   transform: translateY(-3px) scale(1.05);
   box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
+}
+
+
+/* === SMART BAR (ПАНЕЛЬ СРАВНЕНИЯ) === */
+.compare-bar-container {
+  position: fixed;
+  bottom: 30px;
+  left: 0;
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  z-index: 2000;
+  pointer-events: none;
+  /* Чтобы не перекрывать клики под невидимой частью контейнера */
+}
+
+.compare-bar {
+  pointer-events: auto;
+  /* Включаем клики на самой панели */
+  background: rgba(28, 28, 30, 0.9);
+  backdrop-filter: blur(15px);
+  -webkit-backdrop-filter: blur(15px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 12px 24px;
+  border-radius: 20px;
+  display: flex;
+  align-items: center;
+  gap: 30px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.4);
+  animation: slideInUp 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes slideInUp {
+  from {
+    transform: translateY(100px);
+    opacity: 0;
+  }
+
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.compare-info {
+  color: white;
+  font-size: 15px;
+}
+
+.compare-info strong {
+  color: var(--accent-blue);
+}
+
+.compare-actions {
+  display: flex;
+  gap: 12px;
+}
+
+.btn-clear {
+  background: transparent;
+  border: 1px solid #444;
+  color: #ccc;
+  padding: 8px 16px;
+  border-radius: 10px;
+  cursor: pointer;
+  font-weight: 500;
+  transition: 0.2s;
+}
+
+.btn-clear:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: white;
+}
+
+.btn-go-compare {
+  background: var(--accent-blue);
+  color: white;
+  border: none;
+  padding: 8px 20px;
+  border-radius: 10px;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(0, 122, 255, 0.3);
+  transition: 0.2s;
+}
+
+.btn-go-compare:hover {
+  background: #0063cc;
+  transform: translateY(-1px);
 }

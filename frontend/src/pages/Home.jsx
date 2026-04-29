@@ -88,6 +88,9 @@ const Home = () => {
   const [currentPage, setCurrentPage] = useState(0);
   const [totalPages, setTotalPages] = useState(0);
 
+  // --- СОСТОЯНИЕ СРАВНЕНИЯ ---
+  const [compareList, setCompareList] = useState([]);
+
   // Следим за изменениями выбранных категорий
   useEffect(() => {
     const cats = filters.categories;
@@ -175,6 +178,30 @@ const Home = () => {
   const dropdownRef = useRef(null);
   const hasRestoredScroll = useRef(false);
   const { currency, setCurrency, convertPrice } = useCurrency();
+
+  // --- ЛОГИКА ДОБАВЛЕНИЯ В СРАВНЕНИЕ ---
+  const handleCompareToggle = (obj) => {
+    setCompareList(prev => {
+      const isExists = prev.find(item => item.id === obj.id);
+      if (isExists) {
+        return prev.filter(item => item.id !== obj.id); // Удаляем, если уже есть
+      }
+
+      // Проверка на один и тот же тип
+      if (prev.length > 0 && prev[0].category !== obj.category) {
+        alert(`Сравнивать можно только объекты одного типа! Сейчас выбрано: ${prev[0].category}`);
+        return prev;
+      }
+
+      // Проверка на лимит 3
+      if (prev.length >= 3) {
+        alert("Максимум 3 объекта для сравнения!");
+        return prev;
+      }
+
+      return [...prev, obj]; // Добавляем новый
+    });
+  };
 
   const activeFiltersText = useMemo(() => {
     const list = [];
@@ -278,8 +305,6 @@ const Home = () => {
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
-
-
 
   const toggleCategory = (cat) => {
     setFilters(prev => {
@@ -648,11 +673,38 @@ const Home = () => {
       <div className="results-bar">Найдено объектов: <b>{displayedObjects.length}</b></div>
 
       <div className="objects-grid">
-        {displayedObjects.map(obj => <ObjectCard key={obj.id} object={obj} />)}
+        {displayedObjects.map(obj => (
+          <ObjectCard
+            key={obj.id}
+            object={obj}
+            onCompareToggle={handleCompareToggle}
+            isInCompare={compareList.some(item => item.id === obj.id)}
+          />
+        ))}
       </div>
 
+      {/* --- SMART BAR (ПАНЕЛЬ СРАВНЕНИЯ) --- */}
+      {compareList.length > 0 && (
+        <div className="compare-bar-container">
+          <div className="compare-bar">
+            <div className="compare-info">
+              Выбрано: <strong>{compareList.length}</strong> {compareList.length === 1 ? 'объект' : 'объекта'} (тип: {compareList[0].category})
+            </div>
+            <div className="compare-actions">
+              <button className="btn-clear" onClick={() => setCompareList([])}>Очистить</button>
+              <button
+                className="btn-go-compare"
+                onClick={() => navigate(`/compare?ids=${compareList.map(o => o.id).join(',')}&category=${compareList[0].category}`)}
+              >
+                Перейти к сравнению
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="pagination-controls" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '20px', marginTop: '40px', paddingBottom: '40px' }}>
-        <button 
+        <button
           className="page-btn"
           onClick={() => setCurrentPage(prev => Math.max(0, prev - 1))}
           disabled={currentPage === 0}
@@ -668,7 +720,7 @@ const Home = () => {
           ← Назад
         </button>
         <span style={{ color: '#888', fontWeight: '600' }}>Страница {currentPage + 1} из {totalPages || 1}</span>
-        <button 
+        <button
           className="page-btn"
           onClick={() => setCurrentPage(prev => Math.min(totalPages - 1, prev + 1))}
           disabled={currentPage >= totalPages - 1}

@@ -9,6 +9,7 @@ import Admin from './pages/Admin';
 import Chats from './pages/Chats';
 import Portfolio from './pages/Portfolio';
 import PortfolioItemDetails from './pages/PortfolioItemDetails';
+import ComparisonPage from './pages/ComparisonPage';
 
 // Защищает обычные приватные страницы (если НЕТ токена -> на логин)
 const ProtectedRoute = ({ children }) => {
@@ -68,6 +69,14 @@ function App() {
           }
         />
 
+        <Route
+          path="/compare"
+          element={
+            <ProtectedRoute>
+              <ComparisonPage />
+            </ProtectedRoute>
+          }
+        />
 
         <Route
           path="/admin"
