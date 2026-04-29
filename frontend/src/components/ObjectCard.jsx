@@ -5,7 +5,7 @@ import { useCurrency } from '../context/CurrencyContext';
 
 const API_BASE_URL = "http://localhost:8080";
 
-const ObjectCard = ({ object, onCompareToggle, isInCompare }) => {
+const ObjectCard = ({ object, onCompareToggle, isInCompare, canCompare }) => {
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const navigate = useNavigate();
   const { convertPrice, formatPrice: formatCurrency } = useCurrency();
@@ -114,15 +114,18 @@ const ObjectCard = ({ object, onCompareToggle, isInCompare }) => {
     <div className={`object-card ${isInCompare ? 'in-compare' : ''}`} onClick={() => navigate(`/object/${object.id}`)}>
       <div className="object-card-image-container">
         {/* Кнопка добавления в сравнение */}
-        <button
-          className={`compare-toggle-btn ${isInCompare ? 'active' : ''}`}
-          onClick={handleCompareClick}
-          title={isInCompare ? "Убрать из сравнения" : "Добавить в сравнение"}
-        >
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-            <path d="M16 3h5v5M4 21L21 4M8 21H3v-5" />
-          </svg>
-        </button>
+        {/* Кнопка добавления в сравнение */}
+        {canCompare && (
+          <button
+            className={`compare-toggle-btn ${isInCompare ? 'active' : ''}`}
+            onClick={handleCompareClick}
+            title={isInCompare ? "Убрать из сравнения" : "Добавить в сравнение"}
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+              <path d="M16 3h5v5M4 21L21 4M8 21H3v-5" />
+            </svg>
+          </button>
+        )}
 
         <img
           src={images[currentImageIndex]}

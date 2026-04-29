@@ -180,7 +180,15 @@ const Home = () => {
   const { currency, setCurrency, convertPrice } = useCurrency();
 
   // --- ЛОГИКА ДОБАВЛЕНИЯ В СРАВНЕНИЕ ---
+  // --- ЛОГИКА ДОБАВЛЕНИЯ В СРАВНЕНИЕ ---
   const handleCompareToggle = (obj) => {
+    // Проверяем, что объект не сдается в аренду
+    // (Используем objectStatus или transactionType в зависимости от названия поля в БД)
+    if (obj.objectStatus === 'FOR_RENT' || obj.transactionType === 'FOR_RENT') {
+      alert("Сравнивать можно только объекты, выставленные на продажу!");
+      return;
+    }
+
     setCompareList(prev => {
       const isExists = prev.find(item => item.id === obj.id);
       if (isExists) {
@@ -679,6 +687,8 @@ const Home = () => {
             object={obj}
             onCompareToggle={handleCompareToggle}
             isInCompare={compareList.some(item => item.id === obj.id)}
+            // Добавляем флаг, чтобы в ObjectCard можно было скрыть кнопку
+            canCompare={obj.objectStatus !== 'FOR_RENT' && obj.transactionType !== 'FOR_RENT'}
           />
         ))}
       </div>
